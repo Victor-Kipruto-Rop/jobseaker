@@ -31,7 +31,7 @@ export default function LoginPage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Authentication failed");
-      window.location.assign("/");
+      window.location.assign("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to authenticate");
     } finally {
