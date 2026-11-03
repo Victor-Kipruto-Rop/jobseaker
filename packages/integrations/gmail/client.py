@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.core.config import get_settings
 from packages.database.models.career import OAuthState, EmailAccount, EmailMessage
+from packages.database.models.identity import User
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 JOB_QUERY = "in:anywhere {subject:job subject:career subject:vacancy subject:application subject:interview subject:recruitment subject:recruiter}"
@@ -51,9 +52,15 @@ def complete_authorization(db: Session, state: str, code: str) -> EmailAccount:
     state_hash = hashlib.sha256(state.encode()).hexdigest()
     record = db.scalar(select(OAuthState).where(
         OAuthState.state_hash == state_hash, OAuthState.consumed_at.is_(None),
-        OAuthState.expires_at > datetime.now(timezone.utc)))
+        OAuthState.expires_at > datetime.now(timezone.utc)).with_for_update())
     if not record:
         raise ValueError("OAuth state is invalid, expired, or already used.")
+    owner = db.get(User, record.user_id)
+    if not owner or not owner.is_active or owner.role != "candidate":
+        raise ValueError("OAuth state owner is not authorized to connect Gmail.")
+    # Consume the state before calling Google so concurrent callbacks cannot replay it.
+    record.consumed_at = datetime.now(timezone.utc)
+    db.commit()
     flow = _flow(state)
     flow.fetch_token(code=code)
     credentials = flow.credentials
@@ -72,7 +79,6 @@ def complete_authorization(db: Session, state: str, code: str) -> EmailAccount:
         account.email = mailbox
         account.encrypted_credentials = _encrypt(serialized)
         account.scopes = SCOPES
-    record.consumed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(account)
     return account
