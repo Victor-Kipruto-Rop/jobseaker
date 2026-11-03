@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from packages.database.models.entities import Approval
-from packages.database.models.career import AuditLog
+from packages.database.models.career import AuditLog, Application, ApplicationEvent
 
 def create_approval(db: Session, user_id: int, action_type: str, payload: dict, rationale: str):
     row = Approval(user_id=user_id, action_type=action_type, payload=payload,
@@ -32,11 +32,32 @@ def decide_approval(db: Session, user_id: int, approval_id: int, decision: str, 
         return None
     if row.status != "pending":
         raise ValueError("Only pending approvals can be decided")
+
+    application = None
+    if row.action_type == "application_submission":
+        application_id = (row.payload or {}).get("application_id")
+        if not isinstance(application_id, int) or application_id <= 0:
+            raise ValueError("Application submission approvals require a valid application_id")
+        application = db.scalar(select(Application).where(
+            Application.id == application_id, Application.user_id == user_id).with_for_update())
+        if not application:
+            raise ValueError("The application does not exist or is not owned by this account")
+        if application.status != "ready":
+            raise ValueError("Only ready applications can receive submission approval")
+
+    now = datetime.now(timezone.utc)
     row.status = decision
     row.decision_note = note
-    row.decided_at = datetime.now(timezone.utc)
+    row.decided_at = now
     db.add(AuditLog(user_id=user_id, action="approval." + decision,
                     resource_type=row.action_type, resource_id=str(row.id)))
+    if application is not None:
+        event = "application.submission_approval_granted" if decision == "approved" else "application.submission_approval_rejected"
+        if decision == "approved":
+            application.status = "approved"
+        db.add(ApplicationEvent(user_id=user_id, application_id=application.id,
+                                event_type=event,
+                                details={"approval_id": row.id, "decision": decision}))
     db.commit()
     return {"id": row.id, "status": row.status, "decision_note": row.decision_note,
             "decided_at": row.decided_at.isoformat()}
