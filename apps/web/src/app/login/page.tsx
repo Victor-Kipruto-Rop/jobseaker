@@ -58,6 +58,7 @@ export default function LoginPage() {
         <label style={{display:"block",fontSize:13,color:"#a7b8ad",marginBottom:8}}>Password<input required minLength={mode === "register" ? 12 : 1} maxLength={128} type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} style={field}/></label>
         {mode === "register" && <small style={{color:"#81958a"}}>Use at least 12 characters.</small>}
         {error && <p role="alert" style={{color:"#ff9b87",fontSize:13}}>{error}</p>}
+        {mode === "login" && <p style={{textAlign:"right",fontSize:12}}><a href="/forgot-password" style={{color:"#54d69a"}}>Forgot password?</a></p>}
         <button disabled={busy} type="submit" style={{width:"100%",marginTop:20,padding:14,background:"#54d69a",border:0,borderRadius:10,fontWeight:800,color:"#07110c",cursor:"pointer"}}>{busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}</button>
         <p style={{textAlign:"center",fontSize:13,color:"#a7b8ad",marginTop:22}}>{mode === "login" ? "New to JobSeeker?" : "Already have an account?"} <button type="button" onClick={()=>{setMode(mode==="login"?"register":"login");setError("");}} style={{background:"none",border:0,color:"#54d69a",cursor:"pointer",fontWeight:700}}>{mode==="login"?"Create account":"Sign in"}</button></p>
       </form>
