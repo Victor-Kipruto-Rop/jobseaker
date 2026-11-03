@@ -19,7 +19,7 @@ from apps.api.app.api.v1.ai.routes import conversations, conversation_messages, 
 from apps.api.app.api.v1.integrations.gmail_routes import account, messages, disconnect
 from apps.api.app.api.v1.profile.routes import get_profile, ProfileUpdate, update_profile
 from apps.api.app.api.v1.saved_searches.routes import (
-    SavedSearchInput, list_saved_searches, create_saved_search, delete_saved_search,
+    list_saved_searches, delete_saved_search,
 )
 from apps.api.app.api.v1.notifications.routes import list_notifications, mark_read
 from apps.api.app.api.v1.companies.routes import list_companies
