@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import Literal
-import re
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
@@ -9,6 +8,7 @@ from packages.database.models.identity import User
 from packages.database.models.career import SavedSearch
 
 router = APIRouter()
+
 class SavedSearchInput(BaseModel):
     name: str = Field(min_length=2, max_length=160)
     source: Literal["greenhouse", "lever"]
@@ -18,7 +18,7 @@ class SavedSearchInput(BaseModel):
 @router.get("")
 def list_saved_searches(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(SavedSearch).where(SavedSearch.user_id == user.id)
-                      .order_by(SavedSearch.created_at.desc())).all()
+                      .order_by(SavedSearch.created_at.desc()).limit(100)).all()
     return [{"id": row.id, "name": row.name, "query": row.query,
              "created_at": row.created_at} for row in rows]
 
@@ -26,9 +26,14 @@ def list_saved_searches(user: User = Depends(get_current_user), db: Session = De
 def create_saved_search(body: SavedSearchInput, user: User = Depends(get_current_user),
                         db: Session = Depends(get_db)):
     board = body.board.strip().lower()
-    if not board.replace("-", "").isalnum():
-        raise HTTPException(status_code=422, detail="Invalid job board identifier")
-    row = SavedSearch(user_id=user.id, name=body.name,
+    if db.scalar(select(SavedSearch.id).where(
+        SavedSearch.user_id == user.id, SavedSearch.name == body.name
+    )):
+        raise HTTPException(status_code=409, detail="A saved search with this name already exists")
+    count = db.scalar(select(func.count(SavedSearch.id)).where(SavedSearch.user_id == user.id)) or 0
+    if count >= 50:
+        raise HTTPException(status_code=409, detail="The limit of 50 saved searches has been reached")
+    row = SavedSearch(user_id=user.id, name=body.name.strip(),
         query={"source": body.source, "board": board, "company_name": body.company_name})
     db.add(row)
     db.commit()
@@ -38,7 +43,8 @@ def create_saved_search(body: SavedSearchInput, user: User = Depends(get_current
 @router.delete("/{search_id}", status_code=204)
 def delete_saved_search(search_id: int, user: User = Depends(get_current_user),
                         db: Session = Depends(get_db)):
-    row = db.scalar(select(SavedSearch).where(SavedSearch.id == search_id, SavedSearch.user_id == user.id))
+    row = db.scalar(select(SavedSearch).where(
+        SavedSearch.id == search_id, SavedSearch.user_id == user.id))
     if not row:
         raise HTTPException(status_code=404, detail="Saved search not found")
     db.delete(row)
