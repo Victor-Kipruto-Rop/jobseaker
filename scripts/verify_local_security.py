@@ -21,19 +21,19 @@ def run(command: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = No
     subprocess.run(command, cwd=cwd, env=env, check=True)
 
 
-def wait_for_api(url: str, timeout_seconds: int = 240) -> None:
+def wait_for_http(url: str, label: str, timeout_seconds: int = 240) -> None:
     deadline = time.monotonic() + timeout_seconds
     last_error: Exception | None = None
     while time.monotonic() < deadline:
         try:
             with urlopen(url, timeout=3) as response:
                 if response.status == 200:
-                    print(f"API readiness confirmed: {url}", flush=True)
+                    print(f"{label} readiness confirmed: {url}", flush=True)
                     return
         except (URLError, TimeoutError, OSError) as exc:
             last_error = exc
         time.sleep(3)
-    raise RuntimeError(f"API did not become healthy within {timeout_seconds}s: {last_error}")
+    raise RuntimeError(f"{label} did not become healthy within {timeout_seconds}s: {last_error}")
 
 
 def _local_secret() -> str:
@@ -91,8 +91,8 @@ def main() -> int:
     try:
         run(compose + ["config", "--quiet"], env=local_env)
         run(compose + ["up", "--build", "-d"], env=local_env)
-        wait_for_api("http://127.0.0.1:8000/health/ready")
-        wait_for_api("http://127.0.0.1:3000")
+        wait_for_http("http://127.0.0.1:8000/health/ready", "API")
+        wait_for_http("http://127.0.0.1:3000", "Web frontend")
 
         service_status = subprocess.run(
             compose + ["ps", "--services", "--status", "running"],
