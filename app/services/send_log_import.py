@@ -9,7 +9,7 @@ from app.models import SourceImportRow
 
 
 ALIASES = {
-    "message_id": ("gmail_message_id", "message_id", "gmail_id", "id"),
+    "message_id": ("gmail_message_id", "message_id", "gmail_id"),
     "thread_id": ("gmail_thread_id", "thread_id", "gmail_thread"),
     "organization": ("organization", "company", "company_name", "employer"),
     "recipient": ("recipient", "to", "email", "recipient_email"),
@@ -62,7 +62,7 @@ def parse_send_log(content: bytes):
 
 def import_send_log(db: Session, content: bytes, filename: str, *, dry_run: bool = False) -> SendLogReport:
     rows = parse_send_log(content)
-    file_hash = hashlib.sha256(content).hexdigest()
+    file_hash = hashlib.sha256(filename.replace("\\\\", "/").split("/")[-1].strip().lower().encode("utf-8")).hexdigest()
     report = SendLogReport(total_rows=len(rows), errors=[])
     for index, (payload, normalized) in enumerate(rows, start=2):
         row_hash = hashlib.sha256(
