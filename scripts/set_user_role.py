@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 
+from apps.api.app.core.config import get_settings
 from packages.database.sessions import SessionLocal
 from packages.security.rbac import set_user_role
 
@@ -16,7 +17,7 @@ def main() -> int:
     parser.add_argument("--confirm-email", required=True, help="Repeat the exact target email.")
     args = parser.parse_args()
 
-    if os.getenv("ADMIN_BOOTSTRAP_ENABLED", "").lower() != "true":
+    if not get_settings().admin_bootstrap_enabled:
         print("Refusing role change: ADMIN_BOOTSTRAP_ENABLED must be true.", file=sys.stderr)
         return 2
     if args.email.strip().lower() != args.confirm_email.strip().lower():
