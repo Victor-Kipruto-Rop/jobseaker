@@ -1,5 +1,8 @@
 import hashlib
 import hmac
+import re
+import time
+from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -10,12 +13,14 @@ from apps.api.app.lifespan import lifespan
 from apps.api.app.api.v1.router import router
 from apps.api.app.health.routes import router as health_router
 from packages.database.sessions import SessionLocal
+import structlog
 
 s = get_settings()
 app = FastAPI(title="JobSeeker Intelligence", version="0.3.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=s.allowed_origins, allow_credentials=True,
                    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-                   allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-CSRF-Token"])
+                   allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-CSRF-Token"],
+                   expose_headers=["X-Request-ID"])
 
 @app.middleware("http")
 async def csrf_protection(request: Request, call_next):
@@ -67,3 +72,24 @@ app.include_router(router, prefix="/api/v1")
 @app.get("/")
 def root():
     return {"name": "JobSeeker Intelligence", "version": "0.3.0", "docs": "/docs"}
+
+_request_logger = structlog.get_logger("jobseeker.http")
+
+@app.middleware("http")
+async def request_context(request: Request, call_next):
+    supplied = request.headers.get("x-request-id", "")
+    request_id = supplied if re.fullmatch(r"[A-Za-z0-9._-]{8,80}", supplied) else uuid4().hex
+    request.state.request_id = request_id
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        _request_logger.exception("http.request.failed", request_id=request_id,
+                                  method=request.method, path=request.url.path)
+        raise
+    duration_ms = round((time.perf_counter() - started) * 1000, 2)
+    response.headers["X-Request-ID"] = request_id
+    _request_logger.info("http.request.completed", request_id=request_id,
+                         method=request.method, path=request.url.path,
+                         status_code=response.status_code, duration_ms=duration_ms)
+    return response
