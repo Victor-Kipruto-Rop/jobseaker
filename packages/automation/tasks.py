@@ -1,7 +1,8 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from packages.database.sessions import SessionLocal
+from packages.database.models.entities import AIUsageReservation
 from packages.database.models.career import CandidateOpportunity, Interview, Notification, SavedSearch
 from packages.integrations.job_boards.connectors import discover_greenhouse, discover_lever
 from apps.api.app.core.config import get_settings
@@ -64,3 +65,12 @@ def create_upcoming_interview_reminders():
             created += 1
         db.commit()
         return {"reminders_created": created}
+
+def cleanup_expired_ai_reservations():
+    """Purge terminal or abandoned AI reservation metadata after a 30-day retention window."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    with SessionLocal() as db:
+        result = db.execute(delete(AIUsageReservation).where(
+            AIUsageReservation.expires_at < cutoff))
+        db.commit()
+        return {"deleted_reservations": int(result.rowcount or 0)}
