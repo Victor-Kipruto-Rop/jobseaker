@@ -119,3 +119,30 @@ def test_authenticated_mutation_requires_session_bound_csrf_token(client, monkey
     )
     assert rejected.status_code == 403
     assert rejected.json()["detail"] == "CSRF session binding failed"
+
+
+def test_account_me_requires_a_valid_session(client):
+    response = client.get("/api/v1/auth/me")
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Authentication required"
+
+
+def test_logout_requires_csrf_handshake_and_valid_session(client):
+    response = client.post(
+        "/api/v1/auth/logout",
+        cookies={"jobseeker_csrf": "valid-double-submit"},
+        headers={"X-CSRF-Token": "valid-double-submit"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Authentication required"
+
+
+def test_gmail_oauth_callback_rejects_unknown_state_without_creating_a_session(client):
+    response = client.get(
+        "/api/v1/integrations/gmail/callback",
+        params={
+            "state": "unknown-state-token-long-enough-123456",
+            "code": "authorization-code",
+        },
+    )
+    assert response.status_code == 400
