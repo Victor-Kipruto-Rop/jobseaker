@@ -66,3 +66,15 @@ def test_submission_approval_cannot_target_another_users_application():
         with pytest.raises(ValueError):
             decide_approval(db, owner.id, created["id"], "approved")
     Base.metadata.drop_all(engine)
+
+@pytest.mark.parametrize("payload", [[], {}, {"application_id": True}, {"application_id": 0}])
+def test_malformed_application_approval_payload_is_rejected(payload):
+    engine = _database()
+    with Session(engine) as db:
+        owner = User(email="malformed@example.com", password_hash="x")
+        db.add(owner)
+        db.commit()
+        created = create_approval(db, owner.id, "application_submission", payload, "Test invalid payload")
+        with pytest.raises(ValueError):
+            decide_approval(db, owner.id, created["id"], "approved")
+    Base.metadata.drop_all(engine)
