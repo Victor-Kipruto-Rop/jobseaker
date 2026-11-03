@@ -4,7 +4,7 @@ import re
 # not proof of candidate proficiency or a prediction of hiring outcomes.
 JOB_SKILL_TAXONOMY = (
     "apache spark", "spark sql", "data modeling", "dimensional modeling",
-    "data warehousing", "data warehouse", "machine learning", "great expectations",
+    "data warehousing", "machine learning", "great expectations",
     "delta lake", "power bi", "data quality", "bigquery", "postgresql",
     "databricks", "kubernetes", "snowflake", "redshift", "terraform",
     "airflow", "kafka", "python", "sql", "etl", "elt", "dbt", "flink",
@@ -15,7 +15,7 @@ JOB_SKILL_TAXONOMY = (
     "aws glue", "aws emr", "s3", "azure data factory", "synapse analytics",
     "microsoft fabric", "dataflow", "pub sub", "cloud composer",
     "google cloud storage", "spark streaming", "kafka connect",
-    "debezium", " dbt core", "data contracts", "schema registry",
+    "debezium", "data contracts", "schema registry",
     "data governance", "data observability", "data lineage",
 )
 
