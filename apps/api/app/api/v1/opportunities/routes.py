@@ -8,6 +8,7 @@ from packages.integrations.url_validation import validate_http_url
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
+from apps.api.app.core.config import get_settings
 from packages.ai.agents.job_matching.agent import score_job
 from packages.database.models.identity import User
 from packages.database.models.career import CandidateOpportunity, CandidateSkill
