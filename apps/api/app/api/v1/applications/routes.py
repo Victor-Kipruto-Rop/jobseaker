@@ -5,7 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
-from packages.database.models.career import Application, ApplicationEvent, CandidateOpportunity\nfrom packages.integrations.url_validation import validate_http_url
+from packages.database.models.career import Application, ApplicationEvent, CandidateOpportunity
+from packages.integrations.url_validation import validate_http_url
 
 router = APIRouter()
 STATUSES = {"draft", "ready", "approved", "submitted", "screening", "interview",
@@ -30,10 +31,20 @@ class ApplicationCreate(BaseModel):
     notes: str = Field(default="", max_length=10000)
     opportunity_id: int | None = None
 
+    @field_validator("job_url")
+    @classmethod
+    def safe_job_url(cls, value):
+        return validate_http_url(value or "")
+
 class ApplicationUpdate(BaseModel):
     status: str | None = None
     notes: str | None = Field(default=None, max_length=10000)
     job_url: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("job_url")
+    @classmethod
+    def safe_job_url(cls, value):
+        return validate_http_url(value or "")
 
 def _serialize(row):
     return {"id": row.id, "role_title": row.role_title, "company_name": row.company_name,
@@ -86,6 +97,11 @@ def update_application(application_id: int, body: ApplicationUpdate,
         db.add(ApplicationEvent(user_id=user.id, application_id=row.id,
                                 event_type="application.status_changed",
                                 details={"from": before, "to": status}))
+    changed_fields = {key: True for key in values if key != "status" and values[key] is not None}
+    if changed_fields:
+        db.add(ApplicationEvent(user_id=user.id, application_id=row.id,
+                                event_type="application.details_updated",
+                                details={"fields": changed_fields}))
     db.commit()
     return _serialize(row)
 
