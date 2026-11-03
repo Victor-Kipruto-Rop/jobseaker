@@ -21,7 +21,7 @@ Keep APP_ENV=local. Replace APP_SECRET_KEY with a random local value. AI provide
    docker compose -f infrastructure/compose/docker-compose.yml config
    docker compose -f infrastructure/compose/docker-compose.yml up --build
 
-The stack includes API, Next.js web, RQ worker, RQ scheduler, PostgreSQL, and Redis.
+The stack includes a one-shot Alembic migration service, API, Next.js web, RQ worker, RQ scheduler, PostgreSQL, and Redis. The API, worker, and scheduler wait for the migration service to complete successfully before starting.
 
 ## Local URLs
 
@@ -33,7 +33,7 @@ The stack includes API, Next.js web, RQ worker, RQ scheduler, PostgreSQL, and Re
 
 ## Database migrations
 
-Local and test environments apply Alembic migrations at API startup. To apply them manually:
+The Compose stack runs Alembic as an explicit prerequisite service before the API, worker, and scheduler start. Local non-Compose development and test environments also apply migrations at API startup. To apply them manually:
 
    alembic upgrade head
 
