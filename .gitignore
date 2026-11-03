@@ -22,4 +22,3 @@ client_secret*.json
 token.json
 *resume*.pdf
 *cv*.pdf
-\n# Local user uploads and development databases\ndata/uploads/\n*.db\n
