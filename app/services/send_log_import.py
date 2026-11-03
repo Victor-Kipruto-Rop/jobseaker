@@ -10,8 +10,8 @@ from app.models import SourceImportRow
 
 
 ALIASES = {
-    "message_id": ("gmail_message_id", "message_id", "gmail_id"),
-    "thread_id": ("gmail_thread_id", "thread_id", "gmail_thread"),
+    "message_id": ("gmail_message_id", "message_id", "gmail_id", "gmail_api_message_id"),
+    "thread_id": ("gmail_thread_id", "thread_id", "gmail_thread", "gmail_api_thread_id"),
     "organization": ("organization", "company", "company_name", "employer"),
     "recipient": ("recipient", "to", "email", "recipient_email"),
     "status": ("status", "send_status", "outreach_status"),
