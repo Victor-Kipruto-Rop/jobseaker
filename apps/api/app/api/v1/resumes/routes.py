@@ -3,6 +3,7 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
+import os
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -101,12 +102,20 @@ async def upload_resume(file: UploadFile = File(...), user: User = Depends(get_c
         raise HTTPException(status_code=400, detail="Invalid storage location")
     stored_name = uuid4().hex + Path(filename).suffix.lower()
     destination = user_dir / stored_name
-    destination.write_bytes(data)
-    row = ResumeDocument(user_id=user.id, filename=filename[:255], content_type=content_type,
-                         storage_key=f"{user.id}/{stored_name}", extracted_text=extracted, version=1)
-    db.add(row)
-    db.commit()
-    db.refresh(row)
+    temporary = user_dir / (stored_name + ".tmp")
+    try:
+        temporary.write_bytes(data)
+        os.replace(temporary, destination)
+        row = ResumeDocument(user_id=user.id, filename=filename[:255], content_type=content_type,
+                             storage_key=f"{user.id}/{stored_name}", extracted_text=extracted, version=1)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    except Exception:
+        db.rollback()
+        temporary.unlink(missing_ok=True)
+        destination.unlink(missing_ok=True)
+        raise
     return {"id": row.id, "filename": row.filename, "content_type": row.content_type,
             "version": row.version, "extracted_characters": len(extracted)}
 
@@ -146,3 +155,21 @@ def analyze_resume(resume_id: int, body: ATSRequest, user: User = Depends(get_cu
             "coverage_score": score, "matched_terms": matched[:100],
             "missing_terms": missing[:100],
             "warning": "Heuristic keyword coverage only. It is not a commercial ATS score and does not assess context or truthfulness."}
+
+@router.delete("/{resume_id}", status_code=204)
+def delete_resume(resume_id: int, user: User = Depends(get_current_user),
+                  db: Session = Depends(get_db)):
+    row = db.scalar(select(ResumeDocument).where(
+        ResumeDocument.id == resume_id, ResumeDocument.user_id == user.id))
+    if not row:
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    root = Path(get_settings().storage_path).resolve()
+    stored_path = (root / row.storage_key).resolve()
+    if root not in stored_path.parents:
+        raise HTTPException(status_code=409, detail="Stored resume path is outside the configured storage directory")
+
+    db.delete(row)
+    db.commit()
+    stored_path.unlink(missing_ok=True)
+    return None
