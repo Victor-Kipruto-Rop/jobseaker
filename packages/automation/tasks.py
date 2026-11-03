@@ -4,6 +4,7 @@ from sqlalchemy import select
 from packages.database.sessions import SessionLocal
 from packages.database.models.career import CandidateOpportunity, Interview, Notification, SavedSearch
 from packages.integrations.job_boards.connectors import discover_greenhouse, discover_lever
+from apps.api.app.core.config import get_settings
 
 def run_saved_search_discovery():
     """Run only explicitly configured saved searches against supported public APIs."""
@@ -52,7 +53,7 @@ def create_upcoming_interview_reminders():
         for interview in interviews:
             marker = f"interview:{interview.id}"
             exists = db.scalar(select(Notification.id).where(
-                Notification.user_id == interview.user_id, Notification.body == marker))
+                Notification.user_id == interview.user_id, Notification.body.like(marker + "%")))
             if exists:
                 continue
             db.add(Notification(user_id=interview.user_id, title="Upcoming interview",
