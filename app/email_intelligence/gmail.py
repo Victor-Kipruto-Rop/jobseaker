@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from email.utils import parseaddr
+from pathlib import Path
 
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -20,8 +21,10 @@ def get_gmail_service():
         raise RuntimeError("GMAIL_ENABLED must be true before starting Gmail sync.")
     if not settings.gmail_client_secret_file or not settings.gmail_token_file:
         raise RuntimeError("Set GMAIL_CLIENT_SECRET_FILE and GMAIL_TOKEN_FILE before Gmail sync.")
+    token_path = Path(settings.gmail_token_file)
+    token_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        creds = Credentials.from_authorized_user_file(settings.gmail_token_file, SCOPES)
+        creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
     except (OSError, ValueError):
         creds = None
     if not creds or not creds.valid:
@@ -31,7 +34,7 @@ def get_gmail_service():
         else:
             flow = InstalledAppFlow.from_client_secrets_file(settings.gmail_client_secret_file, SCOPES)
             creds = flow.run_local_server(port=0, access_type="offline", prompt="consent")
-        with open(settings.gmail_token_file, "w", encoding="utf-8") as token_file:
+        with token_path.open("w", encoding="utf-8") as token_file:
             token_file.write(creds.to_json())
     return build("gmail", "v1", credentials=creds, cache_discovery=False)
 
