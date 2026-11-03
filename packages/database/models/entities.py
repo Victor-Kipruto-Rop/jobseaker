@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, DateTime, Float, JSON
+from sqlalchemy import String, Text, DateTime, Float, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from packages.database.models.base import Base
 
@@ -33,6 +33,7 @@ class Approval(Base):
 class AIUsage(Base):
     __tablename__ = "ai_usage"
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     provider: Mapped[str] = mapped_column(String(40), index=True)
     model: Mapped[str] = mapped_column(String(120))
     input_tokens: Mapped[int] = mapped_column(default=0)
