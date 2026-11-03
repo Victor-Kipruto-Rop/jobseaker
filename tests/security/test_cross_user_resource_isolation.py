@@ -17,6 +17,22 @@ from apps.api.app.api.v1.recruiters.routes import RecruiterInput, create_recruit
 from apps.api.app.api.v1.interviews.routes import InterviewInput, create_interview, list_interviews
 from apps.api.app.api.v1.ai.routes import conversations, conversation_messages, usage, get_budget, update_budget, BudgetUpdate
 from apps.api.app.api.v1.integrations.gmail_routes import account, messages, disconnect
+from apps.api.app.api.v1.profile.routes import get_profile, ProfileUpdate, update_profile
+from apps.api.app.api.v1.saved_searches.routes import (
+    SavedSearchInput, list_saved_searches, create_saved_search, delete_saved_search,
+)
+from apps.api.app.api.v1.notifications.routes import list_notifications, mark_read
+from apps.api.app.api.v1.companies.routes import list_companies
+from apps.api.app.api.v1.opportunities.routes import list_opportunities
+from apps.api.app.api.v1.applications.routes import list_applications, application_events
+from apps.api.app.api.v1.career_tools.routes import (
+    list_artifacts, get_artifact, update_artifact, ArtifactUpdate,
+)
+from apps.api.app.api.v1.automations.routes import approvals, approval_decision, ApprovalDecision
+from packages.automation.approvals.service import create_approval
+from packages.database.models.entities import AIUsage
+from packages.integrations.gmail import client as gmail_client
+from packages.automation import tasks
 
 
 @pytest.fixture
@@ -130,22 +146,6 @@ def test_gmail_account_messages_and_disconnect_are_owner_scoped(db, users):
     assert disconnect(owner, db) == {"connected": False}
     assert db.scalar(select(EmailAccount).where(EmailAccount.user_id == other.id)) is not None
     assert db.scalar(select(EmailMessage).where(EmailMessage.user_id == other.id)) is not None
-
-
-from apps.api.app.api.v1.profile.routes import get_profile, ProfileUpdate, update_profile
-from apps.api.app.api.v1.saved_searches.routes import (
-    SavedSearchInput, list_saved_searches, create_saved_search, delete_saved_search,
-)
-from apps.api.app.api.v1.notifications.routes import list_notifications, mark_read
-from apps.api.app.api.v1.companies.routes import list_companies
-from apps.api.app.api.v1.opportunities.routes import list_opportunities
-from apps.api.app.api.v1.applications.routes import list_applications, application_events
-from apps.api.app.api.v1.career_tools.routes import list_artifacts, get_artifact, update_artifact, ArtifactUpdate
-from apps.api.app.api.v1.automations.routes import approvals, approval_decision, ApprovalDecision
-from packages.automation.approvals.service import create_approval
-from packages.database.models.entities import AIUsage
-from packages.integrations.gmail import client as gmail_client
-from packages.automation import tasks
 
 
 def test_profile_skills_and_saved_searches_are_owner_scoped(db, users):
@@ -336,7 +336,6 @@ def test_candidate_skills_ai_usage_and_budgets_are_owner_scoped(db, users):
 def test_interview_reminder_worker_keeps_notifications_with_interview_owner(db, users, monkeypatch):
     owner, other = users
     from datetime import datetime, timedelta, timezone
-    from sqlalchemy import select
 
     scheduled = datetime.now(timezone.utc) + timedelta(hours=2)
     db.add_all([
