@@ -17,7 +17,12 @@ router = APIRouter()
 class MatchRequest(BaseModel):
     title: str = Field(min_length=2, max_length=250)
     description: str = Field(min_length=20, max_length=20000)
-    skills: list[str] = Field(default_factory=list, max_length=100)\n\n    @field_validator("skills")\n    @classmethod\n    def normalize_skills(cls, values):\n        return list(dict.fromkeys(value.strip()[:120] for value in values if value.strip()))
+    skills: list[str] = Field(default_factory=list, max_length=100)
+
+    @field_validator("skills")
+    @classmethod
+    def normalize_skills(cls, values):
+        return list(dict.fromkeys(value.strip()[:120] for value in values if value.strip()))
 
 class DiscoveryRequest(BaseModel):
     source: Literal["greenhouse", "lever"]
