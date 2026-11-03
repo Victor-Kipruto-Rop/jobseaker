@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from packages.ai.providers.registry import get_registry
+from packages.ai.budget import record_ai_usage
 from packages.ai.providers.base import GenerationRequest
 from packages.ai.providers.router import generate_with_fallback
 from packages.database.models import AIUsage
