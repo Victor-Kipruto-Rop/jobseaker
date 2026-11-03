@@ -86,6 +86,11 @@ def login(body: LoginRequest, request: Request, response: Response, db: Session 
     user = db.scalar(select(User).where(User.email == body.email.lower()))
     if not user or not verify_password(body.password, user.password_hash) or not user.is_active:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    # Rotate an existing session presented by this browser without logging out
+    # the user's other devices.
+    previous = resolve_session(db, request.cookies.get(COOKIE_NAME))
+    if previous:
+        revoke_session(db, previous[1])
     token, csrf_token, expires = create_session(db, user)
     db.add(AuditLog(user_id=user.id, action="account.login"))
     db.commit()
