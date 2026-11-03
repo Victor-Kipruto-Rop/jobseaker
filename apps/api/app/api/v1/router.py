@@ -24,3 +24,5 @@ router.include_router(interviews, prefix="/interviews", tags=["interviews"])
 router.include_router(analytics, prefix="/analytics", tags=["career analytics"])
 from apps.api.app.api.v1.saved_searches.routes import router as saved_searches
 router.include_router(saved_searches, prefix="/saved-searches", tags=["saved searches"])
+from apps.api.app.api.v1.notifications.routes import router as notifications
+router.include_router(notifications, prefix="/notifications", tags=["notifications"])
