@@ -34,4 +34,6 @@ def require_roles(*allowed_roles: str):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return user
 
+    role_guard.required_roles = normalized
+    role_guard.__name__ = "role_guard_" + "_".join(sorted(normalized))
     return role_guard
