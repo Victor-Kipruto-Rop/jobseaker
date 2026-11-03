@@ -54,7 +54,8 @@ Do not add arbitrary URL fetching as a job source. New providers require a dedic
 3. A configured provider is selected through the provider registry and fallback router.
 4. Generation has bounded input and output sizes and a request timeout.
 5. The generated result is stored as a user-owned draft with provider/model provenance.
-6. Token usage is recorded. Monetary cost remains unknown until a verified, dated pricing catalog is configured.
+6. Token usage is recorded. Hard token budgets reserve estimated capacity in a short transaction before provider calls, expire abandoned reservations, and reconcile completed requests to actual usage.
+7. Monthly threshold notifications are emitted once per account/month. Monetary cost remains unknown until a verified, dated pricing catalog is configured.
 
 Never turn an AI response into an application submission, email, or other external action without a separate explicit approval workflow. Never invent candidate facts to improve a generated document.
 
