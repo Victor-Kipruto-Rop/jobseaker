@@ -77,3 +77,26 @@ async def discover_lever(site: str, limit: int = 100) -> list[dict]:
             "remote_type": "unspecified",
         })
     return jobs
+
+
+def filter_jobs(jobs: list[dict], *, keywords: list[str] | None = None,
+                location: str | None = None, remote_only: bool = False) -> list[dict]:
+    """Apply deterministic saved-search filters to normalized job records."""
+    normalized_keywords = [item.strip().casefold() for item in (keywords or []) if item.strip()]
+    location_term = (location or "").strip().casefold()
+    remote_terms = ("remote", "distributed", "work from home", "work-from-home", "anywhere")
+    filtered = []
+    for job in jobs:
+        title = str(job.get("title") or "")
+        description = str(job.get("description") or "")
+        job_location = str(job.get("location") or "")
+        haystack = f"{title} {description}".casefold()
+        if normalized_keywords and not any(term in haystack for term in normalized_keywords):
+            continue
+        if location_term and location_term not in f"{job_location} {description}".casefold():
+            continue
+        if remote_only and not any(term in f"{title} {description} {job_location}".casefold()
+                                   for term in remote_terms):
+            continue
+        filtered.append(job)
+    return filtered
