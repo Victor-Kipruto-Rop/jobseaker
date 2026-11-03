@@ -23,6 +23,7 @@ class Opportunity(Base):
 class Approval(Base):
     __tablename__ = "approvals"
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     action_type: Mapped[str] = mapped_column(String(80), index=True)
     payload: Mapped[dict] = mapped_column(JSON)
     rationale: Mapped[str] = mapped_column(Text)
