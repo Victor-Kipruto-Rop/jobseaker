@@ -86,6 +86,7 @@ export default function Discovery() {
   }
 
   async function saveSearch() {
+    if (!board.trim()) { setError("Enter a board identifier before saving this search."); return; }
     setError("");
     setSaving(true);
     try {
@@ -148,6 +149,9 @@ export default function Discovery() {
             <input style={input} maxLength={120} placeholder="e.g. Nairobi, Africa" value={location} onChange={(event) => setLocation(event.target.value)} />
           </label>
         </div>
+        <label style={{ ...label, marginTop: 14 }}>Saved search name (optional)
+          <input style={input} maxLength={160} placeholder="e.g. Data engineering roles in Africa" value={name} onChange={(event) => setName(event.target.value)} />
+        </label>
         <label style={{ ...label, marginTop: 14 }}>Keywords (comma or line separated)
           <input style={input} placeholder="Data Engineer, Python, Spark, dbt" value={keywords} onChange={(event) => setKeywords(event.target.value)} />
         </label>
