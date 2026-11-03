@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.core.config import get_settings
 from apps.api.app.dependencies import get_current_user, get_db
@@ -11,9 +11,8 @@ from packages.ai.budget import AIQuotaExceeded, finish_ai_reservation, record_ai
 from packages.ai.providers.registry import get_registry
 from packages.ai.providers.router import generate_with_fallback
 from packages.database.models.identity import User
-from packages.database.models.entities import AIUsage
 from packages.database.models.career import (
-    UserAIBudget, ResumeDocument, CandidateSkill, CandidateProfile, GeneratedArtifact, AuditLog,
+    ResumeDocument, CandidateSkill, CandidateProfile, GeneratedArtifact, AuditLog,
 )
 
 router = APIRouter()
