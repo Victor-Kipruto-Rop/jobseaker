@@ -22,3 +22,7 @@ client_secret*.json
 token.json
 *resume*.pdf
 *cv*.pdf
+
+# Local OAuth credentials and client secrets
+secrets/*
+!secrets/.gitkeep
