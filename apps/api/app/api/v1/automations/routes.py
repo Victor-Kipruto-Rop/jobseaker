@@ -1,9 +1,14 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from typing import Literal
 from apps.api.app.dependencies import get_current_user
 from packages.database.models.identity import User
-from packages.automation.approvals.service import create_approval, list_approvals
+from packages.automation.approvals.service import create_approval, list_approvals, decide_approval
 router = APIRouter()
+
+class ApprovalDecision(BaseModel):
+    decision: Literal["approved", "rejected"]
+    note: str = Field(default="", max_length=2000)
 
 class ApprovalRequest(BaseModel):
     action_type: str = Field(min_length=2, max_length=80)
