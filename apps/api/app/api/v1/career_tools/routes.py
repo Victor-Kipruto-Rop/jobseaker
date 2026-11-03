@@ -154,7 +154,7 @@ async def skills_roadmap(body: RoadmapRequest, user: User = Depends(get_current_
         "define measurable outcomes, and separate existing skills from gaps. Do not assume "
         "the candidate has credentials or experience not listed.\nTarget role: " + body.target_role +
         "\nCandidate headline: " + (profile.headline if profile else "") +
-        "\nRecorded skills: " + ", ".join(item.skill_name for item in skills)
+        "\nRecorded skills and evidence: " + _format_skill_evidence(skills)
     )
     return await _generate(user, db, "skills_roadmap", "Skills roadmap: " + body.target_role,
         prompt, "You are a data and analytics engineering learning strategist. Be specific and evidence-aware.",
