@@ -135,9 +135,7 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user),
     db.add(AIMessage(user_id=user.id, conversation_id=conversation.id, role="user", content=body.message))
     db.add(AIMessage(user_id=user.id, conversation_id=conversation.id, role="assistant",
                      content=generated.text, provider=actual_provider, model=generated.model))
-    db.add(AIUsage(user_id=user.id, provider=actual_provider, model=generated.model,
-                   input_tokens=input_tokens, output_tokens=output_tokens,
-                   estimated_cost_usd=None, created_at=now))
+    record_ai_usage(db, user.id, actual_provider, generated.model, input_tokens, output_tokens, now)
     conversation.updated_at = now
     db.commit()
     return {"conversation_id": conversation.id, "provider": actual_provider, "model": generated.model,
