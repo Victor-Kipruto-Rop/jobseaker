@@ -1,61 +1,88 @@
 # JobSeeker Intelligence
 
-Local-first, AI-assisted job discovery and application management for Kenya and remote opportunities.
+JobSeeker is a local-first AI-assisted career operations platform. It combines opportunity discovery, candidate evidence, CV analysis, application tracking, recruiter records, interview planning, read-only Gmail intelligence, and AI-generated career drafts.
 
-> **Current status:** Foundation scaffold. Gmail sync, external discovery connectors, AI provider integration, and portal submission are not yet enabled. Live sending and application submission remain disabled by default.
+## Product principles
 
-## Architecture decisions
+- User-owned career records are scoped by authenticated account ID.
+- OpenAI and Anthropic are runtime providers behind a common adapter contract. Mock mode supports local development.
+- Codex CLI is a local development agent, not an application runtime inference API.
+- AI-generated CVs, cover letters, interview packs, and roadmaps are drafts. They are not automatically sent or submitted.
+- Job matching exposes a transparent, versioned keyword coverage baseline with matched/missing skill evidence, not a hiring probability.
+- Application submission requires a user-owned approval record; approval does not itself submit anything externally.
+- AI token budgets reserve in-flight capacity, account for completed usage, and create monthly threshold notifications.
+- Saved-search discovery respects the global automation pause and interview reminders are designed to be idempotent.
+- Gmail access is read-only and uses the gmail.readonly scope.
+- Email sending and application submission remain disabled.
+- Resume uploads are limited to PDF/DOCX, 10 MB, 100 PDF pages, 50 MB DOCX expansion, and bounded text extraction. Production uploads remain disabled until private object storage and malware scanning are configured.
+- Resume records can be deleted by their owner; upload persistence uses an atomic file write and cleans up failed database writes.
 
-- Hybrid AI: cloud model providers behind a provider interface; canonical records and credentials remain local.
-- Local-first persistence: SQLite for development, SQLAlchemy models designed for PostgreSQL migration.
-- Gmail intelligence: planned monitoring of job-related conversations, including historic outreach, with incremental sync and message/thread deduplication.
-- Application automation: only submit automatically when an enabled, explicit user-approved rule matches and every required answer/document is verified. All exceptions require confirmation.
-- Original outreach CSV and send log are immutable migration sources. Imports are additive, idempotent, and produce reconciliation reports.
+## Current application workspaces
 
-## Quick start
+- Dashboard: /dashboard
+- Opportunity Radar: /discovery
+- Saved opportunities: /opportunities
+- Candidate profile and skills: /profile
+- CV upload and keyword analysis: /cv-studio
+- AI career drafts: /career-studio
+- Applications: /applications
+- Companies: /companies
+- Recruiter CRM: /recruiters
+- Gmail inbox intelligence: /inbox
+- Interviews: /interviews
+- Career analytics: /analytics
+- Approval center: /approvals
+- AI settings and token budget: /settings
+- API documentation: /docs
 
-Python 3.11+ is recommended.
+## Architecture
 
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-uvicorn app.main:app --reload
-```
+See [Platform architecture and engineering contracts](docs/architecture/platform-design.md) for bounded contexts, runtime topology, data flows, security invariants, lifecycle rules, reliability expectations, and release quality gates.
 
-Open http://127.0.0.1:8000/docs for the API.
+- FastAPI API under apps/api
+- Next.js web application under apps/web
+- PostgreSQL system of record
+- Redis rate limiting and RQ queues
+- RQ worker and RQ Scheduler services
+- SQLAlchemy models and Alembic migrations
+- Provider adapters for OpenAI, Anthropic, and mock mode
+- Integration packages for Greenhouse, Lever, Gmail, and SMTP
 
-## Initial endpoints
+## Local setup
 
-- `GET /health` - service health
-- `GET /api/v1/dashboard/summary` - local database counts
-- `POST /api/v1/import/outreach/preview` - validate a CSV without writing
-- `POST /api/v1/import/outreach` - idempotently import a CSV into the local database
+1. Install Docker Desktop, Python 3.12+, Node.js 20+, pnpm 9+, and Git.
+2. Copy .env.example to .env.
+3. Keep APP_ENV=local. Replace APP_SECRET_KEY with a random local secret of at least 32 characters.
+4. For local Python verification, create a virtual environment and install the development dependencies: `python -m venv .venv`, activate it (PowerShell: `.venv\\Scripts\\Activate.ps1`), then run `python -m pip install -e ".[dev]"`.
+5. For local web verification, run `pnpm install` from the repository root.
+6. Run:
 
-The import never edits the source CSV. It records original row data and reports invalid rows.
+   docker compose -f infrastructure/compose/docker-compose.yml config
+   docker compose -f infrastructure/compose/docker-compose.yml up --build
 
-## Safe data import
+7. Open http://localhost:3000 and register an account.
 
-Keep the existing `kenya_data_opportunities_contacts.csv` and `outreach_send_log.csv` in a private local directory outside Git. Do not commit CVs, OAuth tokens, Gmail message bodies, databases, or personal contact exports.
+The API applies Alembic migrations automatically in local, development, and test environments. Production does not auto-migrate.
 
-Example:
+## Verification
 
-```powershell
-python scripts/import_outreach.py "C:\\path\\to\\kenya_data_opportunities_contacts.csv" --dry-run
-python scripts/import_outreach.py "C:\\path\\to\\kenya_data_opportunities_contacts.csv"
-```
+   PowerShell: `./scripts/verification/verify_local.ps1`
+   Cross-platform Python: `python scripts/verification/verify_local.py`
+   Frontend separately: `cd apps/web && pnpm lint && pnpm build`
 
-A future send-log importer will link known Gmail message IDs and thread IDs without treating SENT as proof of delivery or reading.
+The local verification script runs Python compile checks, applies Alembic migrations to the configured DATABASE_URL, checks model/schema drift, runs pytest and Ruff, and verifies frontend TypeScript/build plus Compose configuration in the PowerShell workflow. It does not start Docker or perform live OpenAI, Anthropic, Gmail, or SMTP calls.
 
-## Configuration
+## AI configuration
 
-See `.env.example`. All integrations are disabled unless explicitly configured. Never commit `.env`, OAuth credentials, tokens, CVs, or private outreach data.
+Configure OpenAI or Anthropic credentials only in the private API environment. Never expose provider credentials to the browser or commit them. See docs/ai-provider-operations.md.
 
-## Development
+## Integrations
 
-```powershell
-pytest
-```
+- Job discovery: docs/job-discovery.md
+- Gmail OAuth: docs/gmail-integration.md
+- Security and data protection: docs/security-and-data-protection.md
+- Local development: docs/local-development.md
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md), and [docs/SAFE_AUTOMATION.md](docs/SAFE_AUTOMATION.md).
+## Current release status
+
+This is an actively developed feature branch, not a production-ready release. Authentication, user-scoped workflows, persistent AI conversations and drafts, provider routing, job-board connectors, Gmail read-only integration, local CV processing, approval-gated application tracking, and recurring discovery have implementation code. However, this turn has not run Python tests, frontend lint/build, Docker Compose, database migrations, or live third-party integrations. Production object storage, backup/restore drills, full account deletion/export, richer job-source coverage, production OAuth review, and comprehensive end-to-end security verification remain outstanding. Do not merge or deploy based on code presence alone.

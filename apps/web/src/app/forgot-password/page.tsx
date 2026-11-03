@@ -1,0 +1,9 @@
+"use client";
+import {useState} from "react";
+const API=process.env.NEXT_PUBLIC_API_BASE_URL||"http://localhost:8000";
+function csrf(){return decodeURIComponent(document.cookie.split("; ").find(x=>x.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=")||"");}
+export default function ForgotPassword(){const [email,setEmail]=useState("");const [status,setStatus]=useState("");const [token,setToken]=useState("");
+async function submit(e:React.FormEvent){e.preventDefault();setStatus("Requesting reset…");const r=await fetch(API+"/api/v1/auth/password-reset/request",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf()},body:JSON.stringify({email})});const d=await r.json();if(r.ok){setStatus("If the account exists, reset instructions have been issued.");if(d.debug_token)setToken(d.debug_token);}else setStatus(d.detail||"Unable to request password reset");}
+return <main style={{maxWidth:460,margin:"12vh auto",padding:28,color:"#edf5ef",background:"#111a16",border:"1px solid #25352d",borderRadius:18}}><a href="/login" style={{color:"#54d69a"}}>← Sign in</a><h1>Reset password</h1><p style={{color:"#9aaba2"}}>Enter the email address associated with your account.</p><form onSubmit={submit}><input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" style={input}/><button style={primary}>Request reset link</button></form>{status&&<p role="status">{status}</p>}{token&&<p style={{overflowWrap:"anywhere"}}>Local development token: <a href={"/reset-password?token="+encodeURIComponent(token)} style={{color:"#54d69a"}}>Continue to reset password</a></p>}</main>}
+const input:React.CSSProperties={display:"block",width:"100%",padding:12,background:"#09110d",border:"1px solid #34483c",borderRadius:9,color:"#edf5ef"};
+const primary:React.CSSProperties={marginTop:14,padding:12,background:"#54d69a",border:0,borderRadius:9,fontWeight:700,cursor:"pointer"};

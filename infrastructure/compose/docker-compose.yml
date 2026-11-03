@@ -1,0 +1,64 @@
+services:
+  migrate:
+    build: {context: ../.., dockerfile: apps/api/Dockerfile}
+    env_file: ../../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres: {condition: service_healthy}
+  api:
+    build: {context: ../.., dockerfile: apps/api/Dockerfile}
+    env_file: ../../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_PATH: /workspace/data/uploads
+    volumes: ["../../data:/workspace/data", "../../secrets:/run/secrets:ro"]
+    ports: ["127.0.0.1:8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+  web:
+    build: {context: ../.., dockerfile: apps/web/Dockerfile}
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      api: {condition: service_healthy}
+  worker:
+    build: {context: ../.., dockerfile: apps/worker/Dockerfile}
+    env_file: ../../.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+  scheduler:
+    build: {context: ../.., dockerfile: apps/scheduler/Dockerfile}
+    env_file: ../../.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+  postgres:
+    image: postgres:16-alpine
+    environment: {POSTGRES_DB: jobseeker, POSTGRES_USER: jobseeker, POSTGRES_PASSWORD: jobseeker_local}
+    volumes: [jobseeker_pgdata:/var/lib/postgresql/data]
+    healthcheck: {test: ["CMD-SHELL","pg_isready -U jobseeker -d jobseeker"], interval: 5s, timeout: 5s, retries: 15}
+  redis:
+    image: redis:7-alpine
+    volumes: [jobseeker_redisdata:/data]
+    healthcheck: {test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 15}
+volumes:
+  jobseeker_pgdata:
+  jobseeker_redisdata:
