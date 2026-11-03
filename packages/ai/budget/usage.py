@@ -1,8 +1,57 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from packages.database.models.entities import AIUsage
+from packages.database.models.entities import AIUsage, AIUsageReservation
 from packages.database.models.career import UserAIBudget, Notification
+
+class AIQuotaExceeded(Exception):
+    """Raised when an account has insufficient reserved monthly token capacity."""
+
+def reserve_ai_tokens(db: Session, user_id: int, estimated_tokens: int,
+                      ttl_seconds: int = 300) -> int | None:
+    """Atomically reserve estimated tokens, then commit to release DB locks during inference."""
+    budget = db.scalar(select(UserAIBudget).where(
+        UserAIBudget.user_id == user_id).with_for_update())
+    if not budget or not budget.hard_token_limit_enabled or budget.monthly_token_limit <= 0:
+        return None
+
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    used = db.scalar(select(func.coalesce(func.sum(AIUsage.input_tokens + AIUsage.output_tokens), 0))
+                     .where(AIUsage.user_id == user_id, AIUsage.created_at >= month_start)) or 0
+    reserved = db.scalar(select(func.coalesce(func.sum(AIUsageReservation.reserved_tokens), 0))
+                         .where(AIUsageReservation.user_id == user_id,
+                                AIUsageReservation.status == "reserved",
+                                AIUsageReservation.created_at >= month_start,
+                                AIUsageReservation.expires_at > now)) or 0
+    estimate = max(1, int(estimated_tokens))
+    if int(used) + int(reserved) + estimate > budget.monthly_token_limit:
+        raise AIQuotaExceeded("Your monthly AI token limit has been reached or reserved")
+
+    row = AIUsageReservation(
+        request_id=uuid4().hex, user_id=user_id, reserved_tokens=estimate,
+        status="reserved", created_at=now,
+        expires_at=now + timedelta(seconds=max(60, ttl_seconds)),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row.id
+
+def finish_ai_reservation(db: Session, user_id: int, reservation_id: int | None,
+                          status: str) -> None:
+    if reservation_id is None:
+        return
+    if status not in {"completed", "failed"}:
+        raise ValueError("Invalid AI reservation terminal status")
+    row = db.scalar(select(AIUsageReservation).where(
+        AIUsageReservation.id == reservation_id,
+        AIUsageReservation.user_id == user_id,
+    ).with_for_update())
+    if row and row.status == "reserved":
+        row.status = status
+        row.completed_at = datetime.now(timezone.utc)
 
 def record_ai_usage(db: Session, user_id: int, provider: str, model: str,
                     input_tokens: int, output_tokens: int,
@@ -16,7 +65,8 @@ def record_ai_usage(db: Session, user_id: int, provider: str, model: str,
     db.add(usage)
     db.flush()
 
-    budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user_id).with_for_update())
+    budget = db.scalar(select(UserAIBudget).where(
+        UserAIBudget.user_id == user_id).with_for_update())
     if not budget or budget.monthly_token_limit <= 0 or budget.alert_threshold_percent <= 0:
         return usage
 
