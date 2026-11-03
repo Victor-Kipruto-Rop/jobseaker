@@ -16,7 +16,7 @@ def record_ai_usage(db: Session, user_id: int, provider: str, model: str,
     db.add(usage)
     db.flush()
 
-    budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user_id))
+    budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user_id).with_for_update())
     if not budget or budget.monthly_token_limit <= 0 or budget.alert_threshold_percent <= 0:
         return usage
 
