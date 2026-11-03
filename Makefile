@@ -4,7 +4,7 @@ DOCKER ?= docker
 COMPOSE = $(DOCKER) compose -f infrastructure/compose/docker-compose.yml
 WEB_DIR = apps/web
 
-.PHONY: test lint typecheck web-build migrate python-verify compose-config verify verify-all dev compose-up compose-down
+.PHONY: test lint typecheck web-build migrate python-verify compose-config verify verify-all verify-stack dev compose-up compose-down
 
 test:
 	$(PYTHON) -m pytest -q
@@ -36,6 +36,10 @@ compose-config:
 verify: python-verify typecheck web-build compose-config
 
 verify-all: verify
+
+# Starts the isolated local stack and runs the full release gate, including PostgreSQL tests.
+verify-stack:
+	$(PYTHON) scripts/verify_local_security.py
 
 dev:
 	uvicorn apps.api.app.main:app --reload --host 127.0.0.1 --port 8000
