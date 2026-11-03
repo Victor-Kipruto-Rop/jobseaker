@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
 from packages.database.models.career import Company, Recruiter
+from packages.integrations.url_validation import validate_http_url
 
 router=APIRouter()
 class RecruiterInput(BaseModel):
@@ -13,6 +14,11 @@ class RecruiterInput(BaseModel):
     profile_url:str=Field(default="",max_length=1000)
     company_id:int|None=None
     notes:str=Field(default="",max_length=5000)
+
+    @field_validator("profile_url")
+    @classmethod
+    def safe_profile_url(cls, value):
+        return validate_http_url(value)
 
 @router.get("")
 def list_recruiters(user:User=Depends(get_current_user),db:Session=Depends(get_db)):
