@@ -46,7 +46,7 @@ async def _generate(user: User, db: Session, artifact_type: str, title: str,
     registry = get_registry()
     if registry.get(selected) is None:
         raise HTTPException(status_code=400, detail="Requested AI provider is not configured")
-    budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user.id))
+    budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user.id).with_for_update())
     now = datetime.now(timezone.utc)
     if budget and budget.hard_token_limit_enabled and budget.monthly_token_limit > 0:
         start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
