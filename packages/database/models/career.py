@@ -157,3 +157,23 @@ class SavedSearch(Base):
     name: Mapped[str] = mapped_column(String(160))
     query: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class CandidateOpportunity(Base):
+    __tablename__ = "candidate_opportunities"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(250), index=True)
+    company: Mapped[str] = mapped_column(String(250), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    source_name: Mapped[str] = mapped_column(String(100), default="manual")
+    source_url: Mapped[str] = mapped_column(String(2000), default="")
+    location: Mapped[str] = mapped_column(String(250), default="")
+    employment_type: Mapped[str] = mapped_column(String(60), default="unspecified")
+    remote_type: Mapped[str] = mapped_column(String(40), default="unspecified")
+    salary_min: Mapped[float | None] = mapped_column(Float, nullable=True)
+    salary_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+    required_skills: Mapped[list] = mapped_column(JSON, default=list)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    application_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="discovered", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
