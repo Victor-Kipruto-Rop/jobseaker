@@ -107,13 +107,16 @@ def test_postgres_expired_recovery_token_is_rejected(postgres_db):
 
 
 def test_postgres_migration_upgrade_and_downgrade_are_repeatable(postgres_db):
+    postgres_db.commit()
     connection = postgres_db.connection()
     config = _alembic_config(connection)
     command.downgrade(config, "20261103_0007")
+    postgres_db.commit()
     columns = {column["name"] for column in inspect(connection).get_columns("users")}
     assert "role" not in columns
 
     command.upgrade(config, "head")
+    postgres_db.commit()
     columns = {column["name"] for column in inspect(connection).get_columns("users")}
     assert "role" in columns
 
