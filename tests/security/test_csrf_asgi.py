@@ -31,7 +31,7 @@ def test_anonymous_mutation_passes_csrf_boundary_with_matching_values(client):
         "/api/v1/auth/login",
         json={},
         cookies={"jobseeker_csrf": "matching-token"},
-        headers={"X-CSRF-Token": "matching-token"},
+        headers={"X-CSRF-Token": "matching-token", "Origin": "http://localhost:3000"},
     )
     # The empty login payload is rejected by FastAPI validation only after
     # the real ASGI CSRF middleware has accepted the request.
@@ -59,6 +59,7 @@ def test_mutation_rejects_cross_site_fetch_metadata_even_with_valid_csrf_token(c
         cookies={"jobseeker_csrf": "matching-token"},
         headers={
             "X-CSRF-Token": "matching-token",
+            "Origin": "http://localhost:3000",
             "Sec-Fetch-Site": "cross-site",
         },
     )
@@ -79,7 +80,7 @@ def test_real_csrf_bootstrap_token_is_accepted_by_anonymous_mutation(client):
     response = client.post(
         "/api/v1/auth/login",
         json={},
-        headers={"X-CSRF-Token": token},
+        headers={"X-CSRF-Token": token, "Origin": "http://localhost:3000"},
     )
     assert response.status_code == 422
 
@@ -145,3 +146,15 @@ def test_gmail_oauth_callback_rejects_unknown_state_without_creating_a_session(c
         },
     )
     assert response.status_code == 400
+
+
+
+def test_mutation_rejects_missing_origin_even_with_matching_csrf_values(client):
+    response = client.post(
+        "/api/v1/auth/login",
+        json={},
+        cookies={"jobseeker_csrf": "matching-token"},
+        headers={"X-CSRF-Token": "matching-token"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Request origin is required"
