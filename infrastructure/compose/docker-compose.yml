@@ -36,7 +36,6 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
-      GLOBAL_AUTOMATION_PAUSED: "true"
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
