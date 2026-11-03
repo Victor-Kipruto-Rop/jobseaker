@@ -55,3 +55,20 @@ def test_csrf_endpoint_issues_anonymous_bootstrap_token(monkeypatch):
         assert len(result["csrf_token"]) >= 32
         assert "jobseeker_csrf=" in response.headers["set-cookie"]
     Base.metadata.drop_all(engine)
+
+def test_valid_csrf_token_is_stable_across_repeated_bootstrap_requests(monkeypatch):
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False},
+                           poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr(routes, "get_settings", lambda: SimpleNamespace(app_env="local"))
+    with Session(engine) as db:
+        user = User(email="csrf-stable@example.com", password_hash="unused")
+        db.add(user)
+        db.commit()
+        session_token, csrf_token, _ = create_session(db, user)
+        cookie = f"jobseeker_session={session_token}; jobseeker_csrf={csrf_token}"
+        first = routes.csrf(_request(cookie), Response(), db)
+        second = routes.csrf(_request(cookie), Response(), db)
+        assert first["csrf_token"] == csrf_token
+        assert second["csrf_token"] == csrf_token
+    Base.metadata.drop_all(engine)
