@@ -177,3 +177,40 @@ class CandidateOpportunity(Base):
     application_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(40), default="discovered", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class OAuthState(Base):
+    __tablename__ = "oauth_states"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    state_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+class EmailAccount(Base):
+    __tablename__ = "email_accounts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(40), default="gmail")
+    email: Mapped[str] = mapped_column(String(320))
+    encrypted_credentials: Mapped[str] = mapped_column(Text)
+    scopes: Mapped[list] = mapped_column(JSON, default=list)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class EmailMessage(Base):
+    __tablename__ = "email_messages"
+    __table_args__ = (UniqueConstraint("account_id", "gmail_message_id", name="uq_email_account_message"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("email_accounts.id", ondelete="CASCADE"), index=True)
+    gmail_message_id: Mapped[str] = mapped_column(String(160))
+    gmail_thread_id: Mapped[str] = mapped_column(String(160), index=True)
+    sender: Mapped[str] = mapped_column(String(320), default="")
+    recipient: Mapped[str] = mapped_column(String(320), default="")
+    subject: Mapped[str] = mapped_column(String(1000), default="")
+    snippet: Mapped[str] = mapped_column(Text, default="")
+    classification: Mapped[str] = mapped_column(String(80), default="unclassified")
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    action_required: Mapped[bool] = mapped_column(default=False)
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
