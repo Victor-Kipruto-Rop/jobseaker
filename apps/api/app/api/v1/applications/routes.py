@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
-from packages.database.models.career import Application, ApplicationEvent, CandidateOpportunity
+from packages.database.models.career import Application, ApplicationEvent, CandidateOpportunity\nfrom packages.integrations.url_validation import validate_http_url
 
 router = APIRouter()
 STATUSES = {"draft", "ready", "approved", "submitted", "screening", "interview",
