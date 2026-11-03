@@ -182,6 +182,16 @@ def update_budget(body: BudgetUpdate, user: User = Depends(get_current_user),
                   db: Session = Depends(get_db)):
     if body.hard_token_limit_enabled and body.monthly_token_limit == 0:
         raise HTTPException(status_code=422, detail="Set a monthly token limit before enabling hard enforcement")
+    if body.hard_token_limit_enabled:
+        now = datetime.now(timezone.utc)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        used = db.scalar(select(func.coalesce(func.sum(AIUsage.input_tokens + AIUsage.output_tokens), 0))
+                         .where(AIUsage.user_id == user.id, AIUsage.created_at >= month_start)) or 0
+        reserved = db.scalar(select(func.coalesce(func.sum(AIUsageReservation.reserved_tokens), 0))
+            .where(AIUsageReservation.user_id == user.id, AIUsageReservation.status == "reserved",
+                   AIUsageReservation.created_at >= month_start, AIUsageReservation.expires_at > now)) or 0
+        if body.monthly_token_limit < int(used) + int(reserved):
+            raise HTTPException(status_code=409, detail="The new limit cannot be lower than tokens already used or reserved this month")
     budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user.id))
     if not budget:
         budget = UserAIBudget(user_id=user.id)
