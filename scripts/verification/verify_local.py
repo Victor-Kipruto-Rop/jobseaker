@@ -8,8 +8,8 @@ def run(label, command):
         raise SystemExit(result.returncode)
 
 def main():
-    run("Python compile", [sys.executable, "-m", "compileall", "-q", "apps", "packages", "tests"])
-    run("Python tests", [sys.executable, "-m", "pytest", "-q"])
+    run("Python compile", [sys.executable, "-m", "compileall", "-q", "apps", "packages", "tests", "migrations", "scripts"])
+    run("Database migrations", ["alembic", "upgrade", "head"])\n    run("Migration drift check", ["alembic", "check"])\n    run("Python tests", [sys.executable, "-m", "pytest", "-q"])
     run("Python lint", ["ruff", "check", "."])
     print("\nLocal verification completed. Run 'cd apps/web && pnpm lint && pnpm build' for frontend checks.")
 
