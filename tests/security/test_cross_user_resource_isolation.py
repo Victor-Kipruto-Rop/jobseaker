@@ -15,7 +15,10 @@ from packages.database.models.career import (
 from apps.api.app.api.v1.resumes.routes import list_resumes, resume_text
 from apps.api.app.api.v1.recruiters.routes import RecruiterInput, create_recruiter, list_recruiters
 from apps.api.app.api.v1.interviews.routes import InterviewInput, create_interview, list_interviews
-from apps.api.app.api.v1.ai.routes import conversations, conversation_messages, usage, get_budget, update_budget, BudgetUpdate
+from apps.api.app.api.v1.ai.routes import (
+    conversations, conversation_messages, usage, get_budget, update_budget,
+    BudgetUpdate, chat, ChatRequest,
+)
 from apps.api.app.api.v1.integrations.gmail_routes import account, messages, disconnect
 from apps.api.app.api.v1.profile.routes import get_profile, ProfileUpdate, update_profile
 from apps.api.app.api.v1.saved_searches.routes import (
@@ -24,9 +27,12 @@ from apps.api.app.api.v1.saved_searches.routes import (
 from apps.api.app.api.v1.notifications.routes import list_notifications, mark_read
 from apps.api.app.api.v1.companies.routes import list_companies
 from apps.api.app.api.v1.opportunities.routes import list_opportunities
-from apps.api.app.api.v1.applications.routes import list_applications, application_events
+from apps.api.app.api.v1.applications.routes import (
+    list_applications, application_events, create_application, ApplicationCreate,
+)
 from apps.api.app.api.v1.career_tools.routes import (
     list_artifacts, get_artifact, update_artifact, ArtifactUpdate,
+    tailor_cv, CVTailorRequest,
 )
 from apps.api.app.api.v1.automations.routes import approvals, approval_decision, ApprovalDecision
 from packages.automation.approvals.service import create_approval
@@ -387,3 +393,60 @@ def test_saved_search_worker_persists_each_result_to_its_search_owner(db, users,
         "Role from owner-board": owner.id,
         "Role from other-board": other.id,
     }
+
+
+
+def test_application_cannot_link_to_another_users_opportunity(db, users):
+    owner, other = users
+    private_opportunity = CandidateOpportunity(
+        user_id=other.id,
+        title="Private opportunity",
+        source_url="https://jobs.example/private-opportunity",
+    )
+    db.add(private_opportunity)
+    db.flush()
+
+    with pytest.raises(HTTPException) as error:
+        create_application(
+            ApplicationCreate(
+                role_title="Data Engineer",
+                opportunity_id=private_opportunity.id,
+            ),
+            owner,
+            db,
+        )
+    assert error.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_ai_chat_and_cv_tailoring_cannot_use_another_users_sources(db, users):
+    owner, other = users
+    private_conversation = AIConversation(user_id=other.id, title="Private conversation")
+    private_resume = ResumeDocument(
+        user_id=other.id,
+        filename="private.pdf",
+        content_type="application/pdf",
+        storage_key="other/private.pdf",
+        extracted_text="private CV evidence",
+    )
+    db.add_all([private_conversation, private_resume])
+    db.flush()
+
+    with pytest.raises(HTTPException) as chat_error:
+        await chat(
+            ChatRequest(message="Continue this private conversation", conversation_id=private_conversation.id),
+            owner,
+            db,
+        )
+    assert chat_error.value.status_code == 404
+
+    with pytest.raises(HTTPException) as cv_error:
+        await tailor_cv(
+            CVTailorRequest(
+                resume_id=private_resume.id,
+                job_description="A sufficiently long job description for a data engineer role.",
+            ),
+            owner,
+            db,
+        )
+    assert cv_error.value.status_code == 404
