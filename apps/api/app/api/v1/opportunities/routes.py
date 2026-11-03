@@ -43,9 +43,12 @@ def match(body: MatchRequest):
 def list_opportunities(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(CandidateOpportunity).where(CandidateOpportunity.user_id == user.id)
                       .order_by(CandidateOpportunity.created_at.desc()).limit(500)).all()
+    skills = db.scalars(select(CandidateSkill).where(CandidateSkill.user_id == user.id)).all()
+    candidate_skills = [item.skill_name for item in skills]
     return [{"id": r.id, "title": r.title, "company": r.company, "location": r.location,
              "source_name": r.source_name, "source_url": r.source_url, "status": r.status,
-             "required_skills": r.required_skills, "created_at": r.created_at} for r in rows]
+             "required_skills": r.required_skills, "fit": score_job(r.title, r.description, candidate_skills),
+             "created_at": r.created_at} for r in rows]
 
 @router.post("", status_code=201)
 def save_opportunity(body: OpportunityCreate, user: User = Depends(get_current_user),
