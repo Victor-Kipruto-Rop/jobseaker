@@ -2,6 +2,7 @@ import re
 from html.parser import HTMLParser
 from html import unescape
 import httpx
+from packages.integrations.url_validation import validate_http_url
 
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
 
@@ -18,6 +19,12 @@ def plain_text(value: str) -> str:
     parser = _TextExtractor()
     parser.feed(value or "")
     return " ".join(parser.parts)[:30000]
+
+def _safe_url(value: str) -> str:
+    try:
+        return validate_http_url(value, allow_empty=False)
+    except ValueError:
+        return ""
 
 def _validate_slug(slug: str) -> str:
     slug = slug.strip().lower()
@@ -41,7 +48,7 @@ async def discover_greenhouse(board: str, limit: int = 100) -> list[dict]:
             "company": board.replace("-", " ").title(),
             "description": plain_text(item.get("content", "")),
             "source_name": "greenhouse",
-            "source_url": item.get("absolute_url", ""),
+            "source_url": _safe_url(item.get("absolute_url", "")),
             "location": location,
             "employment_type": "unspecified",
             "remote_type": "unspecified",
@@ -64,7 +71,7 @@ async def discover_lever(site: str, limit: int = 100) -> list[dict]:
             "company": site.replace("-", " ").title(),
             "description": (item.get("descriptionPlain") or plain_text(item.get("description", "")))[:30000],
             "source_name": "lever",
-            "source_url": item.get("hostedUrl") or item.get("applyUrl", ""),
+            "source_url": _safe_url(item.get("hostedUrl") or item.get("applyUrl", "")),
             "location": categories.get("location", ""),
             "employment_type": categories.get("commitment", "unspecified"),
             "remote_type": "unspecified",
