@@ -8,3 +8,7 @@ router.include_router(auth, prefix="/auth", tags=["authentication"])
 router.include_router(ai, prefix="/ai", tags=["AI"])
 router.include_router(opportunities, prefix="/opportunities", tags=["opportunities"])
 router.include_router(automations, prefix="/automations", tags=["automation"])
+from apps.api.app.api.v1.profile.routes import router as profile
+from apps.api.app.api.v1.applications.routes import router as applications
+router.include_router(profile, prefix="/profile", tags=["candidate profile"])
+router.include_router(applications, prefix="/applications", tags=["applications"])
