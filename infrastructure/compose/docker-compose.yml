@@ -5,6 +5,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
       REDIS_URL: redis://redis:6379/0
+      STORAGE_PATH: /workspace/data/uploads
+    volumes: ["../../data:/workspace/data"]
     ports: ["127.0.0.1:8000:8000"]
     depends_on:
       postgres: {condition: service_healthy}
