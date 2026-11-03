@@ -49,8 +49,7 @@ export default function Discovery() {
   const [saving, setSaving] = useState(false);
 
   const normalizedKeywords = () => [...new Set(
-    keywords.split(/[,
-]/).map((item) => item.trim()).filter(Boolean),
+    keywords.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
   )].slice(0, 20);
 
   async function load() {
@@ -86,8 +85,7 @@ export default function Discovery() {
     }
   }
 
-  async function saveSearch(event: React.FormEvent) {
-    event.preventDefault();
+  async function saveSearch() {
     setError("");
     setSaving(true);
     try {
@@ -159,10 +157,7 @@ export default function Discovery() {
         </label>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 18 }}>
           <button style={primary} disabled={loading}>{loading ? "Searching…" : "Discover roles"}</button>
-          <button type="button" style={secondary} disabled={saving} onClick={(event) => {
-            const form = event.currentTarget.form;
-            if (form) void saveSearch({ preventDefault: () => undefined } as React.FormEvent);
-          }}>{saving ? "Saving…" : "Save these filters"}</button>
+          <button type="button" style={secondary} disabled={saving} onClick={() => void saveSearch()}>{saving ? "Saving…" : "Save these filters"}</button>
         </div>
         {error && <p role="alert" style={{ color: "#ff9b87" }}>{error}</p>}
         {result && <p role="status" style={{ color: "#8fe2b5" }}>
