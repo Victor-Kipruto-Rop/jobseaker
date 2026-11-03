@@ -9,7 +9,8 @@ from apps.api.app.core.config import get_settings
 
 def run_saved_search_discovery():
     """Run explicitly configured saved searches unless global automation is paused."""
-    if get_settings().global_automation_paused:
+    settings = get_settings()
+    if settings.global_automation_paused or not settings.job_discovery_enabled:
         return {"paused": True, "searches": 0, "saved": 0, "duplicates": 0, "failed": 0}
     with SessionLocal() as db:
         searches = db.scalars(select(SavedSearch).order_by(SavedSearch.id.asc()).limit(500)).all()
