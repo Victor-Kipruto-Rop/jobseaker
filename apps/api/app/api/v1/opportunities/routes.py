@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 import httpx
 from apps.api.app.core.redis_limits import enforce_rate_limit
 from packages.integrations.job_boards.connectors import discover_greenhouse, discover_lever
+from packages.integrations.url_validation import validate_http_url
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
@@ -34,6 +35,11 @@ class OpportunityCreate(BaseModel):
     employment_type: str = Field(default="unspecified", max_length=60)
     remote_type: str = Field(default="unspecified", max_length=40)
     required_skills: list[str] = Field(default_factory=list, max_length=100)
+
+    @field_validator("source_url")
+    @classmethod
+    def safe_source_url(cls, value):
+        return validate_http_url(value)
 
 @router.post("/match")
 def match(body: MatchRequest):
