@@ -27,7 +27,11 @@ async def csrf_protection(request: Request, call_next):
         origin = request.headers.get("origin")
         referer = request.headers.get("referer")
         browser_origin = origin or origin_from_referer(referer)
-        if browser_origin and not is_allowed_origin(browser_origin, s.allowed_origins):
+        # Cookie-authenticated browser mutations must carry an explicit same-origin signal.
+        # Non-browser clients should use a token-based API authentication mechanism.
+        if not browser_origin:
+            return JSONResponse(status_code=403, content={"detail": "Request origin is required"})
+        if not is_allowed_origin(browser_origin, s.allowed_origins):
             return JSONResponse(status_code=403, content={"detail": "Untrusted request origin"})
         fetch_site = request.headers.get("sec-fetch-site", "").lower()
         if fetch_site == "cross-site":
