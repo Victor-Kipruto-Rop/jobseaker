@@ -57,13 +57,6 @@ async def csrf_protection(request: Request, call_next):
                     if not csrf_cookie or not csrf_header or not hmac.compare_digest(csrf_cookie, csrf_header):
                         return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
     response = await call_next(request)
-    response.headers.setdefault("X-Content-Type-Options", "nosniff")
-    response.headers.setdefault("X-Frame-Options", "DENY")
-    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-    response.headers.setdefault("Cache-Control", "no-store")
-    if s.app_env == "production":
-        response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
     return response
 
 app.include_router(health_router)
@@ -89,6 +82,13 @@ async def request_context(request: Request, call_next):
         raise
     duration_ms = round((time.perf_counter() - started) * 1000, 2)
     response.headers["X-Request-ID"] = request_id
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Cache-Control", "no-store")
+    if s.app_env == "production":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
     _request_logger.info("http.request.completed", request_id=request_id,
                          method=request.method, path=request.url.path,
                          status_code=response.status_code, duration_ms=duration_ms)
