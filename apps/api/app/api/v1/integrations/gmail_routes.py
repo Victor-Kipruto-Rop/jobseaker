@@ -4,7 +4,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 from apps.api.app.core.config import get_settings
 from apps.api.app.core.redis_limits import enforce_rate_limit
-from apps.api.app.dependencies import get_current_user, get_db
+from apps.api.app.dependencies import get_current_user, get_verified_user, get_db
 from packages.database.models.identity import User
 from packages.database.models.career import EmailAccount, EmailMessage
 from packages.integrations.gmail.client import create_authorization, complete_authorization, sync_messages
@@ -12,7 +12,7 @@ from packages.integrations.gmail.client import create_authorization, complete_au
 router = APIRouter(prefix="/gmail")
 
 @router.post("/authorize")
-def authorize(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def authorize(user: User = Depends(get_verified_user), db: Session = Depends(get_db)):
     enforce_rate_limit(f"gmail-oauth:{user.id}", limit=5, window_seconds=3600)
     try:
         return {"authorization_url": create_authorization(db, user.id),
