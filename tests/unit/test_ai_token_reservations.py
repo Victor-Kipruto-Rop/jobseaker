@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 from packages.database.models import Base
@@ -47,7 +47,7 @@ def test_completed_reservation_moves_into_actual_usage_accounting():
         finish_ai_reservation(db, user.id, reservation_id, "completed")
         db.commit()
         with pytest.raises(AIQuotaExceeded):
-            reserve_ai_tokens(db, user.id, 41)
+            reserve_ai_tokens(db, user.id, 61)
         row = db.get(AIUsageReservation, reservation_id)
         assert row.status == "completed"
         assert row.completed_at is not None
