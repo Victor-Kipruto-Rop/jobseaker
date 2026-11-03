@@ -6,6 +6,14 @@ try {
     python -m compileall -q apps packages tests migrations scripts
     if ($LASTEXITCODE -ne 0) { throw "Python compilation failed." }
 
+    Write-Host "== Database migrations ==" -ForegroundColor Cyan
+    alembic upgrade head
+    if ($LASTEXITCODE -ne 0) { throw "Alembic migration failed." }
+
+    Write-Host "== Migration drift check ==" -ForegroundColor Cyan
+    alembic check
+    if ($LASTEXITCODE -ne 0) { throw "Alembic detected model/schema drift." }
+
     Write-Host "== Python tests ==" -ForegroundColor Cyan
     python -m pytest -q
     if ($LASTEXITCODE -ne 0) { throw "Python tests failed." }
@@ -19,14 +27,11 @@ try {
     try {
         pnpm lint
         if ($LASTEXITCODE -ne 0) { throw "Web TypeScript check failed." }
-
         Write-Host "== Web production build ==" -ForegroundColor Cyan
         pnpm build
         if ($LASTEXITCODE -ne 0) { throw "Web production build failed." }
     }
-    finally {
-        Pop-Location
-    }
+    finally { Pop-Location }
 
     Write-Host "== Docker Compose validation ==" -ForegroundColor Cyan
     docker compose -f infrastructure/compose/docker-compose.yml config --quiet
@@ -34,6 +39,4 @@ try {
 
     Write-Host "All local static, test, frontend and Compose checks passed." -ForegroundColor Green
 }
-finally {
-    Pop-Location
-}
+finally { Pop-Location }
