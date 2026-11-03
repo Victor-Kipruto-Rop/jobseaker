@@ -36,6 +36,15 @@ def wait_for_api(url: str, timeout_seconds: int = 240) -> None:
     raise RuntimeError(f"API did not become healthy within {timeout_seconds}s: {last_error}")
 
 
+def _local_secret() -> str:
+    env_path = ROOT / ".env"
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == "APP_SECRET_KEY":
+            return value.strip().strip('"').strip("'")
+    return ""
+
+
 def main() -> int:
     if not (ROOT / ".env").exists():
         print(
@@ -44,12 +53,29 @@ def main() -> int:
         )
         return 2
 
+    secret = _local_secret()
+    if len(secret) < 32 or "replace-with" in secret.lower() or "change-me" in secret.lower():
+        print("Set a unique local APP_SECRET_KEY of at least 32 characters in .env.", file=sys.stderr)
+        return 2
+
     compose = ["docker", "compose", "-f", str(COMPOSE_FILE)]
     pnpm = "pnpm.cmd" if os.name == "nt" else "pnpm"
     local_env = os.environ.copy()
     local_env.update(
         {
             "APP_ENV": "local",
+            "APP_SECRET_KEY": secret,
+            "AI_DEFAULT_PROVIDER": "mock",
+            "AI_FALLBACK_PROVIDER": "mock",
+            "OPENAI_ENABLED": "false",
+            "OPENAI_API_KEY": "",
+            "ANTHROPIC_ENABLED": "false",
+            "ANTHROPIC_API_KEY": "",
+            "SMTP_HOST": "",
+            "SMTP_USERNAME": "",
+            "SMTP_PASSWORD": "",
+            "SMTP_FROM_EMAIL": "",
+            "GMAIL_CLIENT_SECRET_FILE": "",
             "DATABASE_URL": LOCAL_DATABASE_URL,
             "JOBSEEKER_TEST_DATABASE_URL": LOCAL_TEST_DATABASE_URL,
             "REDIS_URL": "redis://localhost:6379/0",
