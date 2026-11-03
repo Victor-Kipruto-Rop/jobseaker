@@ -106,7 +106,7 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user),
         "Distinguish verified evidence from assumptions. All external actions require approval."
     )
     estimated_tokens = (sum(len(item["content"]) for item in messages)
-                        + len(system_instruction) + body.max_tokens)
+                        + len(system_instruction) + body.max_tokens) * (2 if settings.ai_fallback_provider and settings.ai_fallback_provider != requested else 1)
     try:
         reservation_id = reserve_ai_tokens(db, user.id, estimated_tokens)
     except AIQuotaExceeded as exc:
