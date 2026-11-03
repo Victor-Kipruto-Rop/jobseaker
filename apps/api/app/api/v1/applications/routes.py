@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
-from packages.database.models.career import Application, ApplicationEvent
+from packages.database.models.career import Application, ApplicationEvent, CandidateOpportunity
 
 router = APIRouter()
 STATUSES = {"draft", "ready", "approved", "submitted", "screening", "interview",
@@ -37,7 +37,7 @@ def list_applications(user: User = Depends(get_current_user), db: Session = Depe
 @router.post("", status_code=201)
 def create_application(body: ApplicationCreate, user: User = Depends(get_current_user),
                        db: Session = Depends(get_db)):
-    row = Application(user_id=user.id, **body.model_dump())
+    if body.opportunity_id is not None:\n        owned = db.scalar(select(CandidateOpportunity).where(\n            CandidateOpportunity.id == body.opportunity_id, CandidateOpportunity.user_id == user.id))\n        if not owned:\n            raise HTTPException(status_code=404, detail="Opportunity not found")\n    row = Application(user_id=user.id, **body.model_dump())
     db.add(row)
     db.flush()
     db.add(ApplicationEvent(user_id=user.id, application_id=row.id,
