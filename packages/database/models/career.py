@@ -188,6 +188,7 @@ class OAuthState(Base):
 
 class EmailAccount(Base):
     __tablename__ = "email_accounts"
+    __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_user_email_provider"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     provider: Mapped[str] = mapped_column(String(40), default="gmail")
