@@ -116,3 +116,41 @@ def test_postgres_migration_upgrade_and_downgrade_are_repeatable(postgres_db):
     command.upgrade(config, "head")
     columns = {column["name"] for column in inspect(connection).get_columns("users")}
     assert "role" in columns
+
+
+
+def test_postgres_expired_and_inactive_sessions_are_rejected(postgres_db):
+    user = User(email="pg-expiry@example.com", password_hash="unused")
+    postgres_db.add(user)
+    postgres_db.commit()
+    raw_session, _, _ = create_session(postgres_db, user)
+    resolved = resolve_session(postgres_db, raw_session)
+    assert resolved is not None
+
+    resolved[1].expires_at = routes.datetime.now(routes.timezone.utc) - routes.timedelta(seconds=1)
+    postgres_db.commit()
+    assert resolve_session(postgres_db, raw_session) is None
+
+    raw_session, _, _ = create_session(postgres_db, user)
+    user.is_active = False
+    postgres_db.commit()
+    assert resolve_session(postgres_db, raw_session) is None
+
+
+def test_postgres_email_verification_token_is_hashed_and_single_use(postgres_db):
+    user = User(email="pg-verification@example.com", password_hash="unused")
+    postgres_db.add(user)
+    postgres_db.commit()
+    raw_token = routes._new_account_token(
+        postgres_db, user, "email_verification", routes.timedelta(hours=24)
+    )
+    stored = postgres_db.query(routes.AccountToken).filter_by(
+        user_id=user.id, purpose="email_verification"
+    ).one()
+    assert stored.token_hash != raw_token
+
+    result = routes.confirm_verification(routes.TokenConfirm(token=raw_token), postgres_db)
+    assert result == {"status": "verified"}
+    assert user.is_verified is True
+    with pytest.raises(routes.HTTPException):
+        routes._consume_account_token(postgres_db, raw_token, "email_verification")
