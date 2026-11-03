@@ -16,6 +16,11 @@ from packages.database.models.career import ResumeDocument
 
 router = APIRouter()
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_EXTRACTED_CHARS = 500_000
+MAX_PDF_PAGES = 100
+MAX_DOCX_ENTRIES = 1_000
+MAX_DOCX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
+MAX_DOCX_COMPRESSION_RATIO = 100
 ALLOWED = {".pdf": "application/pdf",
            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
 
@@ -23,23 +28,61 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED:
         raise HTTPException(status_code=415, detail="Only PDF and DOCX files are supported")
+    if not data:
+        raise HTTPException(status_code=400, detail="The uploaded document is empty")
+
     if suffix == ".pdf":
         if not data.startswith(b"%PDF-"):
             raise HTTPException(status_code=400, detail="The uploaded file is not a valid PDF")
         try:
-            text = " ".join(page.extract_text() or "" for page in PdfReader(BytesIO(data)).pages)
+            reader = PdfReader(BytesIO(data), strict=False)
+            if reader.is_encrypted:
+                raise HTTPException(status_code=400, detail="Password-protected PDFs are not supported")
+            if len(reader.pages) > MAX_PDF_PAGES:
+                raise HTTPException(status_code=413, detail=f"PDF exceeds the {MAX_PDF_PAGES}-page limit")
+            parts, total = [], 0
+            for page in reader.pages:
+                remaining = MAX_EXTRACTED_CHARS - total
+                if remaining <= 0:
+                    break
+                page_text = page.extract_text() or ""
+                parts.append(page_text[:remaining])
+                total += min(len(page_text), remaining)
+            return " ".join(parts), ALLOWED[suffix]
+        except HTTPException:
+            raise
         except Exception as exc:
-            raise HTTPException(status_code=400, detail="Unable to read this PDF") from exc
-        return text[:500000], ALLOWED[suffix]
+            raise HTTPException(status_code=400, detail="Unable to safely read this PDF") from exc
+
     try:
         with zipfile.ZipFile(BytesIO(data)) as archive:
-            if "word/document.xml" not in archive.namelist():
-                raise ValueError("Missing document XML")
+            entries = archive.infolist()
+            if len(entries) > MAX_DOCX_ENTRIES:
+                raise HTTPException(status_code=413, detail="DOCX contains too many archive entries")
+            if "[Content_Types].xml" not in archive.namelist() or "word/document.xml" not in archive.namelist():
+                raise HTTPException(status_code=400, detail="The uploaded DOCX package is incomplete")
+            uncompressed = sum(item.file_size for item in entries)
+            if uncompressed > MAX_DOCX_UNCOMPRESSED_BYTES:
+                raise HTTPException(status_code=413, detail="DOCX expands beyond the 50 MB safety limit")
+            for item in entries:
+                if item.file_size > 0 and item.file_size / max(item.compress_size, 1) > MAX_DOCX_COMPRESSION_RATIO:
+                    raise HTTPException(status_code=413, detail="DOCX compression ratio exceeds the safety limit")
         document = Document(BytesIO(data))
-        text = " ".join(paragraph.text for paragraph in document.paragraphs)
+        parts, total = [], 0
+        for paragraph in document.paragraphs:
+            if total >= MAX_EXTRACTED_CHARS:
+                break
+            value = paragraph.text
+            remaining = MAX_EXTRACTED_CHARS - total
+            parts.append(value[:remaining])
+            total += min(len(value), remaining)
+        return " ".join(parts), ALLOWED[suffix]
+    except HTTPException:
+        raise
+    except (zipfile.BadZipFile, KeyError, ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail="Unable to safely read this DOCX document") from exc
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Unable to read this DOCX document") from exc
-    return text[:500000], ALLOWED[suffix]
 
 @router.post("", status_code=201)
 async def upload_resume(file: UploadFile = File(...), user: User = Depends(get_current_user),
