@@ -64,6 +64,7 @@ def main() -> int:
     local_env.update(
         {
             "APP_ENV": "local",
+            "ADMIN_BOOTSTRAP_ENABLED": "false",
             "APP_SECRET_KEY": secret,
             "AI_DEFAULT_PROVIDER": "mock",
             "AI_FALLBACK_PROVIDER": "mock",
