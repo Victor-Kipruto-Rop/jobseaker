@@ -13,11 +13,12 @@ def test_session_token_is_resolvable_then_revocable():
         user = User(email="session-test@example.com", password_hash="not-used")
         db.add(user)
         db.commit()
-        token, csrf, expires = create_session(db, user)
+        token, csrf_token, expires_at = create_session(db, user)
         resolved = resolve_session(db, token)
         assert resolved is not None
         assert resolved[0].id == user.id
         assert resolved[1].csrf_hash
+        assert csrf_token and expires_at > resolved[1].created_at
         revoke_session(db, resolved[1])
         assert resolve_session(db, token) is None
     Base.metadata.drop_all(engine)
