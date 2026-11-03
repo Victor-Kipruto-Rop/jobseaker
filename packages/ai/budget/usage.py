@@ -14,6 +14,7 @@ def reserve_ai_tokens(db: Session, user_id: int, estimated_tokens: int,
     budget = db.scalar(select(UserAIBudget).where(
         UserAIBudget.user_id == user_id).with_for_update())
     if not budget or not budget.hard_token_limit_enabled or budget.monthly_token_limit <= 0:
+        db.rollback()
         return None
 
     now = datetime.now(timezone.utc)
@@ -27,6 +28,7 @@ def reserve_ai_tokens(db: Session, user_id: int, estimated_tokens: int,
                                 AIUsageReservation.expires_at > now)) or 0
     estimate = max(1, int(estimated_tokens))
     if int(used) + int(reserved) + estimate > budget.monthly_token_limit:
+        db.rollback()
         raise AIQuotaExceeded("Your monthly AI token limit has been reached or reserved")
 
     row = AIUsageReservation(
@@ -35,9 +37,10 @@ def reserve_ai_tokens(db: Session, user_id: int, estimated_tokens: int,
         expires_at=now + timedelta(seconds=max(60, ttl_seconds)),
     )
     db.add(row)
+    db.flush()
+    reservation_id = row.id
     db.commit()
-    db.refresh(row)
-    return row.id
+    return reservation_id
 
 def finish_ai_reservation(db: Session, user_id: int, reservation_id: int | None,
                           status: str) -> None:
