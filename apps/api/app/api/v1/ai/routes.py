@@ -50,7 +50,7 @@ async def providers():
 
 @router.get("/usage")
 def usage():
-    """Return persisted token totals for the current installation."""
+    """Installation-wide token totals. This endpoint is local-development only."""
     with SessionLocal() as db:
         rows = db.execute(
             select(
@@ -106,7 +106,7 @@ async def chat(body: ChatRequest):
             model=generated.model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            estimated_cost_usd=0.0,
+            estimated_cost_usd=None,
             created_at=datetime.now(timezone.utc),
         ))
         db.commit()
@@ -117,5 +117,5 @@ async def chat(body: ChatRequest):
         "text": generated.text,
         "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
         "estimated_cost_usd": None,
-        "cost_note": "Token usage is persisted. Monetary cost is intentionally unavailable until verified model pricing is configured.",
+        "cost_note": "Token usage is persisted. Monetary cost is unavailable until verified model pricing is configured.",
     }
