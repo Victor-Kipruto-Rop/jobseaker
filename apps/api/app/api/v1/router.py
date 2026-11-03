@@ -22,3 +22,5 @@ router.include_router(companies, prefix="/companies", tags=["companies"])
 router.include_router(recruiters, prefix="/recruiters", tags=["recruiters"])
 router.include_router(interviews, prefix="/interviews", tags=["interviews"])
 router.include_router(analytics, prefix="/analytics", tags=["career analytics"])
+from apps.api.app.api.v1.saved_searches.routes import router as saved_searches
+router.include_router(saved_searches, prefix="/saved-searches", tags=["saved searches"])
