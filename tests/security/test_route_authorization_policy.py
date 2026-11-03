@@ -1,6 +1,14 @@
+import pytest
 from fastapi.routing import APIRoute
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
 from apps.api.app.main import app
+from apps.api.app.dependencies import get_current_user, get_db
+from packages.database.models import Base
+from packages.database.models.identity import User
 
 
 PUBLIC_TOKEN_ROUTES = {
@@ -58,23 +66,60 @@ def test_every_candidate_resource_route_enforces_candidate_role_policy():
     assert not missing, "Candidate endpoints missing candidate-role policy: " + ", ".join(missing)
 
 
-def test_candidate_api_rejects_administrator_and_accepts_candidate_sessions():
-    from fastapi.testclient import TestClient
-    from apps.api.app.dependencies import get_current_user
-    from packages.database.models.identity import User
+@pytest.fixture
+def authorization_client():
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        admin = User(email="route-admin@example.com", password_hash="unused", role="admin")
+        candidate = User(email="route-candidate@example.com", password_hash="unused", role="candidate")
+        db.add_all([admin, candidate])
+        db.commit()
 
-    admin = User(email="route-admin@example.com", password_hash="unused", role="admin")
-    candidate = User(email="route-candidate@example.com", password_hash="unused", role="candidate")
-    try:
-        app.dependency_overrides[get_current_user] = lambda: admin
-        with TestClient(app) as client:
-            denied = client.get("/api/v1/profile")
-            assert denied.status_code == 403
-            assert denied.json()["detail"] == "Insufficient permissions"
+        active_user = {"value": admin}
 
-        app.dependency_overrides[get_current_user] = lambda: candidate
-        with TestClient(app) as client:
-            allowed = client.get("/api/v1/profile")
-            assert allowed.status_code == 200
-    finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        def override_user():
+            return active_user["value"]
+
+        def override_db():
+            yield db
+
+        app.dependency_overrides[get_current_user] = override_user
+        app.dependency_overrides[get_db] = override_db
+        try:
+            yield TestClient(app), active_user, admin, candidate
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+            app.dependency_overrides.pop(get_db, None)
+            Base.metadata.drop_all(engine)
+            engine.dispose()
+
+
+def test_candidate_api_rejects_administrator_and_accepts_candidate_sessions(authorization_client):
+    client, active_user, admin, candidate = authorization_client
+    active_user["value"] = admin
+    denied = client.get("/api/v1/profile")
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == "Insufficient permissions"
+
+    active_user["value"] = candidate
+    allowed = client.get("/api/v1/profile")
+    assert allowed.status_code == 200
+    assert allowed.json()["user"]["id"] == candidate.id
+
+
+def test_registration_rejects_privileged_role_mass_assignment():
+    from pydantic import ValidationError
+    from apps.api.app.api.v1.auth.routes import RegisterRequest
+
+    with pytest.raises(ValidationError):
+        RegisterRequest.model_validate({
+            "email": "candidate@example.com",
+            "password": "long-enough-password",
+            "full_name": "Candidate User",
+            "role": "admin",
+        })
