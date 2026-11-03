@@ -9,12 +9,13 @@ from packages.database.models.identity import User
 from packages.database.models.career import (
     Application, AIConversation, AIMessage, Company, EmailAccount, EmailMessage,
     Interview, Recruiter, ResumeDocument, CandidateProfile, CandidateOpportunity,
-    GeneratedArtifact, SavedSearch, Notification, OAuthState, ApplicationEvent,
+    GeneratedArtifact, SavedSearch, Notification, OAuthState, ApplicationEvent, CandidateSkill,
+    UserAIBudget,
 )
 from apps.api.app.api.v1.resumes.routes import list_resumes, resume_text
 from apps.api.app.api.v1.recruiters.routes import RecruiterInput, create_recruiter, list_recruiters
 from apps.api.app.api.v1.interviews.routes import InterviewInput, create_interview, list_interviews
-from apps.api.app.api.v1.ai.routes import conversations, conversation_messages
+from apps.api.app.api.v1.ai.routes import conversations, conversation_messages, usage, get_budget, update_budget, BudgetUpdate
 from apps.api.app.api.v1.integrations.gmail_routes import account, messages, disconnect
 
 
@@ -142,6 +143,7 @@ from apps.api.app.api.v1.applications.routes import list_applications, applicati
 from apps.api.app.api.v1.career_tools.routes import list_artifacts, get_artifact, update_artifact, ArtifactUpdate
 from apps.api.app.api.v1.automations.routes import approvals, approval_decision, ApprovalDecision
 from packages.automation.approvals.service import create_approval
+from packages.database.models.entities import AIUsage
 from packages.integrations.gmail import client as gmail_client
 
 
@@ -297,3 +299,33 @@ def test_gmail_oauth_state_is_owner_bound_and_single_use(db, users, monkeypatch)
     assert state_record.consumed_at is not None
     with pytest.raises(ValueError):
         gmail_client.complete_authorization(db, raw_state, "authorization-code")
+
+
+
+def test_candidate_skills_ai_usage_and_budgets_are_owner_scoped(db, users):
+    owner, other = users
+    db.add_all([
+        CandidateSkill(user_id=owner.id, skill_name="Python", proficiency="advanced", evidence="owner evidence"),
+        CandidateSkill(user_id=other.id, skill_name="Kubernetes", proficiency="expert", evidence="private evidence"),
+        AIUsage(user_id=owner.id, provider="mock", model="mock-v1", input_tokens=10, output_tokens=20),
+        AIUsage(user_id=other.id, provider="openai", model="private-model", input_tokens=900, output_tokens=900),
+        UserAIBudget(user_id=owner.id, monthly_token_limit=1000, hard_token_limit_enabled=True),
+        UserAIBudget(user_id=other.id, monthly_token_limit=999999, hard_token_limit_enabled=True),
+    ])
+    db.flush()
+
+    profile = get_profile(owner, db)
+    assert [item["skill_name"] for item in profile["skills"]] == ["Python"]
+    usage_snapshot = usage(owner, db)
+    assert usage_snapshot["scope"] == "user"
+    assert sum(item["input_tokens"] for item in usage_snapshot["items"]) == 10
+    budget = get_budget(owner, db)
+    assert budget["monthly_token_limit"] == 1000
+    updated = update_budget(
+        BudgetUpdate(monthly_token_limit=1200, hard_token_limit_enabled=True),
+        owner,
+        db,
+    )
+    assert updated["monthly_token_limit"] == 1200
+    other_budget = get_budget(other, db)
+    assert other_budget["monthly_token_limit"] == 999999
