@@ -12,8 +12,7 @@ from packages.ai.providers.router import generate_with_fallback
 from packages.database.models.identity import User
 from packages.database.models.entities import AIUsage
 from packages.database.models.career import (
-    AIConversation, UserAIBudget, ResumeDocument, CandidateOpportunity,
-    CandidateSkill, GeneratedArtifact,
+    UserAIBudget, ResumeDocument, CandidateSkill, CandidateProfile, GeneratedArtifact,
 )
 
 router = APIRouter()
