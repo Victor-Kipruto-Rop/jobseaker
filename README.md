@@ -51,8 +51,8 @@ See [Platform architecture and engineering contracts](docs/architecture/platform
 1. Install Docker Desktop, Python 3.12+, Node.js 20+, pnpm 9+, and Git.
 2. Copy .env.example to .env.
 3. Keep APP_ENV=local. Replace APP_SECRET_KEY with a random local secret of at least 32 characters.
-4. For local Python verification, create a virtual environment and install the development dependencies: `python -m venv .venv`, activate it, then run `python -m pip install -e ".[dev]"`.
-5. For local web verification, run `pnpm install --frozen-lockfile` from the repository root.
+4. For local Python verification, create a virtual environment and install the development dependencies: `python -m venv .venv`, activate it (PowerShell: `.venv\\Scripts\\Activate.ps1`), then run `python -m pip install -e ".[dev]"`.
+5. For local web verification, run `pnpm install` from the repository root.
 6. Run:
 
    docker compose -f infrastructure/compose/docker-compose.yml config
