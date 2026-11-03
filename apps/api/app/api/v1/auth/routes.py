@@ -37,8 +37,10 @@ def _current(request: Request, db: Session):
     return result
 
 @router.get("/csrf")
-def csrf(response: Response):
+def csrf(request: Request, response: Response, db: Session = Depends(get_db)):
     import secrets
+    if request.cookies.get(COOKIE_NAME) and resolve_session(db, request.cookies.get(COOKIE_NAME)):
+        return {"authenticated": True, "csrf_token": "session-cookie-preserved"}
     value = secrets.token_urlsafe(32)
     response.set_cookie(CSRF_COOKIE, value, httponly=False,
                         secure=get_settings().app_env == "production", samesite="lax", path="/")
