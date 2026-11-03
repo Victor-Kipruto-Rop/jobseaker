@@ -7,10 +7,12 @@ from packages.integrations.job_boards.connectors import discover_greenhouse, dis
 from apps.api.app.core.config import get_settings
 
 def run_saved_search_discovery():
-    """Run only explicitly configured saved searches against supported public APIs."""
+    """Run explicitly configured saved searches unless global automation is paused."""
+    if get_settings().global_automation_paused:
+        return {"paused": True, "searches": 0, "saved": 0, "duplicates": 0, "failed": 0}
     with SessionLocal() as db:
-        searches = db.scalars(select(SavedSearch)).all()
-        summary = {"searches": 0, "saved": 0, "duplicates": 0, "failed": 0}
+        searches = db.scalars(select(SavedSearch).order_by(SavedSearch.id.asc()).limit(500)).all()
+        summary = {"paused": False, "searches": 0, "saved": 0, "duplicates": 0, "failed": 0}
         for saved_search in searches:
             config = saved_search.query or {}
             source, board = config.get("source"), config.get("board")
@@ -43,7 +45,7 @@ def run_saved_search_discovery():
         return summary
 
 def create_upcoming_interview_reminders():
-    """Create in-app reminders for interviews starting within the next 24 hours."""
+    """Create idempotent in-app reminders for interviews in the next 24 hours."""
     now = datetime.now(timezone.utc)
     until = now + timedelta(hours=24)
     with SessionLocal() as db:
@@ -53,7 +55,8 @@ def create_upcoming_interview_reminders():
         for interview in interviews:
             marker = f"interview:{interview.id}"
             exists = db.scalar(select(Notification.id).where(
-                Notification.user_id == interview.user_id, Notification.body.like(marker + "%")))
+                Notification.user_id == interview.user_id,
+                Notification.body.like(marker + "%")))
             if exists:
                 continue
             db.add(Notification(user_id=interview.user_id, title="Upcoming interview",
