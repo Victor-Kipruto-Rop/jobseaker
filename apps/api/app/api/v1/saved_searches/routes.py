@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -14,6 +14,14 @@ class SavedSearchInput(BaseModel):
     source: Literal["greenhouse", "lever"]
     board: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9][A-Za-z0-9-]{0,79}$")
     company_name: str | None = Field(default=None, max_length=250)
+    keywords: list[str] = Field(default_factory=list, max_length=20)
+    location: str | None = Field(default=None, max_length=120)
+    remote_only: bool = False
+
+    @field_validator("keywords")
+    @classmethod
+    def normalize_keywords(cls, values):
+        return list(dict.fromkeys(value.strip()[:80] for value in values if value.strip()))
 
 @router.get("")
 def list_saved_searches(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -34,7 +42,8 @@ def create_saved_search(body: SavedSearchInput, user: User = Depends(get_current
     if count >= 50:
         raise HTTPException(status_code=409, detail="The limit of 50 saved searches has been reached")
     row = SavedSearch(user_id=user.id, name=body.name.strip(),
-        query={"source": body.source, "board": board, "company_name": body.company_name})
+        query={"source": body.source, "board": board, "company_name": body.company_name,
+               "keywords": body.keywords, "location": body.location, "remote_only": body.remote_only})
     db.add(row)
     db.commit()
     db.refresh(row)
