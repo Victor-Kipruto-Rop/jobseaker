@@ -92,3 +92,15 @@ def test_csrf_endpoint_rotates_a_tampered_cookie(monkeypatch):
         assert result["csrf_token"] != tampered
         assert session.csrf_hash == hashlib.sha256(result["csrf_token"].encode()).hexdigest()
     Base.metadata.drop_all(engine)
+
+from apps.api.app.api.v1.applications.routes import TRANSITIONS
+
+def test_ready_application_requires_explicit_approval_before_submission():
+    assert "approved" in TRANSITIONS["ready"]
+    assert "submitted" not in TRANSITIONS["ready"]
+    assert "submitted" in TRANSITIONS["approved"]
+
+def test_application_lifecycle_does_not_allow_skipping_approval():
+    assert "approved" not in TRANSITIONS["draft"]
+    assert "submitted" not in TRANSITIONS["draft"]
+    assert TRANSITIONS["archived"] == set()
