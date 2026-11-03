@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import io
+from pathlib import Path
 from dataclasses import dataclass, asdict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -62,7 +63,7 @@ def parse_send_log(content: bytes):
 
 def import_send_log(db: Session, content: bytes, filename: str, *, dry_run: bool = False) -> SendLogReport:
     rows = parse_send_log(content)
-    file_hash = hashlib.sha256(filename.replace("\\\\", "/").split("/")[-1].strip().lower().encode("utf-8")).hexdigest()
+    file_hash = hashlib.sha256(Path(filename).name.strip().lower().encode("utf-8")).hexdigest()
     report = SendLogReport(total_rows=len(rows), errors=[])
     for index, (payload, normalized) in enumerate(rows, start=2):
         row_hash = hashlib.sha256(
