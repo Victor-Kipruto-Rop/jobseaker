@@ -6,8 +6,7 @@ from apps.api.app.main import app
 
 @pytest.fixture
 def client():
-    with TestClient(app) as test_client:
-        yield test_client
+    yield TestClient(app)
 
 
 def test_anonymous_mutation_rejects_missing_csrf_handshake(client):
