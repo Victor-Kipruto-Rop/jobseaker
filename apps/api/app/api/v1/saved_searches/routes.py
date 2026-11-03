@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import Literal
-from sqlalchemy import select
+import re
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
@@ -11,7 +12,7 @@ router = APIRouter()
 class SavedSearchInput(BaseModel):
     name: str = Field(min_length=2, max_length=160)
     source: Literal["greenhouse", "lever"]
-    board: str = Field(min_length=1, max_length=80)
+    board: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9][A-Za-z0-9-]{0,79}$")
     company_name: str | None = Field(default=None, max_length=250)
 
 @router.get("")
@@ -33,3 +34,12 @@ def create_saved_search(body: SavedSearchInput, user: User = Depends(get_current
     db.commit()
     db.refresh(row)
     return {"id": row.id, "name": row.name, "query": row.query}
+
+@router.delete("/{search_id}", status_code=204)
+def delete_saved_search(search_id: int, user: User = Depends(get_current_user),
+                        db: Session = Depends(get_db)):
+    row = db.scalar(select(SavedSearch).where(SavedSearch.id == search_id, SavedSearch.user_id == user.id))
+    if not row:
+        raise HTTPException(status_code=404, detail="Saved search not found")
+    db.delete(row)
+    db.commit()
