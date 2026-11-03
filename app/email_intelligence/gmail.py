@@ -16,7 +16,9 @@ DEFAULT_QUERY = "in:anywhere {subject:job subject:career subject:vacancy subject
 
 def get_gmail_service():
     settings = get_settings()
-    if not settings.gmail_enabled:\n        raise RuntimeError("GMAIL_ENABLED must be true before starting Gmail sync.")\n    if not settings.gmail_client_secret_file or not settings.gmail_token_file:
+    if not settings.gmail_enabled:
+        raise RuntimeError("GMAIL_ENABLED must be true before starting Gmail sync.")
+    if not settings.gmail_client_secret_file or not settings.gmail_token_file:
         raise RuntimeError("Set GMAIL_CLIENT_SECRET_FILE and GMAIL_TOKEN_FILE before Gmail sync.")
     token_path = settings.gmail_token_file
     try:
@@ -108,7 +110,6 @@ def sync_job_related_mail(db: Session, *, query: str = DEFAULT_QUERY, max_messag
     state.last_query = query
 
     message_ids = set()
-    # Seed historic outreach sent messages by exact Gmail IDs, then search all matching job mail.
     for row in db.scalars(select(SourceImportRow).where(SourceImportRow.gmail_message_id.is_not(None))):
         message_ids.add(row.gmail_message_id)
 
@@ -129,6 +130,7 @@ def sync_job_related_mail(db: Session, *, query: str = DEFAULT_QUERY, max_messag
 
     fetched = 0
     inserted = 0
+    failures = []
     for message_id in message_ids:
         if db.scalar(select(EmailEvent.id).where(EmailEvent.gmail_message_id == message_id)):
             continue
@@ -139,14 +141,16 @@ def sync_job_related_mail(db: Session, *, query: str = DEFAULT_QUERY, max_messag
             ).execute()
             inserted += int(_store_message(db, message, mailbox))
             fetched += 1
-        except Exception:
-            # Keep sync moving; the final report exposes the number fetched.
-            continue
+        except Exception as exc:
+            failures.append({"message_id": message_id, "error": str(exc)[:250]})
 
     state.last_synced_at = datetime.now(timezone.utc)
-    state.sync_status = "completed"
-    state.last_error = None
+    state.sync_status = "completed_with_errors" if failures else "completed"
+    state.last_error = f"{len(failures)} message fetch failures" if failures else None
     db.commit()
+    seeded = db.scalar(select(__import__("sqlalchemy").func.count()).select_from(SourceImportRow).where(
+        SourceImportRow.gmail_message_id.is_not(None)
+    )) or 0
     return {"mailbox": mailbox, "query": query, "unique_message_ids": len(message_ids),
-            "fetched": fetched, "new_events": inserted,
-            "seeded_outreach_ids": len(db.scalars(select(SourceImportRow.id).where(SourceImportRow.gmail_message_id.is_not(None))).all())}
+            "fetched": fetched, "new_events": inserted, "seeded_outreach_ids": seeded,
+            "fetch_failures": failures}
