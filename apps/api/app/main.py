@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from apps.api.app.core.config import get_settings
 from apps.api.app.core.security import resolve_session
+from apps.api.app.core.origin import is_allowed_origin
 from apps.api.app.lifespan import lifespan
 from apps.api.app.api.v1.router import router
 from apps.api.app.health.routes import router as health_router
@@ -19,6 +20,14 @@ app.add_middleware(CORSMiddleware, allow_origins=s.allowed_origins, allow_creden
 @app.middleware("http")
 async def csrf_protection(request: Request, call_next):
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        origin = request.headers.get("origin")
+        referer = request.headers.get("referer")
+        browser_origin = origin or (referer.rsplit("/", 3)[0] if referer else None)
+        if browser_origin and not is_allowed_origin(browser_origin, s.allowed_origins):
+            return JSONResponse(status_code=403, content={"detail": "Untrusted request origin"})
+        fetch_site = request.headers.get("sec-fetch-site", "").lower()
+        if fetch_site == "cross-site":
+            return JSONResponse(status_code=403, content={"detail": "Cross-site state changes are not allowed"})
         session_token = request.cookies.get("jobseeker_session")
         csrf_cookie = request.cookies.get("jobseeker_csrf")
         csrf_header = request.headers.get("x-csrf-token")
