@@ -9,7 +9,7 @@ from packages.ai.providers.registry import get_registry
 from packages.ai.budget import AIQuotaExceeded, finish_ai_reservation, record_ai_usage, reserve_ai_tokens
 from packages.ai.providers.base import GenerationRequest
 from packages.ai.providers.router import generate_with_fallback
-from packages.database.models import AIUsage
+from packages.database.models import AIUsage, AIUsageReservation
 from packages.database.models.career import AIConversation, AIMessage, UserAIBudget
 from apps.api.app.core.config import get_settings
 from apps.api.app.dependencies import get_current_user, get_db
@@ -157,15 +157,13 @@ def _budget_snapshot(user: User, db: Session, budget: UserAIBudget | None):
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     used = db.scalar(select(func.coalesce(func.sum(AIUsage.input_tokens + AIUsage.output_tokens), 0))
                      .where(AIUsage.user_id == user.id, AIUsage.created_at >= month_start)) or 0
-    limit = budget.monthly_token_limit if budget else 0
-    enabled = bool(budget and budget.hard_token_limit_enabled)
-    remaining = max(0, limit - int(used)) if limit > 0 else None
-    percentage = round(100 * int(used) / limit, 1) if limit > 0 else None
+    reserved = db.scalar(select(func.coalesce(func.sum(AIUsageReservation.reserved_tokens), 0))\n        .where(AIUsageReservation.user_id == user.id, AIUsageReservation.status == "reserved",\n               AIUsageReservation.created_at >= month_start, AIUsageReservation.expires_at > now)) or 0\n    limit = budget.monthly_token_limit if budget else 0\n    enabled = bool(budget and budget.hard_token_limit_enabled)\n    remaining = max(0, limit - int(used) - int(reserved)) if limit > 0 else None\n    percentage = round(100 * (int(used) + int(reserved)) / limit, 1) if limit > 0 else None
     return {
         "monthly_token_limit": limit,
         "hard_token_limit_enabled": enabled,
         "alert_threshold_percent": budget.alert_threshold_percent if budget else 80,
         "monthly_tokens_used": int(used),
+        "reserved_tokens": int(reserved),
         "remaining_tokens": remaining,
         "usage_percent": percentage,
         "enforcement": "token_limit" if enabled and limit > 0 else "disabled",
