@@ -8,7 +8,9 @@ JobSeeker is a local-first AI-assisted career operations platform. It combines o
 - OpenAI and Anthropic are runtime providers behind a common adapter contract. Mock mode supports local development.
 - Codex CLI is a local development agent, not an application runtime inference API.
 - AI-generated CVs, cover letters, interview packs, and roadmaps are drafts. They are not automatically sent or submitted.
-- Job matching exposes a transparent keyword coverage baseline, not a hiring probability.
+- Job matching exposes a transparent, versioned keyword coverage baseline with matched/missing skill evidence, not a hiring probability.
+- Application submission requires a user-owned approval record; approval does not itself submit anything externally.
+- Saved-search discovery respects the global automation pause and interview reminders are designed to be idempotent.
 - Gmail access is read-only and uses the gmail.readonly scope.
 - Email sending and application submission remain disabled.
 - Resume uploads use persistent local storage in development. Production uploads remain disabled until private object storage is configured.
@@ -32,6 +34,8 @@ JobSeeker is a local-first AI-assisted career operations platform. It combines o
 - API documentation: /docs
 
 ## Architecture
+
+See [Platform architecture and engineering contracts](docs/architecture/platform-design.md) for bounded contexts, runtime topology, data flows, security invariants, lifecycle rules, reliability expectations, and release quality gates.
 
 - FastAPI API under apps/api
 - Next.js web application under apps/web
@@ -78,4 +82,4 @@ Configure OpenAI or Anthropic credentials only in the private API environment. N
 
 ## Current release status
 
-This is an actively developed feature branch, not a production-ready release. Authentication, user-scoped workflows, AI drafts, job-board connectors, Gmail read-only integration, local CV processing, application tracking, and recurring discovery have implementation code. However, this turn has not run Python tests, frontend lint/build, Docker Compose, database migrations, or live third-party integrations. Production object storage, backup/restore drills, full account deletion/export, richer job-source coverage, production OAuth review, and comprehensive end-to-end security verification remain outstanding. Do not merge or deploy based on code presence alone.
+This is an actively developed feature branch, not a production-ready release. Authentication, user-scoped workflows, persistent AI conversations and drafts, provider routing, job-board connectors, Gmail read-only integration, local CV processing, approval-gated application tracking, and recurring discovery have implementation code. However, this turn has not run Python tests, frontend lint/build, Docker Compose, database migrations, or live third-party integrations. Production object storage, backup/restore drills, full account deletion/export, richer job-source coverage, production OAuth review, and comprehensive end-to-end security verification remain outstanding. Do not merge or deploy based on code presence alone.
