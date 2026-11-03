@@ -149,16 +149,30 @@ class BudgetUpdate(BaseModel):
     hard_token_limit_enabled: bool = False
     alert_threshold_percent: int = Field(default=80, ge=1, le=100)
 
+def _budget_snapshot(user: User, db: Session, budget: UserAIBudget | None):
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    used = db.scalar(select(func.coalesce(func.sum(AIUsage.input_tokens + AIUsage.output_tokens), 0))
+                     .where(AIUsage.user_id == user.id, AIUsage.created_at >= month_start)) or 0
+    limit = budget.monthly_token_limit if budget else 0
+    enabled = bool(budget and budget.hard_token_limit_enabled)
+    remaining = max(0, limit - int(used)) if limit > 0 else None
+    percentage = round(100 * int(used) / limit, 1) if limit > 0 else None
+    return {
+        "monthly_token_limit": limit,
+        "hard_token_limit_enabled": enabled,
+        "alert_threshold_percent": budget.alert_threshold_percent if budget else 80,
+        "monthly_tokens_used": int(used),
+        "remaining_tokens": remaining,
+        "usage_percent": percentage,
+        "enforcement": "token_limit" if enabled and limit > 0 else "disabled",
+        "period_start": month_start.isoformat(),
+    }
+
 @router.get("/budget")
 def get_budget(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user.id))
-    if not budget:
-        return {"monthly_token_limit": 0, "hard_token_limit_enabled": False,
-                "alert_threshold_percent": 80, "enforcement": "disabled"}
-    return {"monthly_token_limit": budget.monthly_token_limit,
-            "hard_token_limit_enabled": budget.hard_token_limit_enabled,
-            "alert_threshold_percent": budget.alert_threshold_percent,
-            "enforcement": "token_limit" if budget.hard_token_limit_enabled and budget.monthly_token_limit else "disabled"}
+    return _budget_snapshot(user, db, budget)
 
 @router.put("/budget")
 def update_budget(body: BudgetUpdate, user: User = Depends(get_current_user),
@@ -171,7 +185,4 @@ def update_budget(body: BudgetUpdate, user: User = Depends(get_current_user),
     budget.hard_token_limit_enabled = body.hard_token_limit_enabled
     budget.alert_threshold_percent = body.alert_threshold_percent
     db.commit()
-    return {"monthly_token_limit": budget.monthly_token_limit,
-            "hard_token_limit_enabled": budget.hard_token_limit_enabled,
-            "alert_threshold_percent": budget.alert_threshold_percent,
-            "enforcement": "token_limit" if budget.hard_token_limit_enabled and budget.monthly_token_limit else "disabled"}
+    return _budget_snapshot(user, db, budget)
