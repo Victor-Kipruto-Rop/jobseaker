@@ -42,8 +42,8 @@ Keep the existing `kenya_data_opportunities_contacts.csv` and `outreach_send_log
 Example:
 
 ```powershell
-python scripts/import_outreach.py "C:\\path\\to\\kenya_data_opportunities_contacts.csv" --dry-run
-python scripts/import_outreach.py "C:\\path\\to\\kenya_data_opportunities_contacts.csv"
+python -m scripts.import_outreach "C:\\path\\to\\kenya_data_opportunities_contacts.csv" --dry-run
+python -m scripts.import_outreach "C:\\path\\to\\kenya_data_opportunities_contacts.csv"
 ```
 
 A future send-log importer will link known Gmail message IDs and thread IDs without treating SENT as proof of delivery or reading.
