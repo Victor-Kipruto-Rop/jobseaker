@@ -1,0 +1,21 @@
+services:
+  jobseeker:
+    build: .
+    container_name: jobseeker-local
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:////app/data/jobseeker.db
+      GLOBAL_AUTOMATION_PAUSED: "true"
+      AUTO_SUBMISSION_ENABLED: "false"
+      GMAIL_ENABLED: "false"
+      JOB_DISCOVERY_ENABLED: "false"
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - .:/app
+      - jobseeker_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  jobseeker_data:
