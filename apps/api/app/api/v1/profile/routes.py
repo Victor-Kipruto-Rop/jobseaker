@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from typing import Literal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
@@ -19,8 +20,13 @@ class ProfileUpdate(BaseModel):
 
 class SkillInput(BaseModel):
     skill_name: str = Field(min_length=1, max_length=120)
-    proficiency: str = Field(default="not_assessed", max_length=40)
+    proficiency: Literal["not_assessed", "beginner", "intermediate", "advanced", "expert"] = "not_assessed"
     evidence: str = Field(default="", max_length=2000)
+
+    @field_validator("skill_name")
+    @classmethod
+    def clean_skill_name(cls, value):
+        return value.strip()
 
 @router.get("")
 def get_profile(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
