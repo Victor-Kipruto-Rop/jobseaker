@@ -20,7 +20,8 @@ JOB_SKILL_TAXONOMY = (
 )
 
 ALIASES = {
-    "postgres": "postgresql", "postgresql": "postgresql",\n    "data warehouse": "data warehousing",
+    "postgres": "postgresql", "postgresql": "postgresql",
+    "data warehouse": "data warehousing",
     "apache kafka": "kafka", "apache airflow": "airflow",
     "spark": "apache spark", "apache spark": "apache spark",
     "powerbi": "power bi", "google cloud": "gcp", "google bigquery": "bigquery",
