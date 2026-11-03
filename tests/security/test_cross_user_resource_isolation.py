@@ -145,6 +145,7 @@ from apps.api.app.api.v1.automations.routes import approvals, approval_decision,
 from packages.automation.approvals.service import create_approval
 from packages.database.models.entities import AIUsage
 from packages.integrations.gmail import client as gmail_client
+from packages.automation import tasks
 
 
 def test_profile_skills_and_saved_searches_are_owner_scoped(db, users):
@@ -329,3 +330,25 @@ def test_candidate_skills_ai_usage_and_budgets_are_owner_scoped(db, users):
     assert updated["monthly_token_limit"] == 1200
     other_budget = get_budget(other, db)
     assert other_budget["monthly_token_limit"] == 999999
+
+
+
+def test_interview_reminder_worker_keeps_notifications_with_interview_owner(db, users, monkeypatch):
+    owner, other = users
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select
+
+    scheduled = datetime.now(timezone.utc) + timedelta(hours=2)
+    db.add_all([
+        Interview(user_id=owner.id, interview_type="technical", scheduled_at=scheduled),
+        Interview(user_id=other.id, interview_type="screening", scheduled_at=scheduled),
+    ])
+    db.commit()
+    monkeypatch.setattr(tasks, "SessionLocal", lambda: Session(bind=db.get_bind()))
+
+    result = tasks.create_upcoming_interview_reminders()
+    assert result["reminders_created"] == 2
+    notices = db.scalars(select(Notification).order_by(Notification.user_id)).all()
+    assert len(notices) == 2
+    assert {item.user_id for item in notices} == {owner.id, other.id}
+    assert all(item.body.startswith("interview:") for item in notices)
