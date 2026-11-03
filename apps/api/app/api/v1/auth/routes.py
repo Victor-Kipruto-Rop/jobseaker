@@ -41,15 +41,20 @@ def _current(request: Request, db: Session):
 
 @router.get("/csrf")
 def csrf(request: Request, response: Response, db: Session = Depends(get_db)):
-    """Issue a fresh double-submit token and bind it to the active server-side session."""
+    """Return the current double-submit token, repairing it only when missing or invalid."""
     session_token = request.cookies.get(COOKIE_NAME)
     resolved = resolve_session(db, session_token) if session_token else None
-    value = secrets.token_urlsafe(32)
+    value = request.cookies.get(CSRF_COOKIE)
     if resolved:
-        user, session = resolved
-        session.csrf_hash = hashlib.sha256(value.encode("utf-8")).hexdigest()
-        db.add(AuditLog(user_id=user.id, action="security.csrf_token_rotated"))
-        db.commit()
+        _, session = resolved
+        expected_hash = hashlib.sha256(value.encode("utf-8")).hexdigest() if value else ""
+        if not value or not hmac.compare_digest(session.csrf_hash, expected_hash):
+            value = secrets.token_urlsafe(32)
+            session.csrf_hash = hashlib.sha256(value.encode("utf-8")).hexdigest()
+            db.commit()
+    elif not value:
+        value = secrets.token_urlsafe(32)
+
     response.set_cookie(CSRF_COOKIE, value, httponly=False,
                         secure=get_settings().app_env == "production",
                         samesite="lax", path="/",
