@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from packages.database.sessions import SessionLocal
 from packages.database.models.entities import AIUsageReservation
 from packages.database.models.career import CandidateOpportunity, Interview, Notification, SavedSearch
-from packages.integrations.job_boards.connectors import discover_greenhouse, discover_lever
+from packages.integrations.job_boards.connectors import discover_greenhouse, discover_lever, filter_jobs
 from apps.api.app.core.config import get_settings
 
 async def _fetch_saved_searches(searches, concurrency: int = 5):
