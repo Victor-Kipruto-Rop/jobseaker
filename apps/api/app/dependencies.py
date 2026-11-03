@@ -16,3 +16,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     if not result:
         raise HTTPException(status_code=401, detail="Authentication required")
     return result[0]
+
+def get_verified_user(user: User = Depends(get_current_user)) -> User:
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="Verify your email address before connecting external accounts")
+    return user
