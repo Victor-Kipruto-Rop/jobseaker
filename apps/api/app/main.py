@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+from urllib.parse import urlsplit
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -22,7 +23,8 @@ async def csrf_protection(request: Request, call_next):
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
         origin = request.headers.get("origin")
         referer = request.headers.get("referer")
-        browser_origin = origin or (referer.rsplit("/", 3)[0] if referer else None)
+        parsed_referer = urlsplit(referer) if referer else None
+        browser_origin = origin or (f"{parsed_referer.scheme}://{parsed_referer.netloc}" if parsed_referer and parsed_referer.netloc else None)
         if browser_origin and not is_allowed_origin(browser_origin, s.allowed_origins):
             return JSONResponse(status_code=403, content={"detail": "Untrusted request origin"})
         fetch_site = request.headers.get("sec-fetch-site", "").lower()
