@@ -65,14 +65,10 @@ async def _generate(user: User, db: Session, artifact_type: str, title: str,
         actual_provider, generated = await asyncio.wait_for(
             generate_with_fallback(request, selected), timeout=95)
     except asyncio.TimeoutError as exc:
-        if reservation_id is not None:
-            finish_ai_reservation(db, user.id, reservation_id, "failed")
-            db.commit()
+        # Keep the reservation until expiry because an upstream request may still have been accepted.
         raise HTTPException(status_code=504, detail="AI generation timed out") from exc
     except Exception as exc:
-        if reservation_id is not None:
-            finish_ai_reservation(db, user.id, reservation_id, "failed")
-            db.commit()
+        # Keep the reservation until expiry because an upstream request may still have been accepted.
         raise HTTPException(status_code=502, detail="AI generation failed. Check provider credentials and model access.") from exc
     artifact = GeneratedArtifact(user_id=user.id, artifact_type=artifact_type, title=title,
         content=generated.text, source_resume_id=resume_id,
