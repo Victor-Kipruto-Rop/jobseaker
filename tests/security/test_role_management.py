@@ -64,3 +64,24 @@ def test_operator_role_assignment_rejects_unknown_roles_and_accounts():
     finally:
         Base.metadata.drop_all(engine)
         engine.dispose()
+
+
+def test_unverified_account_cannot_be_promoted_to_administrator():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    try:
+        with Session(engine) as db:
+            user = User(email="unverified-admin@example.com", password_hash="unused")
+            db.add(user)
+            db.commit()
+            with pytest.raises(ValueError, match="active and email-verified"):
+                set_user_role(
+                    db,
+                    email=user.email,
+                    role="admin",
+                    operator="security-reviewer",
+                )
+            assert user.role == "candidate"
+    finally:
+        Base.metadata.drop_all(engine)
+        engine.dispose()
