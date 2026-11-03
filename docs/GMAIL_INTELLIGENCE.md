@@ -7,7 +7,7 @@ The first connector uses the Gmail `gmail.readonly` OAuth scope. It reads messag
 Import `outreach_send_log.csv` with the send-log importer first. It preserves every original row and extracts message and thread IDs from recognized columns. Unknown columns remain in `original_payload`. Exact message IDs are used to retrieve corresponding Gmail metadata.
 
 ## Job-related mailbox search
-The initial query searches anywhere in the mailbox for job-related subject terms. Use `--query` to tune the Gmail search. Gmail search results are bounded by `--max-messages`; repeated syncs skip already stored message IDs.
+The default query searches anywhere in the mailbox for job-related subject terms and for messages from/to addresses found in the imported outreach contacts and send log. Known message IDs are resolved to their full Gmail threads so replies with unusual subjects are included. Use `--query` to override the generated query. Gmail search results are bounded by `--max-messages`; repeated syncs skip already stored message IDs. This first version is a bounded initial scan, not yet Gmail History API push/incremental synchronization.
 
 ## Local setup
 1. Create a Google Cloud project and enable Gmail API.
