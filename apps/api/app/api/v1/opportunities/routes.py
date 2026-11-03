@@ -88,6 +88,8 @@ def save_opportunity(body: OpportunityCreate, user: User = Depends(get_current_u
 @router.post("/discover")
 async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current_user),
                         db: Session = Depends(get_db)):
+    if not get_settings().job_discovery_enabled:
+        raise HTTPException(status_code=503, detail="Job discovery is disabled. Enable JOB_DISCOVERY_ENABLED after reviewing your source settings.")
     enforce_rate_limit(f"job-discovery:{user.id}", limit=20, window_seconds=3600)
     try:
         discovered = (await discover_greenhouse(body.board, body.limit) if body.source == "greenhouse"
