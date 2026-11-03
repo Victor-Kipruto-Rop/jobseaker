@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 import httpx
 from apps.api.app.core.redis_limits import enforce_rate_limit
-from packages.integrations.job_boards.connectors import discover_greenhouse, discover_lever
+from packages.integrations.job_boards.connectors import discover_greenhouse, discover_lever, filter_jobs
 from packages.integrations.url_validation import validate_http_url
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -31,6 +31,14 @@ class DiscoveryRequest(BaseModel):
     board: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9][A-Za-z0-9-]{0,79}$")
     company_name: str | None = Field(default=None, max_length=250)
     limit: int = Field(default=50, ge=1, le=100)
+    keywords: list[str] = Field(default_factory=list, max_length=20)
+    location: str | None = Field(default=None, max_length=120)
+    remote_only: bool = False
+
+    @field_validator("keywords")
+    @classmethod
+    def normalize_keywords(cls, values):
+        return list(dict.fromkeys(value.strip()[:80] for value in values if value.strip()))
 
 class OpportunityCreate(BaseModel):
     title: str = Field(min_length=2, max_length=250)
@@ -105,9 +113,10 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
         raise HTTPException(status_code=502, detail="The selected job board returned an error") from exc
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Unable to reach the selected job board") from exc
+    filtered = filter_jobs(discovered, keywords=body.keywords, location=body.location, remote_only=body.remote_only)
     saved, skipped = 0, 0
     results = []
-    for item in discovered:
+    for item in filtered:
         url = item.get("source_url", "")
         if not url or db.scalar(select(CandidateOpportunity.id).where(
             CandidateOpportunity.user_id == user.id, CandidateOpportunity.source_url == url)):
@@ -124,5 +133,5 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="A concurrent import saved one or more of these opportunities. Retry discovery to import remaining roles.") from exc
-    return {"source": body.source, "board": body.board, "fetched": len(discovered),
+    return {"source": body.source, "board": body.board, "fetched": len(discovered), "matched_filters": len(filtered),
             "saved": saved, "duplicates_or_invalid": skipped, "items": results}
