@@ -10,6 +10,7 @@ JobSeeker is a local-first AI-assisted career operations platform. It combines o
 - AI-generated CVs, cover letters, interview packs, and roadmaps are drafts. They are not automatically sent or submitted.
 - Job matching exposes a transparent, versioned keyword coverage baseline with matched/missing skill evidence, not a hiring probability.
 - Application submission requires a user-owned approval record; approval does not itself submit anything externally.
+- AI token budgets reserve in-flight capacity, account for completed usage, and create monthly threshold notifications.
 - Saved-search discovery respects the global automation pause and interview reminders are designed to be idempotent.
 - Gmail access is read-only and uses the gmail.readonly scope.
 - Email sending and application submission remain disabled.
