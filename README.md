@@ -64,10 +64,9 @@ The API applies Alembic migrations automatically in local, development, and test
 
 ## Verification
 
-   python scripts/verification/verify_local.py
-   cd apps/web
-   pnpm lint
-   pnpm build
+   PowerShell: `./scripts/verification/verify_local.ps1`
+   Cross-platform Python: `python scripts/verification/verify_local.py`
+   Frontend separately: `cd apps/web && pnpm lint && pnpm build`
 
 The local verification script runs Python compile checks, pytest, and Ruff. It does not start Docker or perform live OpenAI, Anthropic, Gmail, or SMTP calls.
 
