@@ -1,5 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field\nfrom typing import Literal\nimport httpx\nfrom apps.api.app.core.redis_limits import enforce_rate_limit\nfrom packages.integrations.job_boards.connectors import discover_greenhouse, discover_lever
+from pydantic import BaseModel, Field
+from typing import Literal
+import httpx
+from apps.api.app.core.redis_limits import enforce_rate_limit
+from packages.integrations.job_boards.connectors import discover_greenhouse, discover_lever
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
@@ -14,7 +18,13 @@ class MatchRequest(BaseModel):
     description: str = Field(min_length=20, max_length=20000)
     skills: list[str] = Field(default_factory=list, max_length=100)
 
-class DiscoveryRequest(BaseModel):\n    source: Literal["greenhouse", "lever"]\n    board: str = Field(min_length=1, max_length=80)\n    company_name: str | None = Field(default=None, max_length=250)\n    limit: int = Field(default=50, ge=1, le=100)\n\nclass OpportunityCreate(BaseModel):
+class DiscoveryRequest(BaseModel):
+    source: Literal["greenhouse", "lever"]
+    board: str = Field(min_length=1, max_length=80)
+    company_name: str | None = Field(default=None, max_length=250)
+    limit: int = Field(default=50, ge=1, le=100)
+
+class OpportunityCreate(BaseModel):
     title: str = Field(min_length=2, max_length=250)
     company: str = Field(default="", max_length=250)
     description: str = Field(default="", max_length=30000)
