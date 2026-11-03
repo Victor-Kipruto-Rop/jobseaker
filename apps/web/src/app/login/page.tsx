@@ -22,11 +22,17 @@ export default function LoginPage() {
     setBusy(true);
     setError("");
     try {
+      if (!cookie("jobseeker_csrf")) {
+        const csrfResponse = await fetch(API + "/api/v1/auth/csrf", { credentials: "include", cache: "no-store" });
+        if (!csrfResponse.ok) throw new Error("Unable to initialize secure sign-in. Refresh and try again.");
+      }
+      const csrfToken = decodeURIComponent(cookie("jobseeker_csrf"));
+      if (!csrfToken) throw new Error("Secure sign-in token is missing. Refresh and try again.");
       const endpoint = mode === "login" ? "login" : "register";
       const response = await fetch(API + "/api/v1/auth/" + endpoint, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json", "X-CSRF-Token": decodeURIComponent(cookie("jobseeker_csrf")) },
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
         body: JSON.stringify(mode === "login" ? { email, password } : { email, password, full_name: fullName }),
       });
       const data = await response.json();
