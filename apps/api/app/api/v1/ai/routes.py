@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
@@ -31,11 +32,12 @@ async def providers():
         try:
             healthy = await provider.health_check()
         except Exception:
-            logger.exception("AI provider health check failed", extra={"provider": name})
+            logger.exception("AI provider credential check failed", extra={"provider": name})
             healthy = False
         result[name] = {
             "configured": True,
             "enabled": True,
+            "credential_check": "passed" if healthy else "failed",
             "healthy": bool(healthy),
             "default": name == settings.ai_default_provider,
             "model": getattr(provider, "model", "mock-v1" if name == "mock" else "configured"),
@@ -90,7 +92,12 @@ async def chat(body: ChatRequest):
         max_tokens=body.max_tokens,
     )
     try:
-        actual_provider, generated = await generate_with_fallback(request, requested)
+        actual_provider, generated = await asyncio.wait_for(
+            generate_with_fallback(request, requested), timeout=95
+        )
+    except asyncio.TimeoutError as exc:
+        logger.warning("AI request timed out", extra={"provider": requested})
+        raise HTTPException(status_code=504, detail="AI provider request timed out. Please retry.") from exc
     except Exception as exc:
         logger.exception("AI generation failed", extra={"provider": requested})
         raise HTTPException(
@@ -117,5 +124,5 @@ async def chat(body: ChatRequest):
         "text": generated.text,
         "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
         "estimated_cost_usd": None,
-        "cost_note": "Token usage is persisted. Monetary cost is unavailable until verified model pricing is configured.",
+        "cost_note": "Token usage is persisted. Monetary cost is unavailable until verified provider pricing is configured.",
     }
