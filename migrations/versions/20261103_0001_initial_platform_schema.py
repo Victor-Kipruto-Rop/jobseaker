@@ -29,7 +29,7 @@ def upgrade():
                 op.create_index("ix_approvals_user_id", "approvals", ["user_id"])
             except Exception:
                 pass
-    later_migration_tables = {"email_accounts", "email_messages", "oauth_states", "account_tokens", "generated_artifacts"}
+    later_migration_tables = {"email_accounts", "email_messages", "oauth_states", "account_tokens", "generated_artifacts", "ai_usage_reservations"}
     baseline_tables = [table for table in Base.metadata.sorted_tables
                        if table.name not in later_migration_tables]
     Base.metadata.create_all(bind=bind, tables=baseline_tables, checkfirst=True)
