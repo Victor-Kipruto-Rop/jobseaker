@@ -4,6 +4,7 @@ services:
     env_file: ../../.env
     environment:
       APP_ENV: local
+      ADMIN_BOOTSTRAP_ENABLED: "false"
       AI_DEFAULT_PROVIDER: mock
       AI_FALLBACK_PROVIDER: mock
       OPENAI_ENABLED: "false"
@@ -24,6 +25,7 @@ services:
     env_file: ../../.env
     environment:
       APP_ENV: local
+      ADMIN_BOOTSTRAP_ENABLED: "false"
       AI_DEFAULT_PROVIDER: mock
       AI_FALLBACK_PROVIDER: mock
       OPENAI_ENABLED: "false"
@@ -64,6 +66,7 @@ services:
     env_file: ../../.env
     environment:
       APP_ENV: local
+      ADMIN_BOOTSTRAP_ENABLED: "false"
       AI_DEFAULT_PROVIDER: mock
       AI_FALLBACK_PROVIDER: mock
       OPENAI_ENABLED: "false"
@@ -91,6 +94,7 @@ services:
     env_file: ../../.env
     environment:
       APP_ENV: local
+      ADMIN_BOOTSTRAP_ENABLED: "false"
       AI_DEFAULT_PROVIDER: mock
       AI_FALLBACK_PROVIDER: mock
       OPENAI_ENABLED: "false"
