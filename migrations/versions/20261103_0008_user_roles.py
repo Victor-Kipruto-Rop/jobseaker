@@ -9,17 +9,18 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        "users",
-        sa.Column("role", sa.String(length=32), nullable=False, server_default="candidate"),
-    )
-    op.create_check_constraint(
-        "ck_users_role",
-        "users",
-        "role IN ('candidate', 'admin')",
-    )
+    # Batch mode keeps this migration compatible with local SQLite and PostgreSQL.
+    with op.batch_alter_table("users") as batch:
+        batch.add_column(
+            sa.Column("role", sa.String(length=32), nullable=False, server_default="candidate")
+        )
+        batch.create_check_constraint(
+            "ck_users_role",
+            "role IN ('candidate', 'admin')",
+        )
 
 
 def downgrade():
-    op.drop_constraint("ck_users_role", "users", type_="check")
-    op.drop_column("users", "role")
+    with op.batch_alter_table("users") as batch:
+        batch.drop_constraint("ck_users_role", type_="check")
+        batch.drop_column("role")
