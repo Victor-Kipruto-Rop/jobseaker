@@ -36,6 +36,11 @@ class OpportunityCreate(BaseModel):
     remote_type: str = Field(default="unspecified", max_length=40)
     required_skills: list[str] = Field(default_factory=list, max_length=100)
 
+    @field_validator("required_skills")
+    @classmethod
+    def normalize_required_skills(cls, values):
+        return list(dict.fromkeys(value.strip()[:120] for value in values if value.strip()))
+
     @field_validator("source_url")
     @classmethod
     def safe_source_url(cls, value):
@@ -53,7 +58,7 @@ def list_opportunities(user: User = Depends(get_current_user), db: Session = Dep
     candidate_skills = [item.skill_name for item in skills]
     return [{"id": r.id, "title": r.title, "company": r.company, "location": r.location,
              "source_name": r.source_name, "source_url": r.source_url, "status": r.status,
-             "required_skills": r.required_skills, "fit": score_job(r.title, r.description, candidate_skills),
+             "required_skills": r.required_skills, "fit": score_job(r.title, r.description + " " + " ".join(r.required_skills or []), candidate_skills),
              "created_at": r.created_at} for r in rows]
 
 @router.post("", status_code=201)
@@ -70,7 +75,7 @@ def save_opportunity(body: OpportunityCreate, user: User = Depends(get_current_u
     db.commit()
     db.refresh(row)
     skills = db.scalars(select(CandidateSkill).where(CandidateSkill.user_id == user.id)).all()
-    fit = score_job(row.title, row.description, [s.skill_name for s in skills])
+    fit = score_job(row.title, row.description + " " + " ".join(row.required_skills or []), [s.skill_name for s in skills])
     return {"id": row.id, "title": row.title, "company": row.company, "status": row.status, "fit": fit}
 
 @router.post("/discover")
