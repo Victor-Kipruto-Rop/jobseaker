@@ -20,7 +20,7 @@ def upgrade():
         sa.Column("status", sa.String(length=30), nullable=False, server_default="draft"),
         sa.Column("provider", sa.String(length=40), nullable=False, server_default=""),
         sa.Column("model", sa.String(length=120), nullable=False, server_default=""),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
     op.create_index("ix_generated_artifacts_user_id", "generated_artifacts", ["user_id"])
     op.create_index("ix_generated_artifacts_artifact_type", "generated_artifacts", ["artifact_type"])
