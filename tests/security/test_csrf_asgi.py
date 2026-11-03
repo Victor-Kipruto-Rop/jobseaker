@@ -10,7 +10,7 @@ def client():
 
 
 def test_anonymous_mutation_rejects_missing_csrf_handshake(client):
-    response = client.post("/api/v1/auth/login", json={})
+    response = client.post("/api/v1/auth/login", json={}, headers={"Origin": "http://localhost:3000"})
     assert response.status_code == 403
     assert response.json()["detail"] == "CSRF validation failed"
 
@@ -20,7 +20,7 @@ def test_anonymous_mutation_rejects_mismatched_csrf_values(client):
         "/api/v1/auth/login",
         json={},
         cookies={"jobseeker_csrf": "cookie-token"},
-        headers={"X-CSRF-Token": "different-token"},
+        headers={"X-CSRF-Token": "different-token", "Origin": "http://localhost:3000"},
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "CSRF validation failed"
@@ -104,7 +104,7 @@ def test_authenticated_mutation_requires_session_bound_csrf_token(client, monkey
             "jobseeker_session": "valid-session-token",
             "jobseeker_csrf": valid_token,
         },
-        headers={"X-CSRF-Token": valid_token},
+        headers={"X-CSRF-Token": valid_token, "Origin": "http://localhost:3000"},
     )
     assert accepted.status_code == 422
 
@@ -115,7 +115,7 @@ def test_authenticated_mutation_requires_session_bound_csrf_token(client, monkey
             "jobseeker_session": "valid-session-token",
             "jobseeker_csrf": "tampered-token",
         },
-        headers={"X-CSRF-Token": "tampered-token"},
+        headers={"X-CSRF-Token": "tampered-token", "Origin": "http://localhost:3000"},
     )
     assert rejected.status_code == 403
     assert rejected.json()["detail"] == "CSRF session binding failed"
@@ -131,7 +131,7 @@ def test_logout_requires_csrf_handshake_and_valid_session(client):
     response = client.post(
         "/api/v1/auth/logout",
         cookies={"jobseeker_csrf": "valid-double-submit"},
-        headers={"X-CSRF-Token": "valid-double-submit"},
+        headers={"X-CSRF-Token": "valid-double-submit", "Origin": "http://localhost:3000"},
     )
     assert response.status_code == 401
     assert response.json()["detail"] == "Authentication required"
