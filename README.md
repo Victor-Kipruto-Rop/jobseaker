@@ -14,7 +14,8 @@ JobSeeker is a local-first AI-assisted career operations platform. It combines o
 - Saved-search discovery respects the global automation pause and interview reminders are designed to be idempotent.
 - Gmail access is read-only and uses the gmail.readonly scope.
 - Email sending and application submission remain disabled.
-- Resume uploads use persistent local storage in development. Production uploads remain disabled until private object storage is configured.
+- Resume uploads are limited to PDF/DOCX, 10 MB, 100 PDF pages, 50 MB DOCX expansion, and bounded text extraction. Production uploads remain disabled until private object storage and malware scanning are configured.
+- Resume records can be deleted by their owner; upload persistence uses an atomic file write and cleans up failed database writes.
 
 ## Current application workspaces
 
