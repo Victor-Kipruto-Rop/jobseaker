@@ -30,3 +30,12 @@ def test_recurring_scheduler_registration_is_idempotent():
     assert {job.id for job in scheduler.jobs} == {
         "jobseeker-interview-reminders", "jobseeker-saved-search-discovery"
     }
+
+def test_saved_search_discovery_respects_global_pause(monkeypatch):
+    from apps.api.app.core.config import get_settings
+    from packages.automation.tasks import run_saved_search_discovery
+    settings = get_settings()
+    monkeypatch.setattr(settings, "global_automation_paused", True)
+    result = run_saved_search_discovery()
+    assert result["paused"] is True
+    assert result["searches"] == 0
