@@ -17,11 +17,11 @@ router = APIRouter()
 class MatchRequest(BaseModel):
     title: str = Field(min_length=2, max_length=250)
     description: str = Field(min_length=20, max_length=20000)
-    skills: list[str] = Field(default_factory=list, max_length=100)
+    skills: list[str] = Field(default_factory=list, max_length=100)\n\n    @field_validator("skills")\n    @classmethod\n    def normalize_skills(cls, values):\n        return list(dict.fromkeys(value.strip()[:120] for value in values if value.strip()))
 
 class DiscoveryRequest(BaseModel):
     source: Literal["greenhouse", "lever"]
-    board: str = Field(min_length=1, max_length=80)
+    board: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9][A-Za-z0-9-]{0,79}$")
     company_name: str | None = Field(default=None, max_length=250)
     limit: int = Field(default=50, ge=1, le=100)
 
