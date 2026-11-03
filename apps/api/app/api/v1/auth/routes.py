@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import secrets
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -188,7 +189,6 @@ def request_password_reset(body: PasswordResetRequest, request: Request,
         if get_settings().app_env == "production":
             _consume_account_token(db, token, "password_reset")
             db.commit()
-        # Never disclose reset tokens in production or reveal account existence.
         return {"status": "accepted"}
     return {"status": "accepted"}
 
