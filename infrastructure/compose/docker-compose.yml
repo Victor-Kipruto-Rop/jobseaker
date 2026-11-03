@@ -4,6 +4,17 @@ services:
     env_file: ../../.env
     environment:
       APP_ENV: local
+      AI_DEFAULT_PROVIDER: mock
+      AI_FALLBACK_PROVIDER: mock
+      OPENAI_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      ANTHROPIC_ENABLED: "false"
+      ANTHROPIC_API_KEY: ""
+      SMTP_HOST: ""
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM_EMAIL: ""
+      GMAIL_CLIENT_SECRET_FILE: ""
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
     command: ["alembic", "upgrade", "head"]
     depends_on:
