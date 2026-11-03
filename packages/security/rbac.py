@@ -26,6 +26,9 @@ def set_user_role(
     if not user:
         raise LookupError("Target account was not found")
 
+    if normalized_role == "admin" and (not user.is_active or not user.is_verified):
+        raise ValueError("Administrator accounts must be active and email-verified")
+
     previous_role = user.role
     if previous_role == normalized_role:
         return user
