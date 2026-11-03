@@ -11,6 +11,11 @@ INDEX_NAME = "uq_candidate_opportunity_user_source_url"
 
 def upgrade():
     bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_indexes = {item["name"] for item in inspector.get_indexes("candidate_opportunities")}
+    if INDEX_NAME in existing_indexes:
+        return
+
     duplicates = bind.execute(sa.text("""
         SELECT user_id, source_url, COUNT(*) AS duplicate_count
         FROM candidate_opportunities
