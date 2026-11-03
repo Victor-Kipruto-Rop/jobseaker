@@ -26,7 +26,10 @@ class SkillInput(BaseModel):
     @field_validator("skill_name")
     @classmethod
     def clean_skill_name(cls, value):
-        return value.strip()
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Skill name cannot be blank")
+        return cleaned
 
 @router.get("")
 def get_profile(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
