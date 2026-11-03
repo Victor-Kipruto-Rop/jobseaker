@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./jobseeker.db"
     redis_url: str = "redis://localhost:6379/0"
     storage_path: str = "data/uploads"
+    gmail_enabled: bool = False
+    gmail_client_secret_file: str | None = None
+    gmail_redirect_uri: str = "http://localhost:8000/api/v1/integrations/gmail/callback"
+    web_app_url: str = "http://localhost:3000"
     cors_origins: str = "http://localhost:3000"
     ai_default_provider: str = "mock"
     ai_fallback_provider: str = "mock"
