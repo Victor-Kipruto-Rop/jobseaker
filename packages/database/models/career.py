@@ -104,7 +104,9 @@ class UserAIBudget(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
     monthly_limit_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    monthly_token_limit: Mapped[int] = mapped_column(Integer, default=0)
     hard_limit_enabled: Mapped[bool] = mapped_column(default=False)
+    hard_token_limit_enabled: Mapped[bool] = mapped_column(default=False)
     alert_threshold_percent: Mapped[int] = mapped_column(Integer, default=80)
 
 class ProviderPricing(Base):
