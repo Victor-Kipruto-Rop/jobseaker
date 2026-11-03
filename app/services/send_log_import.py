@@ -3,6 +3,7 @@ import hashlib
 import io
 from pathlib import Path
 from dataclasses import dataclass, asdict
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -44,7 +45,7 @@ def _decode(content: bytes) -> str:
 def parse_send_log(content: bytes):
     text = _decode(content)
     try:
-        dialect = csv.Sniffer().sniff(text[:8192], delimiters=",;\\t")
+        dialect = csv.Sniffer().sniff(text[:8192], delimiters=",;\t")
     except csv.Error:
         dialect = csv.excel
     reader = csv.DictReader(io.StringIO(text), dialect=dialect)
@@ -52,11 +53,16 @@ def parse_send_log(content: bytes):
         raise ValueError("Send log CSV has no header.")
     result = []
     for raw in reader:
-        payload = {str(k or "").strip(): (v.strip() if isinstance(v, str) else v)
-                   for k, v in raw.items()}
+        payload = {
+            str(k or "").strip().lower().replace(" ", "_").replace("-", "_"):
+            (v.strip() if isinstance(v, str) else v)
+            for k, v in raw.items()
+        }
         normalized = {}
         for target, aliases in ALIASES.items():
-            normalized[target] = next((payload[a] for a in aliases if a in payload and payload[a]), None)
+            normalized[target] = next(
+                (payload[a] for a in aliases if a in payload and payload[a]), None
+            )
         result.append((payload, normalized))
     return result
 
@@ -67,7 +73,7 @@ def import_send_log(db: Session, content: bytes, filename: str, *, dry_run: bool
     report = SendLogReport(total_rows=len(rows), errors=[])
     for index, (payload, normalized) in enumerate(rows, start=2):
         row_hash = hashlib.sha256(
-            (str(index) + "\\x1f" + repr(sorted(payload.items()))).encode("utf-8")
+            (str(index) + "\x1f" + repr(sorted(payload.items()))).encode("utf-8")
         ).hexdigest()
         report.rows_with_message_id += bool(normalized["message_id"])
         report.rows_with_thread_id += bool(normalized["thread_id"])
