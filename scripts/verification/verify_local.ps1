@@ -3,7 +3,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Push-Location $repoRoot
 try {
     Write-Host "== Python compile ==" -ForegroundColor Cyan
-    python -m compileall -q apps packages tests
+    python -m compileall -q apps packages tests migrations scripts
     if ($LASTEXITCODE -ne 0) { throw "Python compilation failed." }
 
     Write-Host "== Python tests ==" -ForegroundColor Cyan
