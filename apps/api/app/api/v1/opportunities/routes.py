@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 import httpx
@@ -52,7 +52,8 @@ class OpportunityCreate(BaseModel):
         return validate_http_url(value)
 
 @router.post("/match")
-def match(body: MatchRequest):
+def match(body: MatchRequest, request: Request):
+    enforce_rate_limit(f"job-match:{request.client.host if request.client else 'unknown'}", limit=60, window_seconds=60)
     return score_job(body.title, body.description, body.skills)
 
 @router.get("")
