@@ -1,36 +1,81 @@
-# JobSeeker Intelligence Platform
+# JobSeeker Intelligence
 
-Local-first AI-assisted career operations for discovering jobs, evaluating fit, preparing applications, managing outreach, and monitoring recruiter conversations.
+JobSeeker is a local-first AI-assisted career operations platform. It combines opportunity discovery, candidate evidence, CV analysis, application tracking, recruiter records, interview planning, read-only Gmail intelligence, and AI-generated career drafts.
 
-## Principles
-- OpenAI and Anthropic are runtime AI providers behind a common adapter contract.
-- Codex is a local development agent, not a runtime inference API. Use OpenAI API credentials for application intelligence.
-- PostgreSQL is the system of record; Redis handles background work.
-- AI-generated content is a draft until reviewed. Candidate facts require evidence.
-- Gmail is read-only by default. Email sending and application submission are disabled by default.
-- Local development is isolated from production endpoints and credentials.
+## Product principles
+
+- User-owned career records are scoped by authenticated account ID.
+- OpenAI and Anthropic are runtime providers behind a common adapter contract. Mock mode supports local development.
+- Codex CLI is a local development agent, not an application runtime inference API.
+- AI-generated CVs, cover letters, interview packs, and roadmaps are drafts. They are not automatically sent or submitted.
+- Job matching exposes a transparent keyword coverage baseline, not a hiring probability.
+- Gmail access is read-only and uses the gmail.readonly scope.
+- Email sending and application submission remain disabled.
+- Resume uploads use persistent local storage in development. Production uploads remain disabled until private object storage is configured.
+
+## Current application workspaces
+
+- Dashboard: /dashboard
+- Opportunity Radar: /discovery
+- Saved opportunities: /opportunities
+- Candidate profile and skills: /profile
+- CV upload and keyword analysis: /cv-studio
+- AI career drafts: /career-studio
+- Applications: /applications
+- Companies: /companies
+- Recruiter CRM: /recruiters
+- Gmail inbox intelligence: /inbox
+- Interviews: /interviews
+- Career analytics: /analytics
+- Approval center: /approvals
+- AI settings and token budget: /settings
+- API documentation: /docs
 
 ## Architecture
-The agreed modular structure lives under `apps/`, `packages/`, `infrastructure/`, `config/`, `docs/`, `scripts/`, and `tests/`. The previous foundation remains alongside it during migration to preserve existing outreach and Gmail import functionality.
 
-## Quick start
-1. Install Docker Desktop, Python 3.12+, Node.js 20+, and pnpm 9+.
-2. Copy `.env.example` to `.env`.
-3. Set a strong local `APP_SECRET_KEY`. Provider keys are optional for mock mode.
-4. Run `docker compose -f infrastructure/compose/docker-compose.yml up --build`.
-5. Open http://localhost:3000 and http://localhost:8000/docs.
+- FastAPI API under apps/api
+- Next.js web application under apps/web
+- PostgreSQL system of record
+- Redis rate limiting and RQ queues
+- RQ worker and RQ Scheduler services
+- SQLAlchemy models and Alembic migrations
+- Provider adapters for OpenAI, Anthropic, and mock mode
+- Integration packages for Greenhouse, Lever, Gmail, and SMTP
 
-## Commands
-- `make test`: Python tests.
-- `make lint`: Ruff and web TypeScript checks.
-- `make compose-up`: start local containers.
-- `make compose-down`: stop containers without deleting volumes.
+## Local setup
+
+1. Install Docker Desktop, Python 3.12+, Node.js 20+, and pnpm.
+2. Copy .env.example to .env.
+3. Keep APP_ENV=local. Replace APP_SECRET_KEY with a random local secret of at least 32 characters.
+4. Run:
+
+   docker compose -f infrastructure/compose/docker-compose.yml config
+   docker compose -f infrastructure/compose/docker-compose.yml up --build
+
+5. Open http://localhost:3000 and register an account.
+
+The API applies Alembic migrations automatically in local, development, and test environments. Production does not auto-migrate.
+
+## Verification
+
+   python scripts/verification/verify_local.py
+   cd apps/web
+   pnpm lint
+   pnpm build
+
+The local verification script runs Python compile checks, pytest, and Ruff. It does not start Docker or perform live OpenAI, Anthropic, Gmail, or SMTP calls.
 
 ## AI configuration
-Configure `OPENAI_ENABLED`, `OPENAI_API_KEY`, `ANTHROPIC_ENABLED`, and `ANTHROPIC_API_KEY` in the private local `.env`. Never commit credentials. Codex CLI is intended for repository development and maintenance, not as a substitute for API credentials.
 
-## Safety
-External side effects require explicit policy checks and approval. The system does not send emails or submit applications automatically. See `docs/security/SECURITY_MODEL.md`.
+Configure OpenAI or Anthropic credentials only in the private API environment. Never expose provider credentials to the browser or commit them. See docs/ai-provider-operations.md.
 
-## Current status
-This branch adds the modular platform foundation and initial working slices. Live OAuth integrations, verified job-source connectors, production secret management, comprehensive migration of legacy records, and end-to-end runtime verification remain follow-up work. Do not treat the system as production-ready until the documented local test and security gates pass.
+## Integrations
+
+- Job discovery: docs/job-discovery.md
+- Gmail OAuth: docs/gmail-integration.md
+- Security and data protection: docs/security-and-data-protection.md
+- Local development: docs/local-development.md
+
+## Current release status
+
+This is an actively developed feature branch, not a production-ready release. Authentication, user-scoped workflows, AI drafts, job-board connectors, Gmail read-only integration, local CV processing, application tracking, and recurring discovery have implementation code. However, this turn has not run Python tests, frontend lint/build, Docker Compose, database migrations, or live third-party integrations. Production object storage, backup/restore drills, full account deletion/export, richer job-source coverage, production OAuth review, and comprehensive end-to-end security verification remain outstanding. Do not merge or deploy based on code presence alone.
