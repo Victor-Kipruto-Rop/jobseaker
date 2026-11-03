@@ -119,14 +119,10 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user),
         actual_provider, generated = await asyncio.wait_for(
             generate_with_fallback(request, requested), timeout=95)
     except asyncio.TimeoutError as exc:
-        if reservation_id is not None:
-            finish_ai_reservation(db, user.id, reservation_id, "failed")
-            db.commit()
+        # Keep the reservation until expiry because an upstream request may still have been accepted.
         raise HTTPException(status_code=504, detail="AI provider request timed out. Please retry.") from exc
     except Exception as exc:
-        if reservation_id is not None:
-            finish_ai_reservation(db, user.id, reservation_id, "failed")
-            db.commit()
+        # Keep the reservation until expiry because an upstream request may still have been accepted.
         logger.exception("AI generation failed", extra={"provider": requested})
         raise HTTPException(status_code=502, detail="AI generation failed. Check provider credentials and model access.") from exc
     input_tokens = int(generated.usage.get("input_tokens", 0))
