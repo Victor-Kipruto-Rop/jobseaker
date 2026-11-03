@@ -28,3 +28,5 @@ from apps.api.app.api.v1.notifications.routes import router as notifications
 router.include_router(notifications, prefix="/notifications", tags=["notifications"])
 from apps.api.app.api.v1.integrations.gmail_routes import router as gmail
 router.include_router(gmail, prefix="/integrations", tags=["integrations"])
+from apps.api.app.api.v1.career_tools.routes import router as career_tools
+router.include_router(career_tools, prefix="/career-tools", tags=["career intelligence"])
