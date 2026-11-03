@@ -56,3 +56,25 @@ def test_every_candidate_resource_route_enforces_candidate_role_policy():
         if frozenset({"candidate"}) not in role_policies:
             missing.append(f"{','.join(sorted(route.methods or []))} {route.path}")
     assert not missing, "Candidate endpoints missing candidate-role policy: " + ", ".join(missing)
+
+
+def test_candidate_api_rejects_administrator_and_accepts_candidate_sessions():
+    from fastapi.testclient import TestClient
+    from apps.api.app.dependencies import get_current_user
+    from packages.database.models.identity import User
+
+    admin = User(email="route-admin@example.com", password_hash="unused", role="admin")
+    candidate = User(email="route-candidate@example.com", password_hash="unused", role="candidate")
+    try:
+        app.dependency_overrides[get_current_user] = lambda: admin
+        with TestClient(app) as client:
+            denied = client.get("/api/v1/profile")
+            assert denied.status_code == 403
+            assert denied.json()["detail"] == "Insufficient permissions"
+
+        app.dependency_overrides[get_current_user] = lambda: candidate
+        with TestClient(app) as client:
+            allowed = client.get("/api/v1/profile")
+            assert allowed.status_code == 200
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
