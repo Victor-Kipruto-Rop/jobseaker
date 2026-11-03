@@ -137,6 +137,10 @@ def request_verification(user: User = Depends(get_current_user), db: Session = D
     sent = send_transactional_email(user.email, "Verify your JobSeeker account",
                                     "Verify your email address using this link: " + link)
     if not sent:
+        if get_settings().app_env == "production":
+            _consume_account_token(db, token, "email_verification")
+            db.commit()
+            raise HTTPException(status_code=503, detail="Verification email could not be delivered")
         return {"status": "created_local", "debug_token": token}
     return {"status": "sent"}
 
@@ -165,7 +169,11 @@ def request_password_reset(body: PasswordResetRequest, request: Request,
     sent = send_transactional_email(user.email, "Reset your JobSeeker password",
                                     "Use this link within 30 minutes to reset your password: " + link)
     if not sent:
-        return {"status": "accepted", "debug_token": token}
+        if get_settings().app_env == "production":
+            _consume_account_token(db, token, "password_reset")
+            db.commit()
+        # Never disclose reset tokens in production or reveal account existence.
+        return {"status": "accepted"}
     return {"status": "accepted"}
 
 @router.post("/password-reset/confirm")
