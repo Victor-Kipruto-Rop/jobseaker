@@ -11,6 +11,10 @@ checks have already passed.
   inclusion, so newly added endpoints inherit the candidate policy.
 - Administrative APIs must use explicit `require_roles("admin")` dependencies.
   No administrative API is currently exposed.
+- Initial administrator promotion/demotion is performed through the audited
+  `scripts/set_user_role.py` operator command. It requires
+  `ADMIN_BOOTSTRAP_ENABLED=true`, an operator identity, and exact email confirmation;
+  it is not exposed as a self-service API.
 - Role checks do not grant cross-user access. Every resource query must still
   scope by the authenticated user's ID.
 - Gmail OAuth callback is exempt from cookie-session authorization only because
@@ -66,6 +70,19 @@ PowerShell:
 $env:JOBSEEKER_TEST_DATABASE_URL = "postgresql+psycopg://jobseeker:jobseeker_local@localhost:5432/jobseeker"
 python -m pytest -q tests/integration/test_postgres_security.py
 ```
+
+## Operator role management
+
+For a deliberate operator-managed role change, temporarily set
+`ADMIN_BOOTSTRAP_ENABLED=true` in the local environment, then run:
+
+```shell
+python scripts/set_user_role.py --email candidate@example.com --role admin --operator "security-operator" --confirm-email candidate@example.com
+```
+
+Use `--role candidate` to revoke administrator access. The command writes an
+application audit event and refuses to run unless the feature flag and exact
+email confirmation are supplied. Return the flag to false after the operation.
 
 ## Sign-off requirements
 
