@@ -2,56 +2,42 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
-from sqlalchemy import select
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
-from apps.api.app.core.config import get_settings
-from packages.database.models.career import AuditLog
-from packages.database.models.identity import User
-from packages.database.sessions import SessionLocal
+from apps.api.app.core.config import get_settings  # noqa: E402
+from packages.database.sessions import SessionLocal  # noqa: E402
+from packages.security.rbac import set_user_role  # noqa: E402
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Promote an existing JobSeeker account to administrator."
+        description="Promote an existing active, verified JobSeeker account to administrator."
     )
-    parser.add_argument("--email", required=True, help="Exact email address of the existing account.")
-    parser.add_argument(
-        "--confirm",
-        action="store_true",
-        help="Confirm this privileged role change and write an audit event.",
-    )
+    parser.add_argument("--email", required=True, help="Exact target account email.")
+    parser.add_argument("--operator", required=True, help="Audited operator identity.")
+    parser.add_argument("--confirm-email", required=True, help="Repeat the exact target email.")
     args = parser.parse_args()
 
     if not get_settings().admin_bootstrap_enabled:
-        print("Refusing role change: set ADMIN_BOOTSTRAP_ENABLED=true for this one operation.", file=sys.stderr)
+        print("Refusing role change: ADMIN_BOOTSTRAP_ENABLED must be true.", file=sys.stderr)
         return 2
-    if not args.confirm:
-        print("Refusing role change: pass --confirm after verifying the account.", file=sys.stderr)
+    if args.email.strip().lower() != args.confirm_email.strip().lower():
+        print("Refusing role change: confirmation email does not match.", file=sys.stderr)
         return 2
 
     with SessionLocal() as db:
-        user = db.scalar(select(User).where(User.email == args.email.strip().lower()).with_for_update())
-        if user is None:
-            print("No account found for the supplied email.", file=sys.stderr)
+        try:
+            user = set_user_role(
+                db, email=args.email, role="admin", operator=args.operator,
+            )
+        except (ValueError, LookupError) as exc:
+            db.rollback()
+            print(str(exc), file=sys.stderr)
             return 1
-        if not user.is_active:
-            print("Refusing role change for an inactive account.", file=sys.stderr)
-            return 1
-        if user.role == "admin":
-            print("Account is already an administrator.")
-            return 0
-
-        user.role = "admin"
-        db.add(AuditLog(
-            user_id=user.id,
-            action="security.role_promoted",
-            resource_type="user",
-            resource_id=str(user.id),
-            metadata_json={"previous_role": "candidate", "new_role": "admin", "method": "operator_cli"},
-        ))
-        db.commit()
-        print(f"Promoted account {user.email} to administrator. Disable ADMIN_BOOTSTRAP_ENABLED now.")
+        print(f"Promoted {user.email} to administrator. Disable ADMIN_BOOTSTRAP_ENABLED now.")
     return 0
 
 
