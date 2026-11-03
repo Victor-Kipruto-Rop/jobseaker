@@ -3,7 +3,7 @@ import {useEffect,useState} from "react";
 const API=process.env.NEXT_PUBLIC_API_BASE_URL||"http://localhost:8000";
 function csrf(){return decodeURIComponent(document.cookie.split("; ").find(x=>x.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=")||"");}
 async function api(path:string,init:RequestInit={}){const h=new Headers(init.headers);if(init.method)h.set("X-CSRF-Token",csrf());const r=await fetch(API+path,{...init,headers:h,credentials:"include"});if(r.status===401)window.location.assign("/login");return r;}
-const statuses=["draft","ready","approved","submitted","screening","interview","assessment","offer","rejected","withdrawn","archived"];
+const statuses=["draft","ready","approved","submitted","screening","interview","assessment","offer","accepted","rejected","withdrawn","archived"];
 export default function Applications(){const [rows,setRows]=useState<any[]>([]);const [role,setRole]=useState("");const [company,setCompany]=useState("");const [error,setError]=useState("");
 async function load(){const r=await api("/api/v1/applications");if(r.ok)setRows(await r.json());}
 useEffect(()=>{void load();},[]);
