@@ -86,3 +86,45 @@ class ApplicationRule(Base):
     allowed_locations: Mapped[list] = mapped_column(JSON, default=list)
     require_verified_answers: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SourceImportRow(Base):
+    __tablename__ = "source_import_rows"
+    __table_args__ = (UniqueConstraint("source_file_key", "row_key", name="uq_source_import_row"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_file_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    source_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    row_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    gmail_message_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    gmail_thread_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    organization: Mapped[str | None] = mapped_column(String(255), index=True)
+    recipient: Mapped[str | None] = mapped_column(String(320), index=True)
+    status: Mapped[str | None] = mapped_column(String(80))
+    original_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class GmailSyncState(Base):
+    __tablename__ = "gmail_sync_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    mailbox: Mapped[str] = mapped_column(String(320), nullable=False, unique=True)
+    history_id: Mapped[str | None] = mapped_column(String(80))
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_query: Mapped[str | None] = mapped_column(Text)
+    sync_status: Mapped[str] = mapped_column(String(40), default="not_started")
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class RecruiterFeedback(Base):
+    __tablename__ = "recruiter_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    gmail_message_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    gmail_thread_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    category: Mapped[str] = mapped_column(String(80), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    evidence: Mapped[str] = mapped_column(Text, nullable=False)
+    action_required: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
