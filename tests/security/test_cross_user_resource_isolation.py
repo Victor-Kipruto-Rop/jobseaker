@@ -269,7 +269,7 @@ def test_gmail_oauth_state_is_owner_bound_and_single_use(db, users, monkeypatch)
 
     class FakeCredentials:
         def to_json(self):
-            return "{\\"token\\": \\"fake-token\\"}"
+            return '{"token": "fake-token"}'
 
     class FakeFlow:
         credentials = FakeCredentials()
