@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, Float, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, Float, UniqueConstraint, Index, text
 from sqlalchemy.orm import Mapped, mapped_column
 from packages.database.models.base import Base
 
@@ -160,6 +160,9 @@ class SavedSearch(Base):
 
 class CandidateOpportunity(Base):
     __tablename__ = "candidate_opportunities"
+    __table_args__ = (Index("uq_candidate_opportunity_user_source_url", "user_id", "source_url", unique=True,
+                              sqlite_where=text("source_url <> ''"),
+                              postgresql_where=text("source_url <> ''")),)
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(250), index=True)
