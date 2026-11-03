@@ -92,6 +92,21 @@ def main() -> int:
         run(compose + ["config", "--quiet"], env=local_env)
         run(compose + ["up", "--build", "-d"], env=local_env)
         wait_for_api("http://127.0.0.1:8000/health/ready")
+        wait_for_api("http://127.0.0.1:3000")
+
+        service_status = subprocess.run(
+            compose + ["ps", "--services", "--status", "running"],
+            cwd=ROOT,
+            env=local_env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        running = set(service_status.stdout.split())
+        required = {"postgres", "redis", "api", "web", "worker", "scheduler"}
+        missing = sorted(required - running)
+        if missing:
+            raise RuntimeError("Local Compose services are not running: " + ", ".join(missing))
 
         run([sys.executable, "-m", "compileall", "-q", "apps", "packages", "tests", "migrations", "scripts"], env=local_env)
         run(["alembic", "upgrade", "head"], env=local_env)
