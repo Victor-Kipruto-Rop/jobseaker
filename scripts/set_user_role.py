@@ -5,9 +5,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from apps.api.app.core.config import get_settings
-from packages.database.sessions import SessionLocal
-from packages.security.rbac import set_user_role
+from apps.api.app.core.config import get_settings  # noqa: E402
+from packages.database.sessions import SessionLocal  # noqa: E402
+from packages.security.rbac import set_user_role  # noqa: E402
 
 
 def main() -> int:
