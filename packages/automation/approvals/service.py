@@ -35,8 +35,9 @@ def decide_approval(db: Session, user_id: int, approval_id: int, decision: str, 
 
     application = None
     if row.action_type == "application_submission":
-        application_id = (row.payload or {}).get("application_id")
-        if not isinstance(application_id, int) or application_id <= 0:
+        payload = row.payload if isinstance(row.payload, dict) else {}
+        application_id = payload.get("application_id")
+        if isinstance(application_id, bool) or not isinstance(application_id, int) or application_id <= 0:
             raise ValueError("Application submission approvals require a valid application_id")
         application = db.scalar(select(Application).where(
             Application.id == application_id, Application.user_id == user_id).with_for_update())
