@@ -46,7 +46,7 @@ Production does not auto-migrate. Run migrations as a controlled release step.
    pnpm lint
    pnpm build
 
-The verification script runs compileall, pytest, and Ruff. It does not start Docker or make live calls to AI or Gmail providers.
+The verification script runs compileall, Alembic upgrade and schema-drift checks against the configured DATABASE_URL, pytest, and Ruff. The PowerShell workflow also runs frontend type checks/build and validates Compose configuration. It does not start Docker or make live calls to AI or Gmail providers.
 
 ## Gmail
 
