@@ -1,3 +1,3 @@
-from packages.ai.budget.usage import record_ai_usage
+from packages.ai.budget.usage import AIQuotaExceeded, finish_ai_reservation, record_ai_usage, reserve_ai_tokens
 
-__all__ = ["record_ai_usage"]
+__all__ = ["AIQuotaExceeded", "finish_ai_reservation", "record_ai_usage", "reserve_ai_tokens"]
