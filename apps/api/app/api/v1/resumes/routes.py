@@ -27,8 +27,7 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
         if not data.startswith(b"%PDF-"):
             raise HTTPException(status_code=400, detail="The uploaded file is not a valid PDF")
         try:
-            text = "
-".join(page.extract_text() or "" for page in PdfReader(BytesIO(data)).pages)
+            text = " ".join(page.extract_text() or "" for page in PdfReader(BytesIO(data)).pages)
         except Exception as exc:
             raise HTTPException(status_code=400, detail="Unable to read this PDF") from exc
         return text[:500000], ALLOWED[suffix]
@@ -37,8 +36,7 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
             if "word/document.xml" not in archive.namelist():
                 raise ValueError("Missing document XML")
         document = Document(BytesIO(data))
-        text = "
-".join(paragraph.text for paragraph in document.paragraphs)
+        text = " ".join(paragraph.text for paragraph in document.paragraphs)
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Unable to read this DOCX document") from exc
     return text[:500000], ALLOWED[suffix]
