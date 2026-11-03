@@ -7,8 +7,8 @@ from packages.database.models.identity import User
 
 
 def test_new_user_model_defaults_to_candidate_role():
-    user = User(email="new-candidate@example.com", password_hash="unused")
-    assert user.role == "candidate"
+    assert User.__table__.c.role.default.arg == "candidate"
+    assert User.__table__.c.role.server_default.arg == "candidate"
 
 
 def test_registration_payload_cannot_assign_privileged_role():
