@@ -16,7 +16,7 @@ DEFAULT_QUERY = "in:anywhere {subject:job subject:career subject:vacancy subject
 
 def get_gmail_service():
     settings = get_settings()
-    if not settings.gmail_client_secret_file or not settings.gmail_token_file:
+    if not settings.gmail_enabled:\n        raise RuntimeError("GMAIL_ENABLED must be true before starting Gmail sync.")\n    if not settings.gmail_client_secret_file or not settings.gmail_token_file:
         raise RuntimeError("Set GMAIL_CLIENT_SECRET_FILE and GMAIL_TOKEN_FILE before Gmail sync.")
     token_path = settings.gmail_token_file
     try:
