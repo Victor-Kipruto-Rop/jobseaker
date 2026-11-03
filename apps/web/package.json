@@ -1,0 +1,1 @@
+{"name":"web","private":true,"scripts":{"dev":"next dev -H 0.0.0.0","build":"next build","start":"next start -H 0.0.0.0","lint":"tsc --noEmit"},"dependencies":{"next":"15.2.4","react":"19.0.0","react-dom":"19.0.0","lucide-react":"^0.468.0"},"devDependencies":{"@types/node":"^22.13.10","@types/react":"^19.0.10","@types/react-dom":"^19.0.4","typescript":"^5.8.2"}}

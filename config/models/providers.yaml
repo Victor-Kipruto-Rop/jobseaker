@@ -1,0 +1,4 @@
+providers:
+  mock: {enabled: true, purpose: local_development}
+  openai: {enabled_from_environment: OPENAI_ENABLED, key_from_environment: OPENAI_API_KEY}
+  anthropic: {enabled_from_environment: ANTHROPIC_ENABLED, key_from_environment: ANTHROPIC_API_KEY}
