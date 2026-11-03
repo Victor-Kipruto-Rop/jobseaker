@@ -351,3 +351,39 @@ def test_interview_reminder_worker_keeps_notifications_with_interview_owner(db, 
     assert len(notices) == 2
     assert {item.user_id for item in notices} == {owner.id, other.id}
     assert all(item.body.startswith("interview:") for item in notices)
+
+
+
+def test_saved_search_worker_persists_each_result_to_its_search_owner(db, users, monkeypatch):
+    from types import SimpleNamespace
+
+    owner, other = users
+    db.add_all([
+        SavedSearch(user_id=owner.id, name="Owner board", query={"source": "greenhouse", "board": "owner-board"}),
+        SavedSearch(user_id=other.id, name="Other board", query={"source": "greenhouse", "board": "other-board"}),
+    ])
+    db.commit()
+
+    async def fake_discover(board, limit):
+        return [{
+            "title": f"Role from {board}",
+            "source_name": "greenhouse",
+            "source_url": f"https://jobs.example/{board}",
+        }]
+
+    monkeypatch.setattr(tasks, "get_settings", lambda: SimpleNamespace(
+        global_automation_paused=False,
+        job_discovery_enabled=True,
+    ))
+    monkeypatch.setattr(tasks, "discover_greenhouse", fake_discover)
+    monkeypatch.setattr(tasks, "SessionLocal", lambda: Session(bind=db.get_bind()))
+
+    result = tasks.run_saved_search_discovery()
+    assert result["saved"] == 2
+
+    rows = db.scalars(select(CandidateOpportunity)).all()
+    by_title = {row.title: row.user_id for row in rows}
+    assert by_title == {
+        "Role from owner-board": owner.id,
+        "Role from other-board": other.id,
+    }
