@@ -22,7 +22,7 @@ Imported roles are stored per user and deduplicated by source URL.
 
 ## Recurring discovery
 
-Create a saved search using POST /api/v1/saved-searches. The local scheduler refreshes saved searches every six hours and creates in-app notifications when new roles are found.
+Create a saved search using POST /api/v1/saved-searches. The local scheduler refreshes saved searches every six hours and creates in-app notifications when new roles are found. Scheduled discovery is paused by default. Set GLOBAL_AUTOMATION_PAUSED=false in your local .env to opt in after reviewing the configured saved searches. The scheduler and worker containers read this setting from the same environment file.
 
 ## Scoring
 
