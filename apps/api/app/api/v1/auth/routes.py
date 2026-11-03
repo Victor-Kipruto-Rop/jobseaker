@@ -92,6 +92,9 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     response.delete_cookie(CSRF_COOKIE, path="/")
     return {"status": "signed_out"}
 
+class TokenConfirm(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
@@ -132,13 +135,14 @@ def request_verification(user: User = Depends(get_current_user), db: Session = D
     token = _new_account_token(db, user, "email_verification", timedelta(hours=24))
     link = get_settings().web_app_url + "/verify-email?token=" + token
     sent = send_transactional_email(user.email, "Verify your JobSeeker account",
-                                    "Verify your email address using this link:\n" + link)
+                                    "Verify your email address using this link:
+" + link)
     if not sent:
         return {"status": "created_local", "debug_token": token}
     return {"status": "sent"}
 
 @router.post("/verification/confirm")
-def confirm_verification(body: PasswordResetConfirm, db: Session = Depends(get_db)):
+def confirm_verification(body: TokenConfirm, db: Session = Depends(get_db)):
     record = _consume_account_token(db, body.token, "email_verification")
     user = db.get(User, record.user_id)
     if not user:
@@ -160,7 +164,8 @@ def request_password_reset(body: PasswordResetRequest, request: Request,
     token = _new_account_token(db, user, "password_reset", timedelta(minutes=30))
     link = get_settings().web_app_url + "/reset-password?token=" + token
     sent = send_transactional_email(user.email, "Reset your JobSeeker password",
-                                    "Use this link within 30 minutes to reset your password:\n" + link)
+                                    "Use this link within 30 minutes to reset your password:
+" + link)
     if not sent:
         return {"status": "accepted", "debug_token": token}
     return {"status": "accepted"}
