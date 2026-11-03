@@ -82,10 +82,9 @@ async def _generate(user: User, db: Session, artifact_type: str, title: str,
     db.flush()
     db.add(AuditLog(user_id=user.id, action="career_artifact.generated",
                     resource_type=artifact_type, resource_id=str(artifact.id)))
-    db.add(AIUsage(user_id=user.id, provider=actual_provider, model=generated.model,
-        input_tokens=int(generated.usage.get("input_tokens", 0)),
-        output_tokens=int(generated.usage.get("output_tokens", 0)),
-        estimated_cost_usd=None, created_at=now))
+    record_ai_usage(db, user.id, actual_provider, generated.model,
+                    int(generated.usage.get("input_tokens", 0)),
+                    int(generated.usage.get("output_tokens", 0)), now)
     db.commit()
     return {"id": artifact.id, "artifact_type": artifact_type, "title": title, "content": generated.text,
             "provider": actual_provider, "model": generated.model, "status": "draft",
