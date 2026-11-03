@@ -18,7 +18,9 @@ migrate:
 	alembic upgrade head
 
 verify:
-	$(PYTHON) -m compileall -q apps packages tests
+	$(PYTHON) -m compileall -q apps packages tests migrations scripts
+	alembic upgrade head
+	alembic check
 	$(PYTHON) -m pytest -q
 	ruff check .
 
