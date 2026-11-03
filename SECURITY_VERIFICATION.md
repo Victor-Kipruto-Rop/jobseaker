@@ -9,6 +9,10 @@ checks have already passed.
 - The database constrains roles to `candidate` and `admin`.
 - Candidate-facing API routers enforce `require_roles("candidate")` at router
   inclusion, so newly added endpoints inherit the candidate policy.
+- Cookie-authenticated state-changing requests require an explicit allowed
+  `Origin` or `Referer`, reject cross-site Fetch Metadata, and validate both the
+  double-submit token and its session binding. Browser requests without an
+  origin signal are rejected.
 - Administrative APIs must use explicit `require_roles("admin")` dependencies.
   No administrative API is currently exposed.
 - Initial administrator promotion/demotion is performed through the audited
@@ -17,6 +21,11 @@ checks have already passed.
   it is not exposed as a self-service API.
 - Role checks do not grant cross-user access. Every resource query must still
   scope by the authenticated user's ID.
+- Applications cannot enter `approved` through the ordinary status-update route.
+  The candidate must create and explicitly approve an application-submission
+  approval request; only that workflow can move a ready application to approved.
+  The candidate can then record a submitted state after completing the external
+  application manually.
 - Gmail OAuth callback is exempt from cookie-session authorization only because
   it validates a short-lived, single-use state bound to the initiating candidate.
 - Public auth routes are limited to CSRF bootstrap, registration, login, password
