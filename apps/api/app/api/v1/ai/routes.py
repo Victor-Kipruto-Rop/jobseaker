@@ -108,7 +108,8 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user),
         used = db.scalar(select(func.coalesce(func.sum(AIUsage.input_tokens + AIUsage.output_tokens), 0))
                          .where(AIUsage.user_id == user.id, AIUsage.created_at >= month_start)) or 0
         context_chars = sum(len(item["content"]) for item in messages)
-        estimated_input_tokens = max(1, (context_chars + 3) // 4)
+        system_chars = len(body.system_instruction or "JobSeeker career intelligence assistant safety instructions")
+        estimated_input_tokens = max(1, context_chars + system_chars)
         if int(used) + estimated_input_tokens + body.max_tokens > budget.monthly_token_limit:
             raise HTTPException(status_code=429, detail="Your monthly AI token limit has been reached")
     request = GenerationRequest(
