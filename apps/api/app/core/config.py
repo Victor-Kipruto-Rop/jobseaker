@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     app_env: str = "local"
     app_secret_key: str = "unsafe-local-only-change-me"
     database_url: str = "sqlite:///./jobseeker.db"
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = "redis://localhost:6379/0"\n    storage_path: str = "data/uploads"
     cors_origins: str = "http://localhost:3000"
     ai_default_provider: str = "mock"
     ai_fallback_provider: str = "mock"
