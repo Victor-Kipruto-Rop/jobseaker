@@ -1,4 +1,12 @@
 services:
+  migrate:
+    build: {context: ../.., dockerfile: apps/api/Dockerfile}
+    env_file: ../../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres: {condition: service_healthy}
   api:
     build: {context: ../.., dockerfile: apps/api/Dockerfile}
     env_file: ../../.env
@@ -16,6 +24,7 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
   web:
     build: {context: ../.., dockerfile: apps/web/Dockerfile}
     ports: ["127.0.0.1:3000:3000"]
@@ -30,6 +39,7 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
   scheduler:
     build: {context: ../.., dockerfile: apps/scheduler/Dockerfile}
     env_file: ../../.env
@@ -39,6 +49,7 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
   postgres:
     image: postgres:16-alpine
     environment: {POSTGRES_DB: jobseeker, POSTGRES_USER: jobseeker, POSTGRES_PASSWORD: jobseeker_local}
