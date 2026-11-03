@@ -57,6 +57,12 @@ services:
     build: {context: ../.., dockerfile: apps/scheduler/Dockerfile}
     env_file: ../../.env
     environment:
+      APP_ENV: local
+      GLOBAL_AUTOMATION_PAUSED: "true"
+      AUTO_EMAIL_SEND: "false"
+      AUTO_APPLICATION_SUBMIT: "false"
+      GMAIL_ENABLED: "false"
+      JOB_DISCOVERY_ENABLED: "false"
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
     depends_on:
