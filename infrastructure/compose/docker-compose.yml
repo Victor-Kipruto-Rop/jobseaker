@@ -8,25 +8,38 @@ services:
       STORAGE_PATH: /workspace/data/uploads
     volumes: ["../../data:/workspace/data", "../../secrets:/run/secrets:ro"]
     ports: ["127.0.0.1:8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
   web:
     build: {context: ../.., dockerfile: apps/web/Dockerfile}
     ports: ["127.0.0.1:3000:3000"]
-    depends_on: [api]
+    depends_on:
+      api: {condition: service_healthy}
   worker:
     build: {context: ../.., dockerfile: apps/worker/Dockerfile}
     env_file: ../../.env
     environment:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
-    depends_on: [postgres,redis]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
   scheduler:
     build: {context: ../.., dockerfile: apps/scheduler/Dockerfile}
     env_file: ../../.env
-    environment:\n      REDIS_URL: redis://redis:6379/0\n      DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker\n      GLOBAL_AUTOMATION_PAUSED: "true"
-    depends_on: [redis]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
+      GLOBAL_AUTOMATION_PAUSED: "true"
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
   postgres:
     image: postgres:16-alpine
     environment: {POSTGRES_DB: jobseeker, POSTGRES_USER: jobseeker, POSTGRES_PASSWORD: jobseeker_local}
