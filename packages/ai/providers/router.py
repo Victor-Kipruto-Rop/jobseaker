@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 async def generate_with_fallback(
     request: GenerationRequest, preferred: str | None = None
-) -> GenerationResult:
+) -> tuple[str, GenerationResult]:
     settings = get_settings()
     registry = get_registry()
     candidates = []
@@ -22,12 +22,12 @@ async def generate_with_fallback(
             logger.warning("AI provider is not configured", extra={"provider": name})
             continue
         try:
-            return await provider.generate(request)
+            return provider.name, await provider.generate(request)
         except Exception as exc:
             last_error = exc
             logger.exception("AI provider request failed", extra={"provider": name})
     if settings.app_env in {"local", "development", "test"}:
         mock = registry.get("mock")
         if mock is not None and "mock" not in candidates:
-            return await mock.generate(request)
+            return mock.name, await mock.generate(request)
     raise RuntimeError("No configured AI provider could complete the request") from last_error
