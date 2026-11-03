@@ -21,7 +21,15 @@ class Settings(BaseSettings):
     auto_email_send: bool = False
     auto_application_submit: bool = False
     @property
-    def allowed_origins(self): return [x.strip() for x in self.cors_origins.split(",") if x.strip()]
+    def allowed_origins(self):
+        return [x.strip() for x in self.cors_origins.split(",") if x.strip()]
 
 @lru_cache
-def get_settings(): return Settings()
+def get_settings():
+    settings = Settings()
+    if settings.app_env == "production":
+        if settings.app_secret_key == "unsafe-local-only-change-me" or len(settings.app_secret_key) < 32:
+            raise ValueError("APP_SECRET_KEY must be a unique random value of at least 32 characters in production")
+        if not settings.database_url.startswith("postgresql"):
+            raise ValueError("Production requires PostgreSQL")
+    return settings
