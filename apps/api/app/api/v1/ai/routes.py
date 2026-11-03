@@ -101,7 +101,7 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user),
     ).order_by(AIMessage.created_at.desc()).limit(20)).all()
     messages = [{"role": item.role, "content": item.content} for item in reversed(history)]
     messages.append({"role": "user", "content": body.message})
-    budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user.id))
+    budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user.id).with_for_update())
     if budget and budget.hard_token_limit_enabled and budget.monthly_token_limit > 0:
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         used = db.scalar(select(func.coalesce(func.sum(AIUsage.input_tokens + AIUsage.output_tokens), 0))
