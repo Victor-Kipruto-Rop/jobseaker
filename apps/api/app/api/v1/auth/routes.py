@@ -41,13 +41,20 @@ def _current(request: Request, db: Session):
 
 @router.get("/csrf")
 def csrf(request: Request, response: Response, db: Session = Depends(get_db)):
-    import secrets
-    if request.cookies.get(COOKIE_NAME) and resolve_session(db, request.cookies.get(COOKIE_NAME)):
-        return {"authenticated": True, "csrf_token": "session-cookie-preserved"}
+    """Issue a fresh double-submit token and bind it to the active server-side session."""
+    session_token = request.cookies.get(COOKIE_NAME)
+    resolved = resolve_session(db, session_token) if session_token else None
     value = secrets.token_urlsafe(32)
+    if resolved:
+        user, session = resolved
+        session.csrf_hash = hashlib.sha256(value.encode("utf-8")).hexdigest()
+        db.add(AuditLog(user_id=user.id, action="security.csrf_token_rotated"))
+        db.commit()
     response.set_cookie(CSRF_COOKIE, value, httponly=False,
-                        secure=get_settings().app_env == "production", samesite="lax", path="/")
-    return {"csrf_token": value}
+                        secure=get_settings().app_env == "production",
+                        samesite="lax", path="/",
+                        max_age=7 * 24 * 60 * 60)
+    return {"authenticated": bool(resolved), "csrf_token": value}
 
 @router.post("/register", status_code=201)
 def register(body: RegisterRequest, request: Request, response: Response, db: Session = Depends(get_db)):
