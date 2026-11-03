@@ -1,18 +1,22 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.app.main import app
 
 
-client = TestClient(app)
+@pytest.fixture
+def client():
+    with TestClient(app) as test_client:
+        yield test_client
 
 
-def test_anonymous_mutation_rejects_missing_csrf_handshake():
+def test_anonymous_mutation_rejects_missing_csrf_handshake(client):
     response = client.post("/api/v1/auth/login", json={})
     assert response.status_code == 403
     assert response.json()["detail"] == "CSRF validation failed"
 
 
-def test_anonymous_mutation_rejects_mismatched_csrf_values():
+def test_anonymous_mutation_rejects_mismatched_csrf_values(client):
     response = client.post(
         "/api/v1/auth/login",
         json={},
@@ -23,7 +27,7 @@ def test_anonymous_mutation_rejects_mismatched_csrf_values():
     assert response.json()["detail"] == "CSRF validation failed"
 
 
-def test_anonymous_mutation_passes_csrf_boundary_with_matching_values():
+def test_anonymous_mutation_passes_csrf_boundary_with_matching_values(client):
     response = client.post(
         "/api/v1/auth/login",
         json={},
@@ -35,7 +39,7 @@ def test_anonymous_mutation_passes_csrf_boundary_with_matching_values():
     assert response.status_code == 422
 
 
-def test_mutation_rejects_untrusted_origin_even_with_valid_csrf_token():
+def test_mutation_rejects_untrusted_origin_even_with_valid_csrf_token(client):
     response = client.post(
         "/api/v1/auth/login",
         json={},
@@ -49,7 +53,7 @@ def test_mutation_rejects_untrusted_origin_even_with_valid_csrf_token():
     assert response.json()["detail"] == "Untrusted request origin"
 
 
-def test_mutation_rejects_cross_site_fetch_metadata_even_with_valid_csrf_token():
+def test_mutation_rejects_cross_site_fetch_metadata_even_with_valid_csrf_token(client):
     response = client.post(
         "/api/v1/auth/login",
         json={},
@@ -63,13 +67,13 @@ def test_mutation_rejects_cross_site_fetch_metadata_even_with_valid_csrf_token()
     assert response.json()["detail"] == "Cross-site state changes are not allowed"
 
 
-def test_safe_get_does_not_require_csrf_token():
+def test_safe_get_does_not_require_csrf_token(client):
     response = client.get("/")
     assert response.status_code == 200
     assert response.json()["name"] == "JobSeeker Intelligence"
 
 
-def test_real_csrf_bootstrap_token_is_accepted_by_anonymous_mutation():
+def test_real_csrf_bootstrap_token_is_accepted_by_anonymous_mutation(client):
     bootstrap = client.get("/api/v1/auth/csrf")
     assert bootstrap.status_code == 200
     token = bootstrap.json()["csrf_token"]
@@ -81,7 +85,7 @@ def test_real_csrf_bootstrap_token_is_accepted_by_anonymous_mutation():
     assert response.status_code == 422
 
 
-def test_authenticated_mutation_requires_session_bound_csrf_token(monkeypatch):
+def test_authenticated_mutation_requires_session_bound_csrf_token(client, monkeypatch):
     import hashlib
     from types import SimpleNamespace
     from apps.api.app import main
