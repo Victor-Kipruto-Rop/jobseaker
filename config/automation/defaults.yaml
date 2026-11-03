@@ -1,0 +1,6 @@
+global_pause: true
+require_approval: true
+email_send_enabled: false
+application_submit_enabled: false
+gmail_read_only: true
+retry: {max_attempts: 3, backoff_seconds: [5, 30, 120]}
