@@ -139,7 +139,7 @@ def _consume_account_token(db: Session, raw_token: str, purpose: str):
     record = db.scalar(select(AccountToken).where(
         AccountToken.token_hash == token_hash, AccountToken.purpose == purpose,
         AccountToken.consumed_at.is_(None),
-        AccountToken.expires_at > datetime.now(timezone.utc)))
+        AccountToken.expires_at > datetime.now(timezone.utc)).with_for_update())
     if not record:
         raise HTTPException(status_code=400, detail="Token is invalid, expired, or already used")
     record.consumed_at = datetime.now(timezone.utc)
