@@ -13,7 +13,10 @@ def test_operator_role_assignment_is_audited_and_can_be_revoked():
     Base.metadata.create_all(engine)
     try:
         with Session(engine) as db:
-            user = User(email="role-target@example.com", password_hash="unused")
+            user = User(
+                email="role-target@example.com", password_hash="unused", is_active=True,
+                is_verified=True,
+            )
             db.add(user)
             db.commit()
 
