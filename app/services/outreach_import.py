@@ -52,7 +52,7 @@ def parse_csv(content: bytes) -> tuple[list[dict], list[str]]:
     text = _decode_csv(content)
     sample = text[:8192]
     try:
-        dialect = csv.Sniffer().sniff(sample, delimiters=",;\\t")
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t")
     except csv.Error:
         dialect = csv.excel
     reader = csv.DictReader(io.StringIO(text), dialect=dialect)
