@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from packages.ai.providers.registry import get_registry
-from packages.ai.budget import record_ai_usage
+from packages.ai.budget import AIQuotaExceeded, finish_ai_reservation, record_ai_usage, reserve_ai_tokens
 from packages.ai.providers.base import GenerationRequest
 from packages.ai.providers.router import generate_with_fallback
 from packages.database.models import AIUsage
@@ -94,49 +94,52 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user),
         if not conversation:
             raise HTTPException(status_code=404, detail="Conversation not found")
     else:
-        conversation = AIConversation(user_id=user.id, title=body.message[:80])
-        db.add(conversation)
-        db.flush()
+        conversation = None
     history = db.scalars(select(AIMessage).where(
         AIMessage.conversation_id == conversation.id, AIMessage.user_id == user.id
-    ).order_by(AIMessage.created_at.desc()).limit(20)).all()
+    ).order_by(AIMessage.created_at.desc()).limit(20)).all() if conversation else []
     messages = [{"role": item.role, "content": item.content} for item in reversed(history)]
     messages.append({"role": "user", "content": body.message})
-    budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user.id).with_for_update())
-    if budget and budget.hard_token_limit_enabled and budget.monthly_token_limit > 0:
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        used = db.scalar(select(func.coalesce(func.sum(AIUsage.input_tokens + AIUsage.output_tokens), 0))
-                         .where(AIUsage.user_id == user.id, AIUsage.created_at >= month_start)) or 0
-        context_chars = sum(len(item["content"]) for item in messages)
-        system_chars = len(body.system_instruction or "JobSeeker career intelligence assistant safety instructions")
-        estimated_input_tokens = max(1, context_chars + system_chars)
-        if int(used) + estimated_input_tokens + body.max_tokens > budget.monthly_token_limit:
-            raise HTTPException(status_code=429, detail="Your monthly AI token limit has been reached")
+    system_instruction = body.system_instruction or (
+        "You are JobSeeker's career intelligence assistant. Never invent candidate facts, "
+        "employment history, qualifications, job details, or application outcomes. "
+        "Distinguish verified evidence from assumptions. All external actions require approval."
+    )
+    estimated_tokens = (sum(len(item["content"]) for item in messages)
+                        + len(system_instruction) + body.max_tokens)
+    try:
+        reservation_id = reserve_ai_tokens(db, user.id, estimated_tokens)
+    except AIQuotaExceeded as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     request = GenerationRequest(
-        messages=messages,
-        system=body.system_instruction or (
-            "You are JobSeeker's career intelligence assistant. Never invent candidate facts, "
-            "employment history, qualifications, job details, or application outcomes. "
-            "Distinguish verified evidence from assumptions. All external actions require approval."
-        ),
+        messages=messages, system=system_instruction,
         model=body.model, max_tokens=body.max_tokens,
     )
     try:
         actual_provider, generated = await asyncio.wait_for(
             generate_with_fallback(request, requested), timeout=95)
     except asyncio.TimeoutError as exc:
-        db.rollback()
+        if reservation_id is not None:
+            finish_ai_reservation(db, user.id, reservation_id, "failed")
+            db.commit()
         raise HTTPException(status_code=504, detail="AI provider request timed out. Please retry.") from exc
     except Exception as exc:
-        db.rollback()
+        if reservation_id is not None:
+            finish_ai_reservation(db, user.id, reservation_id, "failed")
+            db.commit()
         logger.exception("AI generation failed", extra={"provider": requested})
         raise HTTPException(status_code=502, detail="AI generation failed. Check provider credentials and model access.") from exc
     input_tokens = int(generated.usage.get("input_tokens", 0))
     output_tokens = int(generated.usage.get("output_tokens", 0))
+    if conversation is None:
+        conversation = AIConversation(user_id=user.id, title=body.message[:80])
+        db.add(conversation)
+        db.flush()
     db.add(AIMessage(user_id=user.id, conversation_id=conversation.id, role="user", content=body.message))
     db.add(AIMessage(user_id=user.id, conversation_id=conversation.id, role="assistant",
                      content=generated.text, provider=actual_provider, model=generated.model))
     record_ai_usage(db, user.id, actual_provider, generated.model, input_tokens, output_tokens, now)
+    finish_ai_reservation(db, user.id, reservation_id, "completed")
     conversation.updated_at = now
     db.commit()
     return {"conversation_id": conversation.id, "provider": actual_provider, "model": generated.model,
