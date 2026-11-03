@@ -67,3 +67,51 @@ def test_safe_get_does_not_require_csrf_token():
     response = client.get("/")
     assert response.status_code == 200
     assert response.json()["name"] == "JobSeeker Intelligence"
+
+
+def test_real_csrf_bootstrap_token_is_accepted_by_anonymous_mutation():
+    bootstrap = client.get("/api/v1/auth/csrf")
+    assert bootstrap.status_code == 200
+    token = bootstrap.json()["csrf_token"]
+    response = client.post(
+        "/api/v1/auth/login",
+        json={},
+        headers={"X-CSRF-Token": token},
+    )
+    assert response.status_code == 422
+
+
+def test_authenticated_mutation_requires_session_bound_csrf_token(monkeypatch):
+    import hashlib
+    from types import SimpleNamespace
+    from apps.api.app import main
+
+    valid_token = "session-bound-csrf-token"
+    expected_hash = hashlib.sha256(valid_token.encode("utf-8")).hexdigest()
+    monkeypatch.setattr(
+        main,
+        "resolve_session",
+        lambda db, token: (object(), SimpleNamespace(csrf_hash=expected_hash)),
+    )
+    accepted = client.post(
+        "/api/v1/auth/login",
+        json={},
+        cookies={
+            "jobseeker_session": "valid-session-token",
+            "jobseeker_csrf": valid_token,
+        },
+        headers={"X-CSRF-Token": valid_token},
+    )
+    assert accepted.status_code == 422
+
+    rejected = client.post(
+        "/api/v1/auth/login",
+        json={},
+        cookies={
+            "jobseeker_session": "valid-session-token",
+            "jobseeker_csrf": "tampered-token",
+        },
+        headers={"X-CSRF-Token": "tampered-token"},
+    )
+    assert rejected.status_code == 403
+    assert rejected.json()["detail"] == "CSRF session binding failed"
