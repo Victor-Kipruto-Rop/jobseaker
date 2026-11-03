@@ -12,3 +12,5 @@ from apps.api.app.api.v1.profile.routes import router as profile
 from apps.api.app.api.v1.applications.routes import router as applications
 router.include_router(profile, prefix="/profile", tags=["candidate profile"])
 router.include_router(applications, prefix="/applications", tags=["applications"])
+from apps.api.app.api.v1.resumes.routes import router as resumes
+router.include_router(resumes, prefix="/resumes", tags=["resumes and CV intelligence"])
