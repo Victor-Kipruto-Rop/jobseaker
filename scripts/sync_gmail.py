@@ -6,7 +6,7 @@ from app.email_intelligence.gmail import DEFAULT_QUERY, sync_job_related_mail
 
 def main():
     parser = argparse.ArgumentParser(description="Read-only sync of job-related Gmail metadata.")
-    parser.add_argument("--query", default=DEFAULT_QUERY)
+    parser.add_argument("--query", default=None, help="Optional Gmail query override; default includes saved outreach contact addresses.")
     parser.add_argument("--max-messages", type=int, default=500)
     args = parser.parse_args()
     if args.max_messages < 1 or args.max_messages > 5000:
