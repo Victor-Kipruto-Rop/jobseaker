@@ -225,3 +225,17 @@ class AccountToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class GeneratedArtifact(Base):
+    __tablename__ = "generated_artifacts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    artifact_type: Mapped[str] = mapped_column(String(60), index=True)
+    title: Mapped[str] = mapped_column(String(250))
+    content: Mapped[str] = mapped_column(Text)
+    source_resume_id: Mapped[int | None] = mapped_column(ForeignKey("resume_documents.id", ondelete="SET NULL"), nullable=True)
+    source_opportunity_id: Mapped[int | None] = mapped_column(ForeignKey("candidate_opportunities.id", ondelete="SET NULL"), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
+    provider: Mapped[str] = mapped_column(String(40), default="")
+    model: Mapped[str] = mapped_column(String(120), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
