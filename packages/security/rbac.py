@@ -22,7 +22,7 @@ def set_user_role(
     if not normalized_email or not operator_name:
         raise ValueError("A target email and operator identity are required")
 
-    user = db.scalar(select(User).where(User.email == normalized_email))
+    user = db.scalar(select(User).where(User.email == normalized_email).with_for_update())
     if not user:
         raise LookupError("Target account was not found")
 
