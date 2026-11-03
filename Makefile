@@ -35,7 +35,7 @@ compose-config:
 # and Docker Compose to be available; it does not start containers or call live providers.
 verify: python-verify typecheck web-build compose-config
 
-verify-all: verify
+verify-all: verify-stack
 
 # Starts the isolated local stack and runs the full release gate, including PostgreSQL tests.
 verify-stack:
