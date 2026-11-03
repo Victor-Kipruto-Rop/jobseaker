@@ -17,6 +17,12 @@ from packages.database.models.career import (
 
 router = APIRouter()
 
+def _format_skill_evidence(skills):
+    return "\n".join(
+        f"- {item.skill_name} | self-reported proficiency: {item.proficiency} | evidence: {item.evidence or 'not provided'}"
+        for item in skills
+    ) or "No candidate skills have been recorded."
+
 class CVTailorRequest(BaseModel):
     resume_id: int
     job_description: str = Field(min_length=30, max_length=30000)
@@ -131,7 +137,7 @@ async def interview_prep(body: InterviewPrepRequest, user: User = Depends(get_cu
         "and an evaluation rubric. Separate suggested answers from verified candidate experience. "
         "Do not claim the candidate has experience not present in the profile.\nRole: " + body.role_title +
         "\nJob description:\n" + body.job_description +
-        "\nCandidate-recorded skills: " + ", ".join(item.skill_name for item in skills)
+        "\nCandidate-recorded skills: " + _format_skill_evidence(skills)
     )
     return await _generate(user, db, "interview_prep", "Interview preparation: " + body.role_title,
         prompt, "You are a rigorous technical interviewer and career coach. Distinguish examples from candidate facts.",
