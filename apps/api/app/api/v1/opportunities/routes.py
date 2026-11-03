@@ -6,6 +6,7 @@ from apps.api.app.core.redis_limits import enforce_rate_limit
 from packages.integrations.job_boards.connectors import discover_greenhouse, discover_lever
 from packages.integrations.url_validation import validate_http_url
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from apps.api.app.core.config import get_settings
@@ -79,7 +80,11 @@ def save_opportunity(body: OpportunityCreate, user: User = Depends(get_current_u
             raise HTTPException(status_code=409, detail="This opportunity is already saved")
     row = CandidateOpportunity(user_id=user.id, **body.model_dump())
     db.add(row)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="This opportunity URL is already saved") from exc
     db.refresh(row)
     skills = db.scalars(select(CandidateSkill).where(CandidateSkill.user_id == user.id)).all()
     fit = score_job(row.title, row.description + " " + " ".join(row.required_skills or []), [s.skill_name for s in skills])
@@ -114,6 +119,10 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
         db.add(row)
         saved += 1
         results.append({"title": row.title, "company": row.company, "source_url": row.source_url})
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="A concurrent import saved one or more of these opportunities. Retry discovery to import remaining roles.") from exc
     return {"source": body.source, "board": body.board, "fetched": len(discovered),
             "saved": saved, "duplicates_or_invalid": skipped, "items": results}
