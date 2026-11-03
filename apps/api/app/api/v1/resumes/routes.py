@@ -27,7 +27,8 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
         if not data.startswith(b"%PDF-"):
             raise HTTPException(status_code=400, detail="The uploaded file is not a valid PDF")
         try:
-            text = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(data)).pages)
+            text = "
+".join(page.extract_text() or "" for page in PdfReader(BytesIO(data)).pages)
         except Exception as exc:
             raise HTTPException(status_code=400, detail="Unable to read this PDF") from exc
         return text[:500000], ALLOWED[suffix]
@@ -36,7 +37,8 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
             if "word/document.xml" not in archive.namelist():
                 raise ValueError("Missing document XML")
         document = Document(BytesIO(data))
-        text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+        text = "
+".join(paragraph.text for paragraph in document.paragraphs)
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Unable to read this DOCX document") from exc
     return text[:500000], ALLOWED[suffix]
@@ -44,6 +46,8 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
 @router.post("", status_code=201)
 async def upload_resume(file: UploadFile = File(...), user: User = Depends(get_current_user),
                         db: Session = Depends(get_db)):
+    if get_settings().app_env == "production":
+        raise HTTPException(status_code=503, detail="Production object storage is not configured. Resume uploads are disabled.")
     filename = Path(file.filename or "resume").name
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
