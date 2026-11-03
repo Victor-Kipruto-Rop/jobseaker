@@ -176,6 +176,8 @@ def get_budget(user: User = Depends(get_current_user), db: Session = Depends(get
 @router.put("/budget")
 def update_budget(body: BudgetUpdate, user: User = Depends(get_current_user),
                   db: Session = Depends(get_db)):
+    if body.hard_token_limit_enabled and body.monthly_token_limit == 0:
+        raise HTTPException(status_code=422, detail="Set a monthly token limit before enabling hard enforcement")
     budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user.id))
     if not budget:
         budget = UserAIBudget(user_id=user.id)
