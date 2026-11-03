@@ -55,7 +55,8 @@ See [Platform architecture and engineering contracts](docs/architecture/platform
 3. Keep APP_ENV=local. Replace APP_SECRET_KEY with a random local secret of at least 32 characters.
 4. For local Python verification, create a virtual environment and install the development dependencies: `python -m venv .venv`, activate it (PowerShell: `.venv\\Scripts\\Activate.ps1`), then run `python -m pip install -e ".[dev]"`.
 5. For local web verification, run `pnpm install` from the repository root.
-6. Run:
+6. Optional: provision an administrator only through the audited operator command. Set `ADMIN_BOOTSTRAP_ENABLED=true` temporarily in the local `.env`, then run `python scripts/promote_admin.py --email admin@example.com --confirm`. The command refuses to run without the flag and explicit confirmation; disable the flag again immediately afterward. No public API can assign privileged roles.
+7. Run:
 
    docker compose -f infrastructure/compose/docker-compose.yml config
    docker compose -f infrastructure/compose/docker-compose.yml up --build
