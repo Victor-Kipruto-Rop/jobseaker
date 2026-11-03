@@ -13,7 +13,8 @@ from docx import Document
 from apps.api.app.core.config import get_settings
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
-from packages.database.models.career import ResumeDocument
+from packages.database.models.career import ResumeDocument, AuditLog
+from apps.api.app.core.redis_limits import enforce_rate_limit
 
 router = APIRouter()
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -90,6 +91,7 @@ async def upload_resume(file: UploadFile = File(...), user: User = Depends(get_c
                         db: Session = Depends(get_db)):
     if get_settings().app_env == "production":
         raise HTTPException(status_code=503, detail="Production object storage is not configured. Resume uploads are disabled.")
+    enforce_rate_limit(f"resume-upload:{user.id}", limit=10, window_seconds=3600)
     filename = Path(file.filename or "resume").name
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
@@ -169,7 +171,14 @@ def delete_resume(resume_id: int, user: User = Depends(get_current_user),
     if root not in stored_path.parents:
         raise HTTPException(status_code=409, detail="Stored resume path is outside the configured storage directory")
 
+    db.add(AuditLog(user_id=user.id, action="resume.deleted",
+                    resource_type="resume", resource_id=str(row.id)))
     db.delete(row)
     db.commit()
-    stored_path.unlink(missing_ok=True)
+    try:
+        stored_path.unlink(missing_ok=True)
+    except OSError:
+        # The database record is gone; log cleanup failure without leaking the path to the client.
+        import logging
+        logging.getLogger(__name__).exception("Unable to remove deleted resume file", extra={"user_id": user.id})
     return None
