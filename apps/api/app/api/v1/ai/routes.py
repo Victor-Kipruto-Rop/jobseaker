@@ -86,14 +86,6 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user),
     if registry.get(requested) is None:
         raise HTTPException(status_code=400, detail="Provider is not enabled or configured")
     now = datetime.now(timezone.utc)
-    budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user.id))
-    if budget and budget.hard_token_limit_enabled and budget.monthly_token_limit > 0:
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        used = db.scalar(select(func.coalesce(func.sum(AIUsage.input_tokens + AIUsage.output_tokens), 0))
-                         .where(AIUsage.user_id == user.id, AIUsage.created_at >= month_start)) or 0
-        estimated_input_tokens = max(1, (len(body.message) + 3) // 4)
-        if int(used) + estimated_input_tokens + body.max_tokens > budget.monthly_token_limit:
-            raise HTTPException(status_code=429, detail="Your monthly AI token limit has been reached")
     conversation = None
     if body.conversation_id is not None:
         conversation = db.scalar(select(AIConversation).where(
@@ -109,6 +101,15 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user),
     ).order_by(AIMessage.created_at.desc()).limit(20)).all()
     messages = [{"role": item.role, "content": item.content} for item in reversed(history)]
     messages.append({"role": "user", "content": body.message})
+    budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user.id))
+    if budget and budget.hard_token_limit_enabled and budget.monthly_token_limit > 0:
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        used = db.scalar(select(func.coalesce(func.sum(AIUsage.input_tokens + AIUsage.output_tokens), 0))
+                         .where(AIUsage.user_id == user.id, AIUsage.created_at >= month_start)) or 0
+        context_chars = sum(len(item["content"]) for item in messages)
+        estimated_input_tokens = max(1, (context_chars + 3) // 4)
+        if int(used) + estimated_input_tokens + body.max_tokens > budget.monthly_token_limit:
+            raise HTTPException(status_code=429, detail="Your monthly AI token limit has been reached")
     request = GenerationRequest(
         messages=messages,
         system=body.system_instruction or (
