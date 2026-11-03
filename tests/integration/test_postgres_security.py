@@ -157,3 +157,25 @@ def test_postgres_email_verification_token_is_hashed_and_single_use(postgres_db)
     assert user.is_verified is True
     with pytest.raises(routes.HTTPException):
         routes._consume_account_token(postgres_db, raw_token, "email_verification")
+
+
+
+def test_postgres_recovery_token_is_bound_to_its_owner(postgres_db):
+    owner = User(email="pg-token-owner@example.com", password_hash="owner-old-hash")
+    other = User(email="pg-token-other@example.com", password_hash="other-old-hash")
+    postgres_db.add_all([owner, other])
+    postgres_db.commit()
+
+    token = routes._new_account_token(
+        postgres_db, owner, "password_reset", routes.timedelta(minutes=30)
+    )
+    result = routes.confirm_password_reset(
+        routes.PasswordResetConfirm(token=token, new_password="owner-new-password-123"),
+        postgres_db,
+    )
+    postgres_db.refresh(owner)
+    postgres_db.refresh(other)
+
+    assert result["status"] == "password_reset"
+    assert owner.password_hash != "owner-old-hash"
+    assert other.password_hash == "other-old-hash"
