@@ -45,6 +45,7 @@ def main() -> int:
         return 2
 
     compose = ["docker", "compose", "-f", str(COMPOSE_FILE)]
+    pnpm = "pnpm.cmd" if os.name == "nt" else "pnpm"
     local_env = os.environ.copy()
     local_env.update(
         {
@@ -70,8 +71,8 @@ def main() -> int:
         run(["alembic", "check"], env=local_env)
         run([sys.executable, "-m", "pytest", "-q"], env=local_env)
         run(["ruff", "check", "."], env=local_env)
-        run(["pnpm", "lint"], cwd=ROOT / "apps" / "web", env=local_env)
-        run(["pnpm", "build"], cwd=ROOT / "apps" / "web", env=local_env)
+        run([pnpm, "lint"], cwd=ROOT / "apps" / "web", env=local_env)
+        run([pnpm, "build"], cwd=ROOT / "apps" / "web", env=local_env)
         run(compose + ["ps"], env=local_env)
     except subprocess.CalledProcessError as exc:
         print(
