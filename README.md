@@ -46,7 +46,20 @@ python -m scripts.import_outreach "C:\\path\\to\\kenya_data_opportunities_contac
 python -m scripts.import_outreach "C:\\path\\to\\kenya_data_opportunities_contacts.csv"
 ```
 
-A future send-log importer will link known Gmail message IDs and thread IDs without treating SENT as proof of delivery or reading.
+Import the historical Gmail send log without editing the source:
+
+```powershell
+python -m scripts.import_send_log "C:\\path\\to\\outreach_send_log.csv" --dry-run
+python -m scripts.import_send_log "C:\\path\\to\\outreach_send_log.csv"
+```
+
+Then configure a Google OAuth Desktop client outside the repository, set `GMAIL_ENABLED=true`, `GMAIL_CLIENT_SECRET_FILE`, and `GMAIL_TOKEN_FILE` in local `.env`, and run:
+
+```powershell
+python -m scripts.sync_gmail --max-messages 500
+```
+
+The Gmail connector requests read-only access and fetches metadata/snippets. It does not send or modify mail. See [Gmail intelligence](docs/GMAIL_INTELLIGENCE.md) and [outreach reconciliation](docs/OUTREACH_RECONCILIATION.md).
 
 ## Configuration
 
