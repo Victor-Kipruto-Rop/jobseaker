@@ -21,6 +21,14 @@ def upgrade():
                 op.create_index("ix_ai_usage_user_id", "ai_usage", ["user_id"])
             except Exception:
                 pass
+    if "approvals" in inspector.get_table_names():
+        approval_columns = {column["name"] for column in inspector.get_columns("approvals")}
+        if "user_id" not in approval_columns:
+            op.add_column("approvals", sa.Column("user_id", sa.Integer(), nullable=True))
+            try:
+                op.create_index("ix_approvals_user_id", "approvals", ["user_id"])
+            except Exception:
+                pass
     Base.metadata.create_all(bind=bind, checkfirst=True)
 
 def downgrade():
