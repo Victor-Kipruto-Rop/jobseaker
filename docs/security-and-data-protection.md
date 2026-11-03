@@ -7,7 +7,9 @@
 - Session tokens are random opaque values. Only SHA-256 digests are stored.
 - Sessions expire after seven days and can be revoked at logout.
 - CSRF tokens are double-submitted and bound to the stored session digest.
-- Login and password recovery have IP and account-level rate limits; job discovery and Gmail synchronization are rate-limited.\n- Account recovery tokens are random, short-lived, single-use values stored only as hashes. Production never returns recovery tokens in API responses.\n- Gmail OAuth requires a verified account.
+- Login and password recovery have IP and account-level rate limits; job discovery and Gmail synchronization are rate-limited.
+- Account recovery tokens are random, short-lived, single-use values stored only as hashes. Production never returns recovery tokens in API responses.
+- Gmail OAuth requires a verified account.
 - User-owned profile, skills, CV metadata, applications, recruiters, companies, interviews, AI conversations, messages, usage, notifications, and saved searches are filtered by authenticated user ID.
 - Gmail OAuth credentials are encrypted at rest using Fernet with a key derived from APP_SECRET_KEY.
 - Gmail requests use only the gmail.readonly scope.
