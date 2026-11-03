@@ -1,5 +1,4 @@
 import argparse
-import os
 import sys
 
 from apps.api.app.core.config import get_settings
