@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import EmailEvent, GmailSyncState, RecruiterFeedback, SourceImportRow
+from app.models import EmailEvent, GmailSyncState, OutreachContact, RecruiterFeedback, SourceImportRow
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 DEFAULT_QUERY = "in:anywhere {subject:job subject:career subject:vacancy subject:application subject:interview subject:recruitment}"
@@ -89,7 +89,25 @@ def _store_message(db: Session, message: dict, mailbox: str):
     return True
 
 
-def sync_job_related_mail(db: Session, *, query: str = DEFAULT_QUERY, max_messages: int = 500):
+def build_job_query(db: Session) -> str:
+    terms = [
+        "subject:job", "subject:jobs", "subject:career", "subject:careers",
+        "subject:vacancy", "subject:application", "subject:interview",
+        "subject:recruitment", "subject:recruiter",
+    ]
+    addresses = set()
+    for email in db.scalars(select(OutreachContact.email).where(OutreachContact.email.is_not(None))):
+        if email and "@" in email:
+            addresses.add(email.strip().lower())
+    for email in db.scalars(select(SourceImportRow.recipient).where(SourceImportRow.recipient.is_not(None))):
+        if email and "@" in email:
+            addresses.add(email.strip().lower())
+    terms.extend(f"from:{address}" for address in sorted(addresses))
+    terms.extend(f"to:{address}" for address in sorted(addresses))
+    return "in:anywhere {" + " ".join(terms) + "}"
+
+
+def sync_job_related_mail(db: Session, *, query: str | None = None, max_messages: int = 500):
     """Read metadata/snippets only. Never sends, marks read, archives, or deletes mail."""
     service = get_gmail_service()
     mailbox = service.users().getProfile(userId="me").execute().get("emailAddress", "").lower()
