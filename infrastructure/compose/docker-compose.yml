@@ -3,6 +3,7 @@ services:
     build: {context: ../.., dockerfile: apps/api/Dockerfile}
     env_file: ../../.env
     environment:
+      APP_ENV: local
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
     command: ["alembic", "upgrade", "head"]
     depends_on:
@@ -11,9 +12,15 @@ services:
     build: {context: ../.., dockerfile: apps/api/Dockerfile}
     env_file: ../../.env
     environment:
+      APP_ENV: local
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
       REDIS_URL: redis://redis:6379/0
       STORAGE_PATH: /workspace/data/uploads
+      GLOBAL_AUTOMATION_PAUSED: "true"
+      AUTO_EMAIL_SEND: "false"
+      AUTO_APPLICATION_SUBMIT: "false"
+      GMAIL_ENABLED: "false"
+      JOB_DISCOVERY_ENABLED: "false"
     volumes: ["../../data:/workspace/data", "../../secrets:/run/secrets:ro"]
     ports: ["127.0.0.1:8000:8000"]
     healthcheck:
@@ -34,6 +41,12 @@ services:
     build: {context: ../.., dockerfile: apps/worker/Dockerfile}
     env_file: ../../.env
     environment:
+      APP_ENV: local
+      GLOBAL_AUTOMATION_PAUSED: "true"
+      AUTO_EMAIL_SEND: "false"
+      AUTO_APPLICATION_SUBMIT: "false"
+      GMAIL_ENABLED: "false"
+      JOB_DISCOVERY_ENABLED: "false"
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
     depends_on:
@@ -52,11 +65,13 @@ services:
       migrate: {condition: service_completed_successfully}
   postgres:
     image: postgres:16-alpine
+    ports: ["127.0.0.1:5432:5432"]
     environment: {POSTGRES_DB: jobseeker, POSTGRES_USER: jobseeker, POSTGRES_PASSWORD: jobseeker_local}
     volumes: [jobseeker_pgdata:/var/lib/postgresql/data]
     healthcheck: {test: ["CMD-SHELL","pg_isready -U jobseeker -d jobseeker"], interval: 5s, timeout: 5s, retries: 15}
   redis:
     image: redis:7-alpine
+    ports: ["127.0.0.1:6379:6379"]
     volumes: [jobseeker_redisdata:/data]
     healthcheck: {test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 15}
 volumes:
