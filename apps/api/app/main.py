@@ -52,7 +52,7 @@ async def csrf_protection(request: Request, call_next):
                     }
                     if request.url.path not in public_token_routes:
                         return JSONResponse(status_code=403, content={"detail": "Session is invalid"})
-                    if not csrf_cookie or not csrf_header or not hmac.compare_digest(csrf_cookie, csrf_header):
+                    if not double_submit_matches(csrf_cookie, csrf_header):
                         return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
         else:
             # Anonymous browser mutations must also complete the CSRF bootstrap handshake.
