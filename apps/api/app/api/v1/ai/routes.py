@@ -142,3 +142,35 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user),
             "text": generated.text, "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
             "estimated_cost_usd": None,
             "cost_note": "Token usage is persisted per user. Monetary cost remains unavailable until a verified, versioned pricing catalog is configured."}
+
+class BudgetUpdate(BaseModel):
+    monthly_token_limit: int = Field(default=0, ge=0, le=100000000)
+    hard_token_limit_enabled: bool = False
+    alert_threshold_percent: int = Field(default=80, ge=1, le=100)
+
+@router.get("/budget")
+def get_budget(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user.id))
+    if not budget:
+        return {"monthly_token_limit": 0, "hard_token_limit_enabled": False,
+                "alert_threshold_percent": 80, "enforcement": "disabled"}
+    return {"monthly_token_limit": budget.monthly_token_limit,
+            "hard_token_limit_enabled": budget.hard_token_limit_enabled,
+            "alert_threshold_percent": budget.alert_threshold_percent,
+            "enforcement": "token_limit" if budget.hard_token_limit_enabled and budget.monthly_token_limit else "disabled"}
+
+@router.put("/budget")
+def update_budget(body: BudgetUpdate, user: User = Depends(get_current_user),
+                  db: Session = Depends(get_db)):
+    budget = db.scalar(select(UserAIBudget).where(UserAIBudget.user_id == user.id))
+    if not budget:
+        budget = UserAIBudget(user_id=user.id)
+        db.add(budget)
+    budget.monthly_token_limit = body.monthly_token_limit
+    budget.hard_token_limit_enabled = body.hard_token_limit_enabled
+    budget.alert_threshold_percent = body.alert_threshold_percent
+    db.commit()
+    return {"monthly_token_limit": budget.monthly_token_limit,
+            "hard_token_limit_enabled": budget.hard_token_limit_enabled,
+            "alert_threshold_percent": budget.alert_threshold_percent,
+            "enforcement": "token_limit" if budget.hard_token_limit_enabled and budget.monthly_token_limit else "disabled"}
