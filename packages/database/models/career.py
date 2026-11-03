@@ -62,7 +62,7 @@ class Application(Base):
     __tablename__ = "applications"
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    opportunity_id: Mapped[int | None] = mapped_column(ForeignKey("opportunities.id", ondelete="SET NULL"), nullable=True)
+    opportunity_id: Mapped[int | None] = mapped_column(ForeignKey("candidate_opportunities.id", ondelete="SET NULL"), nullable=True)
     company_name: Mapped[str] = mapped_column(String(250), default="")
     role_title: Mapped[str] = mapped_column(String(250))
     status: Mapped[str] = mapped_column(String(40), default="draft", index=True)
