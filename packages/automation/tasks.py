@@ -8,27 +8,48 @@ from packages.database.models.career import CandidateOpportunity, Interview, Not
 from packages.integrations.job_boards.connectors import discover_greenhouse, discover_lever
 from apps.api.app.core.config import get_settings
 
+async def _fetch_saved_searches(searches, concurrency: int = 5):
+    """Fetch external job-board data with bounded concurrency and no open DB session."""
+    semaphore = asyncio.Semaphore(max(1, min(concurrency, 10)))
+
+    async def fetch(search_id, user_id, config):
+        source, board = config.get("source"), config.get("board")
+        if source not in {"greenhouse", "lever"} or not board:
+            return search_id, user_id, config, [], None
+        async with semaphore:
+            try:
+                items = (await discover_greenhouse(board, 100) if source == "greenhouse"
+                         else await discover_lever(board, 100))
+                return search_id, user_id, config, items, None
+            except Exception as exc:
+                return search_id, user_id, config, [], exc
+
+    return await asyncio.gather(*(fetch(*item) for item in searches))
+
+
 def run_saved_search_discovery():
-    """Run explicitly configured saved searches without holding DB connections during HTTP calls."""
+    """Run enabled saved searches with bounded I/O concurrency and isolated DB transactions."""
     settings = get_settings()
     if settings.global_automation_paused or not settings.job_discovery_enabled:
         return {"paused": True, "searches": 0, "saved": 0, "duplicates": 0, "failed": 0}
 
     with SessionLocal() as db:
         rows = db.execute(select(SavedSearch.id, SavedSearch.user_id, SavedSearch.query)
-                          .order_by(SavedSearch.id.asc()).limit(50)).all()
+                          .order_by(SavedSearch.id.asc()).limit(250)).all()
         searches = [(row.id, row.user_id, row.query or {}) for row in rows]
 
+    fetched = asyncio.run(_fetch_saved_searches(searches))
     summary = {"paused": False, "searches": 0, "saved": 0, "duplicates": 0, "failed": 0}
-    for search_id, user_id, config in searches:
+    for search_id, user_id, config, items, error in fetched:
         source, board = config.get("source"), config.get("board")
         if source not in {"greenhouse", "lever"} or not board:
             continue
         summary["searches"] += 1
+        if error is not None:
+            summary["failed"] += 1
+            continue
+        inserted = 0
         try:
-            items = asyncio.run(discover_greenhouse(board, 100) if source == "greenhouse"
-                                else discover_lever(board, 100))
-            inserted = 0
             with SessionLocal() as db:
                 for item in items:
                     url = item.get("source_url", "")
@@ -39,13 +60,8 @@ def run_saved_search_discovery():
                         continue
                     if config.get("company_name"):
                         item["company"] = config["company_name"]
-                    try:
-                        with db.begin_nested():
-                            db.add(CandidateOpportunity(user_id=user_id, **item))
-                            db.flush()
-                        inserted += 1
-                    except IntegrityError:
-                        summary["duplicates"] += 1
+                    db.add(CandidateOpportunity(user_id=user_id, **item))
+                    inserted += 1
                 if inserted:
                     db.add(Notification(user_id=user_id, title="New jobs found",
                         body=f"{inserted} new roles were added from {board}."))
