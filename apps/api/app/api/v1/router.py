@@ -14,3 +14,11 @@ router.include_router(profile, prefix="/profile", tags=["candidate profile"])
 router.include_router(applications, prefix="/applications", tags=["applications"])
 from apps.api.app.api.v1.resumes.routes import router as resumes
 router.include_router(resumes, prefix="/resumes", tags=["resumes and CV intelligence"])
+from apps.api.app.api.v1.companies.routes import router as companies
+from apps.api.app.api.v1.recruiters.routes import router as recruiters
+from apps.api.app.api.v1.interviews.routes import router as interviews
+from apps.api.app.api.v1.analytics.routes import router as analytics
+router.include_router(companies, prefix="/companies", tags=["companies"])
+router.include_router(recruiters, prefix="/recruiters", tags=["recruiters"])
+router.include_router(interviews, prefix="/interviews", tags=["interviews"])
+router.include_router(analytics, prefix="/analytics", tags=["career analytics"])
