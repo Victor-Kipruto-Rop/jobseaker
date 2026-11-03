@@ -1,17 +1,26 @@
 import os
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, text
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session
 
-from packages.database.models import Base
 from packages.database.models.identity import User
 from apps.api.app.core.security import create_session, resolve_session
 from apps.api.app.api.v1.auth import routes
 
 
 DATABASE_URL = os.getenv("JOBSEEKER_TEST_DATABASE_URL")
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _alembic_config(connection):
+    config = Config(str(ROOT / "alembic.ini"))
+    config.attributes["connection"] = connection
+    return config
 
 
 @pytest.fixture
@@ -33,11 +42,13 @@ def postgres_db():
         pool_pre_ping=True,
         connect_args={"options": f"-csearch_path={schema}"},
     )
-    Base.metadata.create_all(test_engine)
+    connection = test_engine.connect()
     try:
-        with Session(test_engine) as session:
+        command.upgrade(_alembic_config(connection), "head")
+        with Session(bind=connection) as session:
             yield session
     finally:
+        connection.close()
         test_engine.dispose()
         with admin_engine.begin() as connection:
             connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
@@ -93,3 +104,15 @@ def test_postgres_expired_recovery_token_is_rejected(postgres_db):
     with pytest.raises(routes.HTTPException) as error:
         routes._consume_account_token(postgres_db, raw_token, "password_reset")
     assert error.value.status_code == 400
+
+
+def test_postgres_migration_upgrade_and_downgrade_are_repeatable(postgres_db):
+    connection = postgres_db.connection()
+    config = _alembic_config(connection)
+    command.downgrade(config, "20261103_0007")
+    columns = {column["name"] for column in inspect(connection).get_columns("users")}
+    assert "role" not in columns
+
+    command.upgrade(config, "head")
+    columns = {column["name"] for column in inspect(connection).get_columns("users")}
+    assert "role" in columns
