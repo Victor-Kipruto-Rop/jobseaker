@@ -67,7 +67,9 @@ def register(body: RegisterRequest, request: Request, response: Response, db: Se
 
 @router.post("/login")
 def login(body: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
-    enforce_rate_limit(f"login:{request.client.host if request.client else 'unknown'}", 10, 300)
+    enforce_rate_limit(f"login-ip:{request.client.host if request.client else 'unknown'}", 30, 300)
+    email_key = hashlib.sha256(body.email.lower().encode("utf-8")).hexdigest()
+    enforce_rate_limit(f"login-email:{email_key}", 10, 300)
     user = db.scalar(select(User).where(User.email == body.email.lower()))
     if not user or not verify_password(body.password, user.password_hash) or not user.is_active:
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -158,7 +160,9 @@ def confirm_verification(body: TokenConfirm, db: Session = Depends(get_db)):
 @router.post("/password-reset/request", status_code=202)
 def request_password_reset(body: PasswordResetRequest, request: Request,
                            db: Session = Depends(get_db)):
-    enforce_rate_limit(f"password-reset:{request.client.host if request.client else 'unknown'}", 5, 3600)
+    enforce_rate_limit(f"password-reset-ip:{request.client.host if request.client else 'unknown'}", 10, 3600)
+    email_key = hashlib.sha256(body.email.lower().encode("utf-8")).hexdigest()
+    enforce_rate_limit(f"password-reset-email:{email_key}", 3, 3600)
     if not configured() and get_settings().app_env == "production":
         raise HTTPException(status_code=503, detail="Transactional email delivery is not configured")
     user = db.scalar(select(User).where(User.email == body.email.lower()))
