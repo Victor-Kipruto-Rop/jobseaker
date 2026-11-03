@@ -19,3 +19,15 @@ def is_allowed_origin(candidate: str | None, allowed_origins: list[str]) -> bool
         return normalized in configured
     except ValueError:
         return False
+
+def origin_from_referer(referer: str | None) -> str | None:
+    """Extract only the origin from a full Referer URL; malformed values fail closed."""
+    if not referer:
+        return None
+    try:
+        parsed = urlsplit(referer)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:
+            return ""
+        return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+    except ValueError:
+        return ""
