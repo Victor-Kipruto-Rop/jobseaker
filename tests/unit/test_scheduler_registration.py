@@ -24,11 +24,11 @@ def test_recurring_scheduler_registration_is_idempotent():
     connection = FakeRedis()
     first = ensure_recurring_jobs(scheduler, connection)
     second = ensure_recurring_jobs(scheduler, connection)
-    assert first["registered"] == 2
+    assert first["registered"] == 3
     assert second["registered"] == 0
-    assert second["existing"] == 2
+    assert second["existing"] == 3
     assert {job.id for job in scheduler.jobs} == {
-        "jobseeker-interview-reminders", "jobseeker-saved-search-discovery"
+        "jobseeker-interview-reminders", "jobseeker-saved-search-discovery", "jobseeker-ai-reservation-cleanup"
     }
 
 def test_saved_search_discovery_respects_global_pause(monkeypatch):
