@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     gmail_client_secret_file: str | None = None
     gmail_redirect_uri: str = "http://localhost:8000/api/v1/integrations/gmail/callback"
     web_app_url: str = "http://localhost:3000"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    smtp_use_tls: bool = True
     cors_origins: str = "http://localhost:3000"
     ai_default_provider: str = "mock"
     ai_fallback_provider: str = "mock"
