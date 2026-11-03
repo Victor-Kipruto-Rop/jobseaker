@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, delete
+from sqlalchemy.exc import IntegrityError
 from packages.database.sessions import SessionLocal
 from packages.database.models.entities import AIUsageReservation
 from packages.database.models.career import CandidateOpportunity, Interview, Notification, SavedSearch
@@ -38,8 +39,13 @@ def run_saved_search_discovery():
                         continue
                     if config.get("company_name"):
                         item["company"] = config["company_name"]
-                    db.add(CandidateOpportunity(user_id=user_id, **item))
-                    inserted += 1
+                    try:
+                        with db.begin_nested():
+                            db.add(CandidateOpportunity(user_id=user_id, **item))
+                            db.flush()
+                        inserted += 1
+                    except IntegrityError:
+                        summary["duplicates"] += 1
                 if inserted:
                     db.add(Notification(user_id=user_id, title="New jobs found",
                         body=f"{inserted} new roles were added from {board}."))
