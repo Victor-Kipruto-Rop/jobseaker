@@ -91,7 +91,8 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user),
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         used = db.scalar(select(func.coalesce(func.sum(AIUsage.input_tokens + AIUsage.output_tokens), 0))
                          .where(AIUsage.user_id == user.id, AIUsage.created_at >= month_start)) or 0
-        if int(used) >= budget.monthly_token_limit:
+        estimated_input_tokens = max(1, (len(body.message) + 3) // 4)
+        if int(used) + estimated_input_tokens + body.max_tokens > budget.monthly_token_limit:
             raise HTTPException(status_code=429, detail="Your monthly AI token limit has been reached")
     conversation = None
     if body.conversation_id is not None:
