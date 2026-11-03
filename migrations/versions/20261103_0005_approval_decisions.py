@@ -11,7 +11,7 @@ depends_on = None
 def upgrade():
     inspector = inspect(op.get_bind())
     if "approvals" not in inspector.get_table_names():
-        return
+        raise RuntimeError("The approvals table must exist before applying this migration")
     columns = {column["name"] for column in inspector.get_columns("approvals")}
     if "decision_note" not in columns:
         op.add_column("approvals", sa.Column("decision_note", sa.Text(), nullable=False, server_default=""))
@@ -19,5 +19,11 @@ def upgrade():
         op.add_column("approvals", sa.Column("decided_at", sa.DateTime(timezone=True), nullable=True))
 
 def downgrade():
-    op.drop_column("approvals", "decided_at")
-    op.drop_column("approvals", "decision_note")
+    inspector = inspect(op.get_bind())
+    if "approvals" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("approvals")}
+    if "decided_at" in columns:
+        op.drop_column("approvals", "decided_at")
+    if "decision_note" in columns:
+        op.drop_column("approvals", "decision_note")
