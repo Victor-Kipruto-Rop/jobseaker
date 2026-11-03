@@ -64,7 +64,9 @@ def test_postgres_session_creation_and_revocation(postgres_db):
     resolved = resolve_session(postgres_db, raw_session)
     assert resolved is not None
     assert resolved[0].id == user.id
-    assert csrf_token
+    assert resolved[1].token_hash != raw_session
+    import hashlib
+    assert resolved[1].csrf_hash == hashlib.sha256(csrf_token.encode("utf-8")).hexdigest()
     assert expires_at is not None
 
     routes.revoke_session(postgres_db, resolved[1])
