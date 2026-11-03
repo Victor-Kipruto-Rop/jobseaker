@@ -1,10 +1,17 @@
-from urllib.request import urlopen
-import json
+import subprocess
+import sys
+
+def run(label, command):
+    print(f"\n== {label} ==")
+    result = subprocess.run(command, check=False)
+    if result.returncode:
+        raise SystemExit(result.returncode)
 
 def main():
-    for url in ("http://127.0.0.1:8000/health", "http://127.0.0.1:8000/health/ready"):
-        with urlopen(url, timeout=5) as response:
-            print(url, response.status, json.loads(response.read()))
+    run("Python compile", [sys.executable, "-m", "compileall", "-q", "apps", "packages", "tests"])
+    run("Python tests", [sys.executable, "-m", "pytest", "-q"])
+    run("Python lint", ["ruff", "check", "."])
+    print("\nLocal verification completed. Run 'cd apps/web && pnpm lint && pnpm build' for frontend checks.")
 
 if __name__ == "__main__":
     main()
