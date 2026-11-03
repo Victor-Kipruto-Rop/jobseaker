@@ -93,3 +93,59 @@ def test_user_can_read_own_application_events(db, two_users_and_applications):
 
     assert len(events) == 1
     assert events[0]["event_type"] == "application.created"
+
+
+
+def test_ready_application_cannot_be_marked_approved_without_approval_workflow(db, two_users_and_applications):
+    owner, _, owned, _ = two_users_and_applications
+    owned.status = "ready"
+    db.commit()
+
+    with pytest.raises(HTTPException) as error:
+        routes.update_application(
+            application_id=owned.id,
+            body=routes.ApplicationUpdate(status="approved"),
+            user=owner,
+            db=db,
+        )
+
+    assert error.value.status_code == 409
+    db.refresh(owned)
+    assert owned.status == "ready"
+
+
+def test_only_an_approved_user_owned_request_can_unlock_submitted_state(db, two_users_and_applications):
+    from packages.automation.approvals.service import create_approval, decide_approval
+
+    owner, _, owned, _ = two_users_and_applications
+    owned.status = "ready"
+    db.commit()
+
+    with pytest.raises(HTTPException) as error:
+        routes.update_application(
+            application_id=owned.id,
+            body=routes.ApplicationUpdate(status="submitted"),
+            user=owner,
+            db=db,
+        )
+    assert error.value.status_code == 409
+
+    request = create_approval(
+        db,
+        owner.id,
+        "application_submission",
+        {"application_id": owned.id},
+        "I reviewed this application and want to proceed.",
+    )
+    decision = decide_approval(db, owner.id, request["id"], "approved", "Approved by candidate")
+    assert decision["status"] == "approved"
+    db.refresh(owned)
+    assert owned.status == "approved"
+
+    submitted = routes.update_application(
+        application_id=owned.id,
+        body=routes.ApplicationUpdate(status="submitted"),
+        user=owner,
+        db=db,
+    )
+    assert submitted["status"] == "submitted"
