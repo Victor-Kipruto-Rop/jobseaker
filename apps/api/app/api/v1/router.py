@@ -26,3 +26,5 @@ from apps.api.app.api.v1.saved_searches.routes import router as saved_searches
 router.include_router(saved_searches, prefix="/saved-searches", tags=["saved searches"])
 from apps.api.app.api.v1.notifications.routes import router as notifications
 router.include_router(notifications, prefix="/notifications", tags=["notifications"])
+from apps.api.app.api.v1.integrations.gmail_routes import router as gmail
+router.include_router(gmail, prefix="/integrations", tags=["integrations"])
