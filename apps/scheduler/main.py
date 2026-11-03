@@ -4,7 +4,8 @@ from datetime import datetime, timedelta, timezone
 from redis import Redis
 from rq import Queue
 from rq_scheduler import Scheduler
-from packages.automation.tasks import create_upcoming_interview_reminders, run_saved_search_discovery
+from packages.automation.tasks import (create_upcoming_interview_reminders,
+    run_saved_search_discovery, cleanup_expired_ai_reservations)
 
 def ensure_recurring_jobs(scheduler: Scheduler, connection: Redis) -> dict:
     """Register deterministic recurring jobs without a permanent one-shot flag."""
@@ -19,6 +20,8 @@ def ensure_recurring_jobs(scheduler: Scheduler, connection: Redis) -> dict:
              now + timedelta(seconds=10), 3600),
             ("jobseeker-saved-search-discovery", run_saved_search_discovery,
              now + timedelta(minutes=2), 21600),
+            ("jobseeker-ai-reservation-cleanup", cleanup_expired_ai_reservations,
+             now + timedelta(minutes=5), 86400),
         ]
         registered = 0
         existing = 0
