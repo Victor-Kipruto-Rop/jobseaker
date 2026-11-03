@@ -12,13 +12,14 @@ def test_new_user_model_defaults_to_candidate_role():
 
 
 def test_registration_payload_cannot_assign_privileged_role():
-    body = RegisterRequest.model_validate({
-        "email": "candidate@example.com",
-        "password": "long-enough-password",
-        "full_name": "Candidate User",
-        "role": "admin",
-    })
-    assert not hasattr(body, "role")
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        RegisterRequest.model_validate({
+            "email": "candidate@example.com",
+            "password": "long-enough-password",
+            "full_name": "Candidate User",
+            "role": "admin",
+        })
 
 
 def test_candidate_is_denied_admin_policy():
