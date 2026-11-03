@@ -151,6 +151,6 @@ def sync_job_related_mail(db: Session, *, query: str = DEFAULT_QUERY, max_messag
     seeded = db.scalar(select(__import__("sqlalchemy").func.count()).select_from(SourceImportRow).where(
         SourceImportRow.gmail_message_id.is_not(None)
     )) or 0
-    return {"mailbox": mailbox, "query": query, "unique_message_ids": len(message_ids),
+    return {"mailbox": mailbox, "query": query, "unique_message_ids": len(message_ids | set(thread_messages)),\n            "threads_checked": len(thread_ids),
             "fetched": fetched, "new_events": inserted, "seeded_outreach_ids": seeded,
             "fetch_failures": failures}
