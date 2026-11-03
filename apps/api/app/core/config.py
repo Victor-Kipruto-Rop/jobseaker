@@ -33,8 +33,12 @@ class Settings(BaseSettings):
 def get_settings():
     settings = Settings()
     if settings.app_env == "production":
-        if settings.app_secret_key == "unsafe-local-only-change-me" or len(settings.app_secret_key) < 32:
+        if (settings.app_secret_key == "unsafe-local-only-change-me" or
+                settings.app_secret_key.lower().startswith("replace-with-") or
+                "change-me" in settings.app_secret_key.lower() or len(settings.app_secret_key) < 32):
             raise ValueError("APP_SECRET_KEY must be a unique random value of at least 32 characters in production")
         if not settings.database_url.startswith("postgresql"):
             raise ValueError("Production requires PostgreSQL")
+        if not settings.allowed_origins or any(not origin.startswith("https://") for origin in settings.allowed_origins):
+            raise ValueError("Production CORS origins must be explicit HTTPS origins")
     return settings
