@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from apps.api.app.core.config import get_settings
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.ai.providers.base import GenerationRequest
+from packages.ai.budget import record_ai_usage
 from packages.ai.providers.registry import get_registry
 from packages.ai.providers.router import generate_with_fallback
 from packages.database.models.identity import User
