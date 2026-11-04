@@ -8,8 +8,6 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
-
-import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -88,10 +86,9 @@ def _grouped_samples(rows) -> list[dict[str, Any]]:
 
 def _flatten(groups: list[dict[str, Any]]):
     samples = [sample for group in groups for sample in group["samples"]]
-    matrix = pd.DataFrame(
-        [[sample["features"][name] for name in FEATURE_NAMES] for sample in samples],
-        columns=FEATURE_NAMES,
-    )
+    matrix = [
+        [sample["features"][name] for name in FEATURE_NAMES] for sample in samples
+    ]
     labels = [sample["label"] for sample in samples]
     sizes = [len(group["samples"]) for group in groups]
     return matrix, labels, sizes
