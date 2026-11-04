@@ -292,7 +292,7 @@ def build_context(db: Session, user_id: int, query: str, history: list[dict],
     sections.append("SEMANTIC KNOWLEDGE GRAPH:")
     sections.extend("- " + edge for edge in graph[:40])
     sections.append("PREFERENCES:")
-    sections.append(str(prefs)[:2000])
+    sections.append(sanitize(str(prefs))[:2000])
     style = str(prefs.get("response_style", "")).lower()
     depth = str(prefs.get("technical_depth", "")).lower()
     if style or depth:
