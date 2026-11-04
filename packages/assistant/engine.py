@@ -190,10 +190,10 @@ def remember(db: Session, user_id: int, content: str, conversation_id: int | Non
             fact = db.scalar(select(AssistantFact).where(
                 AssistantFact.user_id == user_id, AssistantFact.fact_key == key))
             if fact is None:
-                db.add(AssistantFact(user_id=user_id, fact_key=key, fact_value=value,
-                    confidence=confidence, source_memory_id=row.id))
+                db.add(AssistantFact(user_id=user_id, fact_key=key, fact_value=encrypt_credential(value, purpose=f"assistant-fact:{user_id}"),
+                    fact_value_encrypted=True, confidence=confidence, source_memory_id=row.id))
             elif not fact.verified_by_user:
-                fact.fact_value = value; fact.confidence = confidence; fact.source_memory_id = row.id
+                fact.fact_value = encrypt_credential(value, purpose=f"assistant-fact:{user_id}"); fact.fact_value_encrypted = True; fact.confidence = confidence; fact.source_memory_id = row.id
             _upsert_graph_fact(db, user_id, key, value, row.id)
     return first_id
 
@@ -244,7 +244,7 @@ def build_context(db: Session, user_id: int, query: str, history: list[dict],
         if source and target:
             graph.append(f"{source.name} --{edge.relation_type}--> {target.name}")
     sections = ["USER FACTS (unverified unless explicitly marked):"]
-    sections.extend(f"- {f.fact_key}: {f.fact_value} (confidence {f.confidence:.2f}; verified={f.verified_by_user})" for f in facts)
+    sections.extend(f"- {f.fact_key}: {decrypt_credential(f.fact_value, purpose=f"assistant-fact:{user_id}") if f.fact_value_encrypted else f.fact_value} (confidence {f.confidence:.2f}; verified={f.verified_by_user})" for f in facts)
     sections.append("RELEVANT EPISODIC MEMORY:")
     sections.extend(f"- {m['content']}" for m in memories)
     sections.append("SEMANTIC KNOWLEDGE GRAPH:")
