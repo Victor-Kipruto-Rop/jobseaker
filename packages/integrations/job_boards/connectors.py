@@ -142,7 +142,11 @@ async def discover_company_profile(source: str, board: str) -> dict:
                     and urlsplit(canonical_url).scheme == "https" and host.lower() not in ats_hosts):
                 profile["company_website"] = canonical_url
                 profile["company_domain"] = domain
-        if any(profile[key] for key in ("company_logo_url", "company_favicon_url", "company_website", "company_description", "company_brand_color")):
+        board_name = board.replace("-", " ").title()
+        if profile["company"] != board_name or any(profile[key] for key in (
+            "company_logo_url", "company_favicon_url", "company_website",
+            "company_description", "company_brand_color",
+        )):
             profile["company_brand_source"] = page_url
     except (httpx.HTTPError, ValueError, UnicodeError):
         return profile
