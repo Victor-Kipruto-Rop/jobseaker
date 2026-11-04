@@ -10,3 +10,48 @@
 @media(max-width:1080px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.focusRow,.lowerGrid{grid-template-columns:1fr}.pipelineBody{grid-template-columns:180px minmax(0,1fr)}}
 @media(max-width:600px){.page{gap:15px}.heading{align-items:flex-start}.headingActions{width:100%}.headingActions a{flex:1;justify-content:center}.heading h1{font-size:29px}.metrics{gap:8px}.metric{padding:12px}.metric>strong{font-size:23px}.metricHead{font-size:9px}.metric>a{font-size:8px}.verifyBanner{align-items:flex-start;flex-wrap:wrap}.verifyBanner>div{min-width:calc(100% - 45px)}.verifyBanner button{margin-left:42px}.pipelinePanel,.actionPanel,.tablePanel,.matchPanel{padding:15px}.pipelineBody{grid-template-columns:1fr;gap:15px}.pipelineTotal{display:flex;align-items:baseline;gap:8px;padding:10px}.pipelineTotal small{margin:0 0 0 auto}.stageRow{grid-template-columns:74px minmax(30px,1fr) 17px}.panelHeading h2{font-size:18px}}
 @media(prefers-reduced-motion:reduce){.loader{animation:none}}
+
+/* Dashboard refinement: stronger hierarchy, readable data and calm light surfaces. */
+.page{gap:24px}
+.heading{align-items:center}
+.heading h1{font-size:clamp(32px,3.2vw,42px);letter-spacing:-1.5px;margin-top:10px}
+.heading p{font-size:13px;line-height:1.6}
+.buttonPrimary,.buttonSecondary{min-height:39px;padding:0 15px;border-radius:6px;font-size:11px}
+.metrics{gap:13px}
+.metric{padding:18px 18px 16px;border-radius:9px;box-shadow:0 3px 12px #253a2d08}
+.metricHead{font-size:11px}
+.metricIcon{width:32px;height:32px;border-radius:8px}
+.metric>strong{font-size:31px;margin:13px 0 5px}
+.metric>small{font-size:10px}
+.metric>a{font-size:10px;margin-top:13px}
+.focusRow,.lowerGrid{gap:15px}
+.pipelinePanel,.actionPanel,.tablePanel,.matchPanel{padding:21px 22px;border-radius:9px;box-shadow:0 3px 12px #253a2d06}
+.panelHeading h2{font-size:21px}
+.panelHeading p{font-size:10px;line-height:1.5}
+.sectionIndex{font-size:8px;letter-spacing:1.55px}
+.stageRow>span,.stageRow>b{font-size:10px}
+.stageTrack{height:7px}
+.actionItem{padding:11px 9px}
+.actionItem strong{font-size:10px}
+.actionItem small{font-size:9px}
+.profileProgress>div:first-child{font-size:10px}
+.table th{font-size:8px}
+.table td{font-size:10px;padding:13px 9px}
+.table td:first-child strong{font-size:11px}
+.table td:first-child small{font-size:9px}
+.matchCopy strong{font-size:11px}
+.matchCopy small{font-size:9px}
+.matchItem>b{font-size:11px}
+.dataNote{font-size:9px;line-height:1.5}
+.loading,.error{border-radius:9px;padding:42px 22px;font-size:12px}
+@media(max-width:600px){
+ .page{gap:16px}
+ .heading h1{font-size:30px}
+ .heading p{font-size:11px}
+ .metric{padding:13px}
+ .metric>strong{font-size:25px}
+ .metricHead{font-size:9px}
+ .metric>small,.metric>a{font-size:8px}
+ .pipelinePanel,.actionPanel,.tablePanel,.matchPanel{padding:15px}
+ .panelHeading h2{font-size:18px}
+}
