@@ -24,6 +24,18 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# FastAPI parameter declarations are immutable dependency/validation descriptors.
+extend-immutable-calls = [
+  "fastapi.Depends",
+  "fastapi.Query",
+  "fastapi.Path",
+  "fastapi.Body",
+  "fastapi.Header",
+  "fastapi.Cookie",
+  "fastapi.Form",
+  "fastapi.File",
+  "fastapi.Security",
+]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["apps*", "packages*"]
