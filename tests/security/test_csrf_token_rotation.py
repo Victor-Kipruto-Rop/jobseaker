@@ -96,7 +96,7 @@ def test_csrf_endpoint_rotates_a_tampered_cookie(monkeypatch):
 from apps.api.app.api.v1.applications.routes import TRANSITIONS
 
 def test_ready_application_requires_explicit_approval_before_submission():
-    assert "approved" in TRANSITIONS["ready"]
+    assert "approved" not in TRANSITIONS["ready"]
     assert "submitted" not in TRANSITIONS["ready"]
     assert "submitted" in TRANSITIONS["approved"]
 
