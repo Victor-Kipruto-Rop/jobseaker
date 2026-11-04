@@ -324,6 +324,8 @@ def rank_opportunities(
     jobs: list[dict[str, Any]],
     events: list[dict[str, Any]],
     training_samples: list[dict[str, Any]] | None = None,
+    model_override: Any = None,
+    allow_ephemeral_training: bool = True,
 ) -> list[dict[str, Any]]:
     """Score and explain a candidate's active job set using hybrid retrieval."""
     if not jobs:
@@ -362,7 +364,9 @@ def rank_opportunities(
     else:
         embeddings = semantic_embeddings(documents)
         semantic_available = len(embeddings) == len(documents)
-    model = train_ltr_model(training_samples or [])
+    model = model_override if model_override is not None else (
+        train_ltr_model(training_samples or []) if allow_ephemeral_training else None
+    )
     results = []
     for index, job in enumerate(jobs):
         key = item_key(job)
