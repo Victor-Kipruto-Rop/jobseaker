@@ -6,11 +6,14 @@ from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
 from packages.database.models.career import (
-    Application, ApplicationEvent, CandidateOpportunity, RecommendationInteraction,
+    Application, ApplicationEvent, CandidateOpportunity, RecommendationInteraction, ATSApplicationDraft, AuditLog,
 )
 from packages.integrations.url_validation import validate_http_url
 from packages.events.outbox import enqueue_event
 from packages.applications.email_intent import classify_email
+from packages.automation.ats_mapping import build_mapping, FieldMapping, approval_manifest
+import hashlib
+import json
 from packages.applications.fsm import STATUSES, TRANSITIONS, can_transition
 from packages.automation.idempotency import (
     DispatchConflict, reserve_application_dispatch, complete_application_dispatch,
@@ -90,6 +93,100 @@ def preview_email_intent(body: EmailIntentPreview,
     result["application_id"] = body.application_id
     result["candidate_action_required"] = True
     return result
+
+
+class ATSDraftRequest(BaseModel):
+    fields: list[dict] = Field(min_length=1, max_length=250)
+    candidate_values: dict[str, str] = Field(default_factory=dict)
+
+class ATSDraftApproval(BaseModel):
+    confirm: bool = False
+
+@router.post("/{application_id}/ats-draft")
+def create_ats_draft(application_id: int, body: ATSDraftRequest,
+                     user: User = Depends(get_current_user),
+                     db: Session = Depends(get_db)):
+    """Persist proposed ATS field mappings for candidate review; never submits forms."""
+    application = db.scalar(select(Application).where(
+        Application.id == application_id, Application.user_id == user.id).with_for_update())
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if application.status not in {"draft", "ready", "approved"}:
+        raise HTTPException(status_code=409, detail="ATS mapping is locked after submission")
+    mappings = build_mapping(body.fields, body.candidate_values)
+    rows = [row.__dict__ for row in mappings]
+    digest = hashlib.sha256(json.dumps(
+        [application.id, rows], sort_keys=True, separators=(",", ":")
+    ).encode()).hexdigest()
+    draft = db.scalar(select(ATSApplicationDraft).where(
+        ATSApplicationDraft.application_id == application.id,
+        ATSApplicationDraft.user_id == user.id).with_for_update())
+    if draft is None:
+        draft = ATSApplicationDraft(user_id=user.id, application_id=application.id)
+        db.add(draft)
+    draft.mappings = rows
+    draft.mapping_sha256 = digest
+    draft.status = "needs_review" if any(x.status != "proposed" for x in mappings) else "ready_for_review"
+    draft.candidate_confirmed = False
+    draft.approved_at = None
+    db.add(AuditLog(user_id=user.id, action="ats.mapping_proposed",
+                    resource_type="application", resource_id=str(application.id),
+                    metadata_json={"mapping_sha256": digest, "field_count": len(rows)}))
+    db.commit()
+    db.refresh(draft)
+    return {"id": draft.id, "application_id": application.id, "status": draft.status,
+            "mapping_sha256": digest, "mappings": draft.mappings,
+            "execution_policy": "candidate_review_required"}
+
+@router.get("/{application_id}/ats-draft")
+def get_ats_draft(application_id: int, user: User = Depends(get_current_user),
+                  db: Session = Depends(get_db)):
+    draft = db.scalar(select(ATSApplicationDraft).where(
+        ATSApplicationDraft.application_id == application_id,
+        ATSApplicationDraft.user_id == user.id))
+    if not draft:
+        raise HTTPException(status_code=404, detail="ATS draft not found")
+    return {"id": draft.id, "application_id": draft.application_id, "status": draft.status,
+            "mapping_sha256": draft.mapping_sha256, "mappings": draft.mappings,
+            "candidate_confirmed": draft.candidate_confirmed,
+            "approved_at": draft.approved_at,
+            "execution_policy": "candidate_review_required"}
+
+@router.post("/{application_id}/ats-draft/approve")
+def approve_ats_draft(application_id: int, body: ATSDraftApproval,
+                      user: User = Depends(get_current_user),
+                      db: Session = Depends(get_db)):
+    draft = db.scalar(select(ATSApplicationDraft).where(
+        ATSApplicationDraft.application_id == application_id,
+        ATSApplicationDraft.user_id == user.id).with_for_update())
+    if not draft:
+        raise HTTPException(status_code=404, detail="ATS draft not found")
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail="Candidate confirmation is required")
+    application = db.scalar(select(Application).where(
+        Application.id == application_id, Application.user_id == user.id))
+    if not application or application.status not in {"draft", "ready", "approved"}:
+        raise HTTPException(status_code=409, detail="Application is no longer eligible for ATS review")
+    rows = draft.mappings or []
+    digest = hashlib.sha256(json.dumps(
+        [application_id, rows], sort_keys=True, separators=(",", ":")
+    ).encode()).hexdigest()
+    if digest != draft.mapping_sha256:
+        raise HTTPException(status_code=409, detail="ATS mapping changed; regenerate and review it")
+    if not rows or any(row.get("status") != "proposed" for row in rows):
+        raise HTTPException(status_code=409, detail="Resolve every unknown or missing field before approval")
+    from datetime import datetime, timezone
+    draft.status = "approved"
+    draft.candidate_confirmed = True
+    draft.approved_at = datetime.now(timezone.utc)
+    db.add(AuditLog(user_id=user.id, action="ats.mapping_approved",
+                    resource_type="application", resource_id=str(application_id),
+                    metadata_json={"mapping_sha256": digest, "candidate_confirmed": True}))
+    db.commit()
+    return {"status": "approved", "application_id": application_id,
+            "mapping_sha256": digest, "candidate_confirmed": True,
+            "external_submission_performed": False,
+            "next_step": "Review and manually enter the approved values in the external ATS"}
 
 @router.get("")
 def list_applications(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
