@@ -168,3 +168,24 @@ The Phase 2 follow-up PR triggered:
 - [Secret scan run 41785435571](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41785435571): failed with zero recorded steps.
 
 No workflow command executed according to the available job metadata. These failures do not provide test, build, migration, audit, or secret-scan results. The repository owner must verify locally until the GitHub runner issue is resolved.
+
+
+### Owner-reported local backend verification
+
+**Date:** 2026-11-04  
+**Environment:** Windows PowerShell, Python 3.12 virtual environment.  
+**Source:** command output supplied by the repository owner after pulling commit `cedb721`.
+
+| Check | Command | Result |
+|---|---|---|
+| Cross-user resource isolation | `python -m pytest -q tests/security/test_cross_user_resource_isolation.py` | Passed: 17 tests |
+| Saved-search concurrency | `python -m pytest -q tests/unit/test_saved_search_concurrency.py` | Passed: 2 tests |
+| Full backend suite | `python -m pytest -q` | Passed: 146 passed, 7 skipped, 9 warnings |
+| Python type checking | `mypy apps packages` | Passed: 66 source files, no issues |
+| Ruff | `ruff check .` | Not clean at this point: one BLE001 finding for the intentional per-source connector exception isolation |
+
+The two worker regressions from the preceding run were resolved. The session factory import was restored in `packages/automation/tasks.py`; both targeted worker test files and the full suite passed afterward. Ruff's remaining BLE001 finding is handled with a narrowly scoped suppression and an explanatory comment at the connector boundary. That follow-up commit still requires local Ruff verification.
+
+The nine pytest warnings include Starlette/httpx deprecation notices and per-request cookie deprecation notices. They did not fail the test run.
+
+These are repository-owner-reported local results, not GitHub Actions results. Docker builds, Compose startup, Alembic migration/drift checks, dependency audits, coverage percentage, and GitHub Actions execution remain outstanding. No claim is made that Phase 2 is fully verified.
