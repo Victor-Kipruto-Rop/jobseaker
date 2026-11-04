@@ -250,3 +250,11 @@ pnpm --filter web build
 Then run the backend suite and the authenticated local Compose smoke test. Review all five destinations at desktop and mobile widths, including notification actions, application approval decisions, opportunity discovery, CV upload/analysis, AI draft editing, Gmail authorization and AI budget changes. Do not enable outbound email or automatic application submission.
 
 **Phase status:** implementation committed; runtime, browser, responsive, accessibility and authenticated integration verification remain outstanding. Do not merge or deploy until actual command outputs and browser evidence have been recorded.
+
+
+### Latest Phase 3 runner attempt
+
+- [CI run 41797581491](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41797581491): Python, Web and Docker jobs all failed with zero recorded steps.
+- [Secret scan run 41797581485](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41797581485): Gitleaks job failed with zero recorded steps.
+
+The jobs were created and queued, then failed before recording a step. This is still no evidence of a source-code failure or a successful check. Local verification on the current branch is required.
