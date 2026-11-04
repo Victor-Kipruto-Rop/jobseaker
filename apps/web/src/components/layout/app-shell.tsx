@@ -199,7 +199,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
 
   return <div className={styles.frame}>
     {mobileOpen && <button className={styles.scrim} aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
-    <aside className={collapsed ? styles.sidebarCollapsed : mobileOpen ? styles.sidebarOpen : styles.sidebar}>
+    <aside className={mobileOpen ? styles.sidebarOpen : collapsed ? styles.sidebarCollapsed : styles.sidebar}>
       <a href="/dashboard" className={styles.brand}>
         <span className={styles.brandSymbol}><Activity size={18} strokeWidth={2.2}/></span>
         {!collapsed&&<span className={styles.brandName}>jobseeker<span>.</span><small>CAREER INTELLIGENCE</small></span>}
