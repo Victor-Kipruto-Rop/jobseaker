@@ -1,6 +1,7 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { useState } from "react";
+import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
   Activity, Bell, BriefcaseBusiness, Building2, CalendarDays,
