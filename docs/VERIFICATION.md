@@ -593,3 +593,14 @@ The latest commit-associated runs returned failed jobs with no recorded step sum
 - Execute Compose validation and build all four service images.
 - Run authenticated browser/API smoke tests, desktop/mobile review, accessibility and reduced-motion checks.
 - Do not merge or deploy until the above results are recorded. No result is inferred from the presence of workflow steps or test files.
+
+
+### Latest Phase 4 Actions attempts
+
+For PR head `03e7603c243ce98fd8e63d0e064c552bd2c508e2`:
+
+- [CI run 41802499629](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41802499629): Python, Web and Docker jobs were marked failed; GitHub returned `steps: null` for all three jobs.
+- [Secret scan run 41802499617](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41802499617): Gitleaks job was marked failed with `steps: null`.
+- The connector could not retrieve job logs; the log download endpoint returned a missing-artifact response.
+
+No lint, type check, migration, test, dependency audit, image build or Gitleaks command result is available from these runs. This is not a source-code pass/fail signal. The release gate remains open.
