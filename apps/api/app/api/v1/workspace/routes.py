@@ -83,6 +83,8 @@ def create_item(body: WorkspaceItemCreate, user: User = Depends(get_current_user
         title=body.title.strip(), description=body.description, status=body.status,
         priority=body.priority, due_at=body.due_at, metadata_json=body.metadata)
     db.add(row)
+    db.flush()
+    db.add(AuditLog(user_id=user.id, action="career_workspace.created", resource_type=row.item_type, resource_id=str(row.id)))
     db.commit()
     db.refresh(row)
     return serialize(row)
@@ -108,6 +110,7 @@ def update_item(item_id: int, body: WorkspaceItemUpdate,
         if value is not None or key == "due_at":
             setattr(row, "metadata_json" if key == "metadata" else key,
                     value if key != "metadata" else value)
+    db.add(AuditLog(user_id=user.id, action="career_workspace.updated", resource_type=row.item_type, resource_id=str(row.id)))
     db.commit()
     db.refresh(row)
     return serialize(row)
@@ -120,6 +123,7 @@ def delete_item(item_id: int, user: User = Depends(get_current_user),
         CareerWorkspaceItem.id == item_id, CareerWorkspaceItem.user_id == user.id))
     if not row:
         raise HTTPException(status_code=404, detail="Workspace item not found")
+    db.add(AuditLog(user_id=user.id, action="career_workspace.deleted", resource_type=row.item_type, resource_id=str(row.id)))
     db.delete(row)
     db.commit()
     return None
