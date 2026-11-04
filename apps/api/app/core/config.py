@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     kafka_consumer_group_id: str = "jobseeker-career-intelligence-v1"
     gmail_enabled: bool = False
     credential_kek: str | None = None
+    credential_keyring: str | None = None
+    credential_active_key_id: str | None = None
     otel_exporter_otlp_endpoint: str | None = None
     otel_service_name: str = "jobseeker-api"
     job_discovery_enabled: bool = False
@@ -69,7 +71,7 @@ def get_settings():
             raise ValueError("S3-compatible storage requires bucket and credentials in production")
         if settings.kafka_enabled and not settings.kafka_bootstrap_servers:
             raise ValueError("Kafka bootstrap servers are required when event streaming is enabled")
-        if (settings.gmail_enabled or settings.calendar_enabled) and not (settings.credential_kek or os.getenv("JOBSEEKER_CREDENTIAL_KEK")):
+        if (settings.gmail_enabled or settings.calendar_enabled) and not (settings.credential_kek or settings.credential_keyring or os.getenv("JOBSEEKER_CREDENTIAL_KEK") or os.getenv("JOBSEEKER_CREDENTIAL_KEYRING")):
             raise ValueError("JOBSEEKER_CREDENTIAL_KEK is required when Gmail OAuth is enabled")
         if not settings.allowed_origins or any(not origin.startswith("https://") for origin in settings.allowed_origins):
             raise ValueError("Production CORS origins must be explicit HTTPS origins")
