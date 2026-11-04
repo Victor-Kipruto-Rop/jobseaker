@@ -32,7 +32,7 @@ Tailored resume outputs are stored as versioned `GeneratedArtifact` records. The
 
 ## Ranking experiments
 
-`GET /api/v1/recommendations/experiments/{experiment_id}/assignment` returns a stable candidate-level control/explore assignment and propensity. Include the experiment ID, arm and propensity when logging impressions and interactions. `packages.recommendations.bandit_experiments.evaluate_experiment` reports arm-level CTR, application rate, reward, Wilson intervals and inverse-propensity-weighted reward. Insufficient exposure blocks a decision and model promotion is never automatic.
+`GET /api/v1/recommendations?experiment_id={experiment_id}` runs the candidate in the stable control or explore ranking arm and returns its assignment and propensity. `GET /api/v1/recommendations/experiments/{experiment_id}/assignment` returns the assignment separately. Include the experiment ID, arm and propensity when logging impressions and interactions. `packages.recommendations.bandit_experiments.evaluate_experiment` reports arm-level CTR, application rate, reward, Wilson intervals and inverse-propensity-weighted reward. Insufficient exposure blocks a decision and model promotion is never automatic.
 
 LTR training remains offline and candidate-group-held-out. Registered rankers must pass the existing AUC and NDCG gates before promotion.
 
