@@ -35,15 +35,42 @@ def sanitize(text: str) -> str:
 def tokens(text: str) -> list[str]:
     return [t.lower() for t in TOKEN_RE.findall(text or "")]
 
+@lru_cache(maxsize=1)
+def _sentence_model():
+    model_name = os.getenv("JOBSEEKER_MEMORY_EMBEDDING_MODEL", "").strip()
+    if not model_name:
+        return None
+    try:
+        from sentence_transformers import SentenceTransformer
+        return SentenceTransformer(model_name)
+    except Exception:
+        return None
+
+@lru_cache(maxsize=1)
+def _cross_encoder():
+    model_name = os.getenv("JOBSEEKER_CROSS_ENCODER_MODEL", "").strip()
+    if not model_name:
+        return None
+    try:
+        from sentence_transformers import CrossEncoder
+        return CrossEncoder(model_name)
+    except Exception:
+        return None
+
 def embedding(text: str, dimensions: int = 96) -> list[float]:
-    """Deterministic feature-hash embedding; replaceable by configured transformer provider."""
+    """Configured transformer embeddings with deterministic offline fallback."""
+    model = _sentence_model()
+    if model is not None:
+        try:
+            values = model.encode([text], normalize_embeddings=True)[0].tolist()
+            return [round(float(x), 6) for x in values]
+        except Exception:
+            pass
     vector = [0.0] * dimensions
-    terms = tokens(text)
-    for term in terms:
+    for term in tokens(text):
         digest = hashlib.blake2b(term.encode(), digest_size=8).digest()
         index = int.from_bytes(digest[:4], "big") % dimensions
-        sign = 1.0 if digest[4] & 1 else -1.0
-        vector[index] += sign
+        vector[index] += 1.0 if digest[4] & 1 else -1.0
     norm = math.sqrt(sum(x*x for x in vector)) or 1.0
     return [round(x / norm, 6) for x in vector]
 
@@ -120,9 +147,22 @@ def retrieve(db: Session, user_id: int, query: str, limit: int = 8) -> list[dict
         score = 0.58 * dense + 0.42 * min(sparse, 1.0)
         ranked.append((score, row))
     ranked.sort(key=lambda x: (x[0], x[1].importance), reverse=True)
+    shortlist = ranked[:max(limit * 3, 12)]
+    cross = _cross_encoder()
+    if cross is not None and shortlist:
+        try:
+            pairs = [(query, row.content[:1800]) for _, row in shortlist]
+            scores = cross.predict(pairs)
+            shortlist = sorted(zip(scores, [row for _, row in shortlist]),
+                               key=lambda item: float(item[0]), reverse=True)
+            return [{"id": row.id, "content": row.summary or row.content,
+                     "score": round(float(score), 4), "kind": row.memory_kind}
+                    for score, row in shortlist[:limit]]
+        except Exception:
+            pass
     return [{"id": row.id, "content": row.summary or row.content,
              "score": round(score, 4), "kind": row.memory_kind}
-            for score, row in ranked[:limit] if score > 0.015]
+            for score, row in shortlist[:limit] if score > 0.015]
 
 def preference_snapshot(db: Session, user_id: int) -> dict:
     row = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user_id))
