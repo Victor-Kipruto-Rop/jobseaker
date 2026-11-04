@@ -16,6 +16,10 @@ def handle_user_activity(db: Session, envelope: dict) -> dict:
         raise ValueError("user.activity requires a valid user_id")
     kind = str(data.get("event_type") or "")
     reward = POSITIVE.get(kind, NEGATIVE.get(kind, 0.0))
+    if kind in {"view", "click"}:
+        dwell = max(0.0, min(float(data.get("dwell_seconds") or 0), 3600.0))
+        scroll = max(0.0, min(float(data.get("scroll_depth") or 0), 100.0))
+        reward = min(0.75, (dwell / 60.0) * 0.5 + (scroll / 100.0) * 0.25)
     features = data.get("feature_snapshot") or {}
     if not reward or not isinstance(features, dict) or not features:
         return {"preference_updated": False, "reason": "no_numeric_preference_signal"}
