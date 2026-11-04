@@ -240,10 +240,17 @@ def adapt_preferences(current: dict, rating: int, correction: str) -> dict:
         result["successful_response_count"] = int(result.get("successful_response_count", 0)) + 1
     return result
 
+def source_memory_is_active(db: Session, memory_id: int | None) -> bool:
+    if memory_id is None:
+        return True
+    source = db.get(AssistantMemory, memory_id)
+    return bool(source and (source.expires_at is None or source.expires_at > datetime.now(timezone.utc)))
+
 def build_context(db: Session, user_id: int, query: str, history: list[dict],
                   budget_chars: int = 12000, memories: list[dict] | None = None) -> str:
-    facts = db.scalars(select(AssistantFact).where(
-        AssistantFact.user_id == user_id, AssistantFact.active.is_(True)).limit(40)).all()
+    fact_rows = db.scalars(select(AssistantFact).where(
+        AssistantFact.user_id == user_id, AssistantFact.active.is_(True)).limit(80)).all()
+    facts = [fact for fact in fact_rows if source_memory_is_active(db, fact.source_memory_id)]
     memories = memories if memories is not None else retrieve(db, user_id, query, limit=8)
     prefs = preference_snapshot(db, user_id)
     graph_rows = db.scalars(select(AssistantRelation).where(
@@ -252,7 +259,7 @@ def build_context(db: Session, user_id: int, query: str, history: list[dict],
     for edge in graph_rows:
         source = db.get(AssistantEntity, edge.source_entity_id)
         target = db.get(AssistantEntity, edge.target_entity_id)
-        if source and target:
+        if source and target and source_memory_is_active(db, source.source_memory_id) and source_memory_is_active(db, target.source_memory_id):
             graph.append(f"{source.name} --{edge.relation_type}--> {target.name}")
     sections = ["USER FACTS (unverified unless explicitly marked):"]
     for fact in facts:
