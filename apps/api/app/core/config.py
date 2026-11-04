@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     job_discovery_enabled: bool = False
     gmail_client_secret_file: str | None = None
     gmail_redirect_uri: str = "http://localhost:8000/api/v1/integrations/gmail/callback"
+    calendar_redirect_uri: str = "http://localhost:8000/api/v1/integrations/calendar/callback"
     web_app_url: str = "http://localhost:3000"
     smtp_host: str | None = None
     smtp_port: int = 587
