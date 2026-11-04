@@ -11,6 +11,7 @@ from packages.database.sessions import SessionLocal
 from packages.database.models.career import EventOutbox
 from sqlalchemy import select, func
 from packages.ops.alerts import summarize_operational_health
+from packages.ops.metrics import OUTBOX_OLDEST_AGE, EVENT_DLQ_BACKLOG, OPERATIONAL_ALERTS
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +42,15 @@ def _assistant_dispatch_loop(redis_url: str) -> None:
                         EventOutbox.status == "dead_letter"
                     )) or 0
                     age = max(0.0, time.time() - pending.created_at.timestamp()) if pending else 0.0
+                OUTBOX_OLDEST_AGE.set(age)
+                EVENT_DLQ_BACKLOG.set(dead)
                 report = summarize_operational_health({
                     "outbox_backlog": backlog, "oldest_pending_seconds": age,
                     "dead_letter_count": dead, "dependencies": {"redis": "ok"},
                 })
                 if report["alerts"]:
+                    for alert in report["alerts"]:
+                        OPERATIONAL_ALERTS.labels(alert["name"], alert["severity"]).inc()
                     logger.warning("jobseeker.operational_alerts", extra=report)
                 last_alert = time.time()
             except Exception:
