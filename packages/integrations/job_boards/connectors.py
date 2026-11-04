@@ -1,10 +1,42 @@
 import re
+from urllib.parse import urljoin, urlsplit
 from html.parser import HTMLParser
 from html import unescape
 import httpx
 from packages.integrations.url_validation import validate_http_url
 
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
+
+class _BrandMetadataParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.meta = {}
+        self.links = {}
+        self.title_parts = []
+        self.in_title = False
+
+    def handle_starttag(self, tag, attrs):
+        values = {key.lower(): value for key, value in attrs if key and value}
+        if tag.lower() == "meta":
+            key = (values.get("property") or values.get("name") or "").lower()
+            if key and values.get("content"):
+                self.meta[key] = values["content"].strip()
+        elif tag.lower() == "link":
+            rel = values.get("rel", "").lower()
+            href = values.get("href")
+            if href and any(token in rel for token in ("icon", "canonical")):
+                self.links[rel] = href
+        elif tag.lower() == "title":
+            self.in_title = True
+
+    def handle_endtag(self, tag):
+        if tag.lower() == "title":
+            self.in_title = False
+
+    def handle_data(self, data):
+        if self.in_title and data.strip():
+            self.title_parts.append(data.strip())
+
 
 class _TextExtractor(HTMLParser):
     def __init__(self):
@@ -31,6 +63,67 @@ def _validate_slug(slug: str) -> str:
     if not _SLUG.fullmatch(slug):
         raise ValueError("Invalid job board identifier")
     return slug
+
+
+async def discover_company_profile(source: str, board: str) -> dict:
+    """Read public branding metadata from the ATS-hosted company board."""
+    board = _validate_slug(board)
+    if source == "greenhouse":
+        page_url = f"https://boards.greenhouse.io/{board}"
+    elif source == "lever":
+        page_url = f"https://jobs.lever.co/{board}"
+    else:
+        raise ValueError("Unsupported job board provider")
+
+    profile = {
+        "company": board.replace("-", " ").title(),
+        "company_website": "",
+        "company_domain": "",
+        "company_logo_url": "",
+        "company_favicon_url": "",
+        "company_description": "",
+        "company_brand_source": "",
+    }
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(12, connect=4),
+            follow_redirects=False,
+            headers={"User-Agent": "JobSeeker-Intelligence/0.3"},
+        ) as client:
+            response = await client.get(page_url)
+            if response.status_code != 200 or "text/html" not in response.headers.get("content-type", "").lower():
+                return profile
+            parser = _BrandMetadataParser()
+            parser.feed(response.text[:1_000_000])
+
+        meta = parser.meta
+        title = meta.get("og:site_name") or meta.get("application-name") or (parser.title_parts[0] if parser.title_parts else "")
+        if title:
+            cleaned = re.split(r"\\s+[|–—-]\\s+", title.strip())[0].strip()
+            if 1 < len(cleaned) <= 250:
+                profile["company"] = cleaned
+
+        description = meta.get("og:description") or meta.get("description") or ""
+        profile["company_description"] = re.sub(r"\\s+", " ", description).strip()[:2000]
+        logo = meta.get("og:image") or meta.get("twitter:image") or ""
+        icon = parser.links.get("icon") or parser.links.get("shortcut icon") or ""
+        profile["company_logo_url"] = _safe_url(urljoin(page_url, logo)) if logo else ""
+        profile["company_favicon_url"] = _safe_url(urljoin(page_url, icon)) if icon else ""
+
+        canonical = parser.links.get("canonical") or meta.get("og:url") or ""
+        if canonical:
+            canonical_url = _safe_url(urljoin(page_url, canonical))
+            host = urlsplit(canonical_url).hostname or ""
+            ats_hosts = {"boards.greenhouse.io", "job-boards.greenhouse.io", "jobs.lever.co", "api.lever.co"}
+            if canonical_url and host.lower() not in ats_hosts:
+                profile["company_website"] = canonical_url
+                profile["company_domain"] = host.lower().removeprefix("www.")
+        if any(profile[key] for key in ("company_logo_url", "company_favicon_url", "company_website", "company_description")):
+            profile["company_brand_source"] = page_url
+    except (httpx.HTTPError, ValueError, UnicodeError):
+        return profile
+    return profile
+
 
 async def discover_greenhouse(board: str, limit: int = 100) -> list[dict]:
     board = _validate_slug(board)
