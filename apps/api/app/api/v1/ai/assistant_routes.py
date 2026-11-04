@@ -4,7 +4,7 @@ import asyncio, logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from apps.api.app.core.config import get_settings
