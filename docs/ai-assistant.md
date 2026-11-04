@@ -15,6 +15,7 @@ The light-mode assistant workspace is available at `/assistant`, linked from the
 - `PUT /assistant/preferences`
 - `POST /assistant/feedback`
 - `POST /assistant/ingest-async`
+- `GET /assistant/ingestions` (recent owner-scoped job history)
 - `GET /assistant/ingestion/{job_id}`
 - `DELETE /assistant/ingestion/{job_id}`
 
@@ -30,9 +31,9 @@ The light-mode assistant workspace is available at `/assistant`, linked from the
 
 ## Background ingestion
 
-Document uploads are stored as durable ingestion-job records in the same database transaction used to accept the upload. The database job table is the outbox; a worker-side dispatcher polls it and publishes only opaque job IDs to the existing Redis/RQ `assistant` queue. Dispatch leases and stale-processing recovery make the flow resilient to API/worker restarts. RQ retries use the worker scheduler with bounded backoff. The file payload is AES-GCM encrypted before persistence. The worker rechecks memory consent under row locks before indexing. Job status and cancellation are owner-scoped, duplicate delivery is idempotent, and payload ciphertext is cleared after success, cancellation or terminal failure.
+Document uploads are stored as durable ingestion-job records in the same database transaction used to accept the upload. The database job table is the outbox; a worker-side dispatcher polls it and publishes only opaque job IDs to the existing Redis/RQ `assistant` queue. Dispatch leases and stale-processing recovery make the flow resilient to API/worker restarts. RQ retries use the worker scheduler with bounded backoff. The file payload is AES-GCM encrypted before persistence. The worker rechecks memory consent under row locks before indexing. Job status, history and cancellation are owner-scoped, duplicate delivery is idempotent, and payload ciphertext is cleared after success, cancellation or terminal failure. A per-user preference-row lock serializes uploads and enforces a maximum of three active jobs and twenty accepted uploads per rolling 24 hours. A worker that exhausts three attempts is terminalized instead of being requeued forever.
 
-Uploads are limited to three active indexing jobs per user and twenty accepted uploads per rolling 24-hour window; each file is capped at 12 MB and its extension is validated before queueing. Supported input includes PDF, DOCX, text, Markdown, images with optional OCR, and Python source AST extraction. OCR requires Pillow, pytesseract and the Tesseract system binary.
+Uploads are limited to three active indexing jobs per user and twenty accepted uploads per rolling 24-hour window; each file is capped at 12 MB and its extension is validated before queueing. Supported input includes PDF, DOCX, TXT, Markdown, RST, JSON, YAML, TOML, CSV, LOG, images with optional OCR, and Python source AST extraction. OCR requires Pillow, pytesseract and the Tesseract system binary.
 
 ## Agent orchestration and safety
 
@@ -70,4 +71,4 @@ alembic upgrade head
 
 The new migration is `20261104_0022`, following `20261104_0021`. Install the standard project dependencies to include pgvector. Install the optional ml extra and configure JOBSEEKER_MEMORY_EMBEDDING_MODEL to enable transformer-based dense semantic vectors; otherwise the deterministic feature-hash fallback remains active.
 
-Before merge, run the focused assistant tests, the complete Python lint/type/test suite, Alembic upgrade and downgrade checks, frontend typecheck/build, and Docker Compose integration. GitHub Actions has reported failures on this branch; the available job-log endpoint currently returns BlobNotFound, so those failures have not been diagnosed. Do not merge or deploy until checks are passing.
+Before merge, run the focused assistant tests, the complete Python lint/type/test suite, Alembic upgrade and downgrade checks, frontend typecheck/build, and Docker Compose integration. GitHub Actions jobs currently report failure without allocating a runner (`runner_id=0`, no executed steps). The job-log endpoint returns BlobNotFound, so there is no actionable test output. Verify repository Actions/billing availability, then rerun the workflows. Do not merge or deploy until the Python, frontend, migration, container and secret-scan checks have actually executed and passed.
