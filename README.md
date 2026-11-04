@@ -68,7 +68,7 @@ The API applies Alembic migrations automatically in local, development, and test
 ## Verification
 
    PowerShell: `./scripts/verification/verify_local.ps1`
-   Cross-platform Python: `python scripts/verification/verify_local.py`
+   Full local Compose release gate (cross-platform): `python scripts/verify_local_security.py`
    Frontend separately: `cd apps/web && pnpm lint && pnpm build`
 
 The local verification script runs Python compile checks, applies Alembic migrations to the configured DATABASE_URL, checks model/schema drift, runs pytest and Ruff, and verifies frontend TypeScript/build plus Compose configuration in the PowerShell workflow. It does not start Docker or perform live OpenAI, Anthropic, Gmail, or SMTP calls.
@@ -86,7 +86,7 @@ Configure OpenAI or Anthropic credentials only in the private API environment. N
 
 ## Current release status
 
-This is an actively developed feature branch, not a production-ready release. Authentication, user-scoped workflows, persistent AI conversations and drafts, provider routing, job-board connectors, Gmail read-only integration, local CV processing, approval-gated application tracking, and recurring discovery have implementation code. However, this turn has not run Python tests, frontend lint/build, Docker Compose, database migrations, or live third-party integrations. Production object storage, backup/restore drills, full account deletion/export, richer job-source coverage, production OAuth review, and comprehensive end-to-end security verification remain outstanding. Do not merge or deploy based on code presence alone.
+This is an actively developed feature branch, not a production-ready release. Authentication, user-scoped workflows, persistent AI conversations and drafts, provider routing, job-board connectors, Gmail read-only integration, local CV processing, approval-gated application tracking, and recurring discovery have implementation code. However, the verification log does not yet contain executed results for Python tests, frontend lint/build, Docker Compose, database migrations, or live third-party integrations. Production object storage, backup/restore drills, full account deletion/export, richer job-source coverage, production OAuth review, and comprehensive end-to-end security verification remain outstanding. Do not merge or deploy based on code presence alone.
 
 
 ### Install local verification dependencies

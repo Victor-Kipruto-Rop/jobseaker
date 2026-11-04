@@ -198,3 +198,37 @@ The following changes are present on `phase-0-security-hygiene` after the audit 
 The two requested files `kenya_data_opportunities_contacts.csv` and `outreach_send_log.csv` were absent from the audited HEAD and were not deleted. Their history remains unverified. The original three files were deleted from the new branch, not relocated into Git. If their data must be retained, copy them from the pre-Phase-0 local working tree into the ignored `data/private/` directory before switching branches or pulling the deletion commit.
 
 The full-history scan remains unexecuted. Current-branch deletion and the addition of a scanner do not establish that the repository history is clean.
+
+
+## Phase 1: structure cleanup (static inspection and source changes)
+
+**Phase branch:** `phase-1-structure-cleanup`  
+**Base:** `phase-0-security-hygiene`
+
+### Canonical choices
+
+- Python package and service root: `apps/` plus shared `packages/`.
+- Python packaging/dependencies: root `pyproject.toml`.
+- Multi-service local runtime: `infrastructure/compose/docker-compose.yml`.
+- Container builds: four service Dockerfiles under `apps/api`, `apps/web`, `apps/worker`, and `apps/scheduler`.
+- Local Compose release gate: `scripts/verify_local_security.py`.
+
+### Removed from the Phase 1 branch
+
+- Root `app/` legacy FastAPI application and its separate SQLAlchemy model/database implementation.
+- Legacy scripts `scripts/sync_gmail.py`, `scripts/import_outreach.py`, and `scripts/import_send_log.py`, which depended on that legacy package.
+- Root `Dockerfile`, root `docker-compose.yml`, and root `requirements.txt`.
+- Duplicate host-only Python verification entry point `scripts/verification/verify_local.py`; documentation now points to the canonical full-stack verification script.
+
+The root legacy application had no references from the active API, worker, scheduler, Makefile, or test suite found during the source search. Its only callers were the three legacy scripts removed with it. The legacy CSV import path used a separate non-tenant-aware schema and was not migrated into the current application. The active Gmail integration remains in `packages/integrations/gmail/` and uses the read-only Gmail scope.
+
+### Retained
+
+- Root `package.json` and `pnpm-workspace.yaml` remain the pnpm workspace definitions.
+- `config/` remains because it contains explicit automation defaults and provider configuration templates, not an alternate application package.
+- `scripts/verification/verify_local.ps1` remains as a Windows host-side verification workflow.
+- `scripts/verify_local_security.py` remains the cross-platform Compose-backed release gate.
+
+### Dockerfiles
+
+All four service Dockerfiles were inspected statically. Their build contexts use the repository root and their respective source/dependency copies are consistent with the current monorepo layout. No image build was executed. A clean build is not confirmed until the commands in `docs/architecture/repository-layout.md` run locally.

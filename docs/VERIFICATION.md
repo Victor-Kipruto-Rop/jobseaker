@@ -41,3 +41,26 @@ gitleaks git . --redact --report-format json --report-path gitleaks-history-repo
 Protect the report as sensitive security metadata. Do not commit an unredacted report. Record finding counts and credential categories here, not credential values.
 
 The full local verification gate is recorded separately in the later phases. Do not mark checks as passed until the command output has been captured and reviewed.
+
+
+## Phase 1: structure cleanup
+
+**Branch:** `phase-1-structure-cleanup`  
+**Static inspection commit:** `06f1c0d4838e9fdf48a8d01e43c9bde23995b089`
+
+| Check | Method | Result |
+|---|---|---|
+| Root and nested tree inventory | GitHub recursive Git tree API | Completed |
+| Active application import references | GitHub code search and selected source inspection | Root `app/` only referenced by legacy scripts; active services use `apps/` and `packages/` |
+| Canonical Compose references | Selected README, Makefile, operations docs | Infrastructure Compose path retained |
+| Dependency manifest references | Selected Dockerfiles and project configuration | `pyproject.toml` retained; root `requirements.txt` removed with obsolete root Dockerfile |
+| Four service Dockerfiles | Static source inspection | Present and structurally consistent; builds not run |
+| Root duplicate files | Git tree inspection after commit | Root Dockerfile, root Compose, and requirements manifest removed |
+| Legacy root application | Git tree inspection after commit | Root `app/` removed |
+| Python tests / Ruff / mypy | Local execution | Not run |
+| pnpm lint/build | Local execution | Not run |
+| Docker image builds | Docker engine required | Not run |
+| Compose config validation | Docker Compose required | Not run |
+| Alembic migration from empty DB | Local PostgreSQL required | Not run |
+
+No Docker image build or runtime check is claimed as successful. Use the four explicit build commands in `docs/architecture/repository-layout.md` and paste their actual output before marking the Dockerfile build check complete.
