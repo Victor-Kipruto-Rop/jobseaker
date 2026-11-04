@@ -276,3 +276,45 @@ def adapt_preferences(current: dict, rating: int, correction: str) -> dict:
     elif rating >= 4:
         result["successful_response_count"] = int(result.get("successful_response_count", 0)) + 1
     return result
+
+
+def retrieve(db: Session, user_id: int, query: str, limit: int = 8) -> list[dict[str, Any]]:
+    """Tenant-filtered pgvector ANN retrieval with lexical fusion and safe fallback."""
+    qvec = embedding(query)
+    if db.get_bind().dialect.name == "postgresql":
+        distance = AssistantMemory.embedding_vector.cosine_distance(qvec)
+        rows = db.execute(select(AssistantMemory, distance.label("distance")).where(
+            AssistantMemory.user_id == user_id,
+            AssistantMemory.embedding_vector.is_not(None),
+            (AssistantMemory.expires_at.is_(None) | (AssistantMemory.expires_at > __import__("datetime").datetime.now(__import__("datetime").timezone.utc)))
+        ).order_by(distance).limit(max(limit * 12, 60))).all()
+        ranked = []
+        for row, distance_value in rows:
+            content = decrypt_credential(row.content, purpose=f"assistant-memory:{user_id}") if row.content_encrypted else row.content
+            summary = decrypt_credential(row.summary, purpose=f"assistant-memory:{user_id}") if row.content_encrypted and row.summary else row.summary
+            score = 0.62 * max(0.0, 1.0 - float(distance_value)) + 0.38 * min(bm25_score(query, content), 1.0)
+            ranked.append((score, row, content, summary))
+        ranked.sort(key=lambda item: (item[0], item[1].importance), reverse=True)
+        shortlist = ranked[:max(limit * 3, 12)]
+        cross = _cross_encoder()
+        if cross is not None and shortlist:
+            try:
+                values = cross.predict([(query, item[2][:1800]) for item in shortlist])
+                shortlist = sorted([(float(score), item[1], item[2], item[3])
+                                    for score, item in zip(values, shortlist)],
+                                   key=lambda item: item[0], reverse=True)
+            except Exception:
+                pass
+        return [{"id": row.id, "content": summary or content, "score": round(score, 4),
+                 "kind": row.memory_kind} for score, row, content, summary in shortlist[:limit]]
+    rows = db.scalars(select(AssistantMemory).where(
+        AssistantMemory.user_id == user_id).order_by(AssistantMemory.created_at.desc()).limit(600)).all()
+    ranked = []
+    for row in rows:
+        content = decrypt_credential(row.content, purpose=f"assistant-memory:{user_id}") if row.content_encrypted else row.content
+        summary = decrypt_credential(row.summary, purpose=f"assistant-memory:{user_id}") if row.content_encrypted and row.summary else row.summary
+        score = 0.58 * cosine(qvec, row.embedding or []) + 0.42 * min(bm25_score(query, content), 1.0)
+        ranked.append((score, row, content, summary))
+    ranked.sort(key=lambda item: (item[0], item[1].importance), reverse=True)
+    return [{"id": row.id, "content": summary or content, "score": round(score, 4),
+             "kind": row.memory_kind} for score, row, content, summary in ranked[:limit] if score > 0.015]
