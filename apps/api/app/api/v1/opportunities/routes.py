@@ -131,12 +131,31 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
     profile = await discover_company_profile(body.source, body.board)
     if body.company_name:
         profile["company"] = body.company_name.strip()
-    saved, skipped = 0, 0
+    saved, skipped, refreshed = 0, 0, 0
     results = []
+    brand_fields = (
+        "company_website", "company_domain", "company_logo_url",
+        "company_favicon_url", "company_description", "company_brand_source",
+    )
+    fallback_name = body.board.replace("-", " ").title()
     for item in filtered:
         url = item.get("source_url", "")
-        if not url or db.scalar(select(CandidateOpportunity.id).where(
-            CandidateOpportunity.user_id == user.id, CandidateOpportunity.source_url == url)):
+        existing = db.scalar(select(CandidateOpportunity).where(
+            CandidateOpportunity.user_id == user.id, CandidateOpportunity.source_url == url)) if url else None
+        if not url:
+            skipped += 1
+            continue
+        if existing:
+            changed = False
+            if existing.company in {"", fallback_name} and profile["company"] != fallback_name:
+                existing.company = profile["company"]
+                changed = True
+            for key in brand_fields:
+                if not getattr(existing, key) and profile.get(key):
+                    setattr(existing, key, profile[key])
+                    changed = True
+            if changed:
+                refreshed += 1
             skipped += 1
             continue
         item["company"] = profile["company"]
@@ -162,4 +181,5 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
                 "source_url": profile["company_brand_source"],
                 "brand_assets_verified": bool(profile["company_logo_url"] or profile["company_favicon_url"]),
             }, "fetched": len(discovered), "matched_filters": len(filtered),
-            "saved": saved, "duplicates_or_invalid": skipped, "items": results}
+            "saved": saved, "refreshed_existing": refreshed,
+            "duplicates_or_invalid": skipped, "items": results}
