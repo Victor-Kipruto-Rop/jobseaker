@@ -195,7 +195,9 @@ These are repository-owner-reported local results, not GitHub Actions results. D
 
 **Branch:** phase-3-frontend-experience  
 **Pull request:** #8  
-**Latest implementation commit:** 378b6401cc39ef2a94ca62bc99694f434260f1e7
+**Initial complete-workspace snapshot:** 378b6401cc39ef2a94ca62bc99694f434260f1e7
+
+Subsequent branch commits refined Gmail authorization gating, read-only message summaries and the OAuth callback destination. The PR head is the source of truth for the current implementation revision.
 
 ### Implemented
 
@@ -205,7 +207,7 @@ These are repository-owner-reported local results, not GitHub Actions results. D
 - Consolidated Greenhouse/Lever discovery, saved searches, saved opportunities and application draft creation.
 - Consolidated application lifecycle management, notes, approval requests and user decisions.
 - Consolidated profile editing, skill evidence, CV uploads, keyword coverage, AI career draft generation and draft editing.
-- Connected account verification, AI token budget and Gmail read-only controls.
+- Connected account verification, AI token budget, Gmail read-only authorization/sync/disconnect and recent message summaries.
 - Added a notification dropdown and pending approval count to the shared workspace shell.
 - Consolidated legacy routes into the five primary destinations with redirects.
 - Reworked public, sign-in, registration, password recovery, password reset and email verification screens to use the light design system.
