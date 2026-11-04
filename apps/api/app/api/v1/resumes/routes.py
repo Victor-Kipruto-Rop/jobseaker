@@ -239,6 +239,83 @@ def create_cover_letter(resume_id: int, body: CoverLetterRequest,
             "status": artifact.status, "evidence_sentences": draft["evidence_sentences"],
             "claims_invented": False, "requires_candidate_review": True}
 
+
+class TailoredArtifactRequest(BaseModel):
+    job_description: str = Field(min_length=20, max_length=30000)
+    role_title: str = Field(min_length=2, max_length=250)
+    opportunity_id: int | None = None
+    parent_artifact_id: int | None = None
+
+@router.post("/{resume_id}/tailored-artifacts", status_code=201)
+def create_tailored_artifact(resume_id: int, body: TailoredArtifactRequest,
+                             user: User = Depends(get_current_user),
+                             db: Session = Depends(get_db)):
+    """Create a versioned, reviewable resume variant without modifying its source."""
+    enforce_rate_limit(f"resume-version:{user.id}", limit=15, window_seconds=3600)
+    resume = db.scalar(select(ResumeDocument).where(
+        ResumeDocument.id == resume_id, ResumeDocument.user_id == user.id))
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    opportunity = None
+    if body.opportunity_id is not None:
+        opportunity = db.scalar(select(CandidateOpportunity).where(
+            CandidateOpportunity.id == body.opportunity_id,
+            CandidateOpportunity.user_id == user.id))
+        if not opportunity:
+            raise HTTPException(status_code=404, detail="Opportunity not found")
+    parent = None
+    if body.parent_artifact_id is not None:
+        parent = db.scalar(select(GeneratedArtifact).where(
+            GeneratedArtifact.id == body.parent_artifact_id,
+            GeneratedArtifact.user_id == user.id,
+            GeneratedArtifact.artifact_type == "tailored_resume"))
+        if not parent:
+            raise HTTPException(status_code=404, detail="Parent tailored artifact not found")
+    try:
+        proposal = tailor_resume(resume.extracted_text, body.job_description)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if not proposal["items"]:
+        raise HTTPException(status_code=422, detail="No source resume evidence matches this role")
+    source_hash = hashlib.sha256(resume.extracted_text.encode()).hexdigest()
+    job_hash = hashlib.sha256(body.job_description.encode()).hexdigest()
+    previous = db.scalar(select(GeneratedArtifact).where(
+        GeneratedArtifact.user_id == user.id,
+        GeneratedArtifact.artifact_type == "tailored_resume",
+        GeneratedArtifact.source_resume_id == resume.id,
+        GeneratedArtifact.job_description_sha256 == job_hash,
+    ).order_by(GeneratedArtifact.version_number.desc()).limit(1))
+    version = (previous.version_number + 1) if previous else 1
+    content = "\n\n".join(
+        [f"# {body.role_title} | Tailored resume draft",
+         "Candidate-reviewed relevance ordering of existing resume evidence.",
+         *[f"- {item['text']}" for item in proposal["items"]]]
+    )
+    artifact = GeneratedArtifact(
+        user_id=user.id, artifact_type="tailored_resume",
+        title=f"{body.role_title} resume v{version}", content=content,
+        source_resume_id=resume.id,
+        source_opportunity_id=opportunity.id if opportunity else None,
+        status="draft", provider="evidence_preserving_tailoring",
+        model="resume-ranker-v2", version_number=version,
+        source_sha256=source_hash, job_description_sha256=job_hash,
+        parent_artifact_id=parent.id if parent else None,
+    )
+    db.add(artifact)
+    db.flush()
+    db.add(AuditLog(user_id=user.id, action="resume.tailored_version_created",
+                    resource_type="generated_artifact", resource_id=str(artifact.id),
+                    metadata_json={"resume_id": resume.id, "version": version,
+                                   "source_sha256": source_hash, "job_sha256": job_hash}))
+    db.commit()
+    db.refresh(artifact)
+    return {"id": artifact.id, "title": artifact.title, "version": artifact.version_number,
+            "status": artifact.status, "content": artifact.content,
+            "matched_terms": proposal["matched_terms"],
+            "unmatched_job_terms": proposal["unmatched_job_terms"],
+            "source_sha256": source_hash, "job_description_sha256": job_hash,
+            "claims_invented": False, "requires_candidate_review": True}
+
 @router.delete("/{resume_id}", status_code=204)
 def delete_resume(resume_id: int, user: User = Depends(get_current_user),
                   db: Session = Depends(get_db)):
