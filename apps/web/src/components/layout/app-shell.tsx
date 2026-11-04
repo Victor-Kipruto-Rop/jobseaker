@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
-  Activity, Bell, BriefcaseBusiness, ChevronDown, CircleHelp, Command,
+  Activity, Bell, BriefcaseBusiness, ChevronDown,
   FileText, LayoutDashboard, LogOut, Menu, Search, Settings2, ShieldCheck,
-  Sparkles, Target, X, CheckCheck, Clock3
+  Target, X, CheckCheck
 } from "lucide-react";
 import styles from "./app-shell.module.css";
 
