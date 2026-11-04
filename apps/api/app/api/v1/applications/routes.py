@@ -81,8 +81,9 @@ def list_applications(user: User = Depends(get_current_user), db: Session = Depe
     return [_serialize(row, opportunities.get(row.opportunity_id)) for row in rows]
 
 @router.post("", status_code=201)
-async def create_application(body: ApplicationCreate, background_tasks: BackgroundTasks, user: User = Depends(get_current_user),
-                       db: Session = Depends(get_db)):
+async def create_application(body: ApplicationCreate, user: User = Depends(get_current_user),
+                       db: Session = Depends(get_db),
+                       background_tasks: BackgroundTasks = BackgroundTasks()):
     if body.opportunity_id is not None:
         owned = db.scalar(select(CandidateOpportunity).where(
             CandidateOpportunity.id == body.opportunity_id, CandidateOpportunity.user_id == user.id))
@@ -118,8 +119,8 @@ async def create_application(body: ApplicationCreate, background_tasks: Backgrou
 
 @router.patch("/{application_id}")
 async def update_application(application_id: int, body: ApplicationUpdate,
-                       background_tasks: BackgroundTasks,
-                       user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+                       user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                       background_tasks: BackgroundTasks = BackgroundTasks()):
     row = db.scalar(select(Application).where(
         Application.id == application_id, Application.user_id == user.id))
     if not row:
