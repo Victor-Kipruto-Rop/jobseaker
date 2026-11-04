@@ -177,12 +177,16 @@ def remember(db: Session, user_id: int, content: str, conversation_id: int | Non
     first_id = None
     preference = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user_id))
     retention_days = max(30, min(730, int(preference.memory_retention_days if preference else 365)))
+    postgres_index = db.get_bind().dialect.name == "postgresql"
     for chunk in chunks[:80]:
+        vector = embedding(chunk)
         row = AssistantMemory(user_id=user_id, conversation_id=conversation_id,
             memory_kind="episodic",
             content=encrypt_credential(chunk, purpose=f"assistant-memory:{user_id}"),
             summary=encrypt_credential(extractive_summary(chunk), purpose=f"assistant-memory:{user_id}"),
-            content_encrypted=True, embedding=embedding(chunk), embedding_vector=embedding(chunk), expires_at=datetime.now(timezone.utc) + timedelta(days=retention_days), keywords=list(dict.fromkeys(tokens(chunk)))[:40],
+            content_encrypted=True, embedding=[] if postgres_index else vector,
+            embedding_vector=vector, expires_at=datetime.now(timezone.utc) + timedelta(days=retention_days),
+            keywords=[],
             importance=0.25 if source == "assistant_response" else 0.55, source=source)
         db.add(row); db.flush()
         first_id = first_id or row.id
