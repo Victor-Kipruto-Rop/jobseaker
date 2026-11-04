@@ -18,6 +18,9 @@ type AppShellProps = {
 };
 type NavigationItem = { label: string; href: string; icon: typeof LayoutDashboard };
 
+const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+function csrf() { return decodeURIComponent(document.cookie.split("; ").find(item => item.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=") || ""); }
+
 const primaryNav: NavigationItem[] = [
   { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { label: "Discover jobs", href: "/discovery", icon: Search },
