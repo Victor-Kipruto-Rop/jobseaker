@@ -19,7 +19,7 @@ def process_ingestion_job(job_id: str) -> dict:
         job = db.scalar(select(AssistantIngestionJob).where(AssistantIngestionJob.job_id == job_id))
         if job is None:
             return {"status": "missing"}
-        preference = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == job.user_id))
+        preference = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == job.user_id).with_for_update())
         if not preference or not preference.memory_enabled or job.status == "cancelled":
             job.status = "cancelled"
             job.payload_ciphertext = ""
