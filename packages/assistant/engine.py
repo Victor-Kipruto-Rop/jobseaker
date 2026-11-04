@@ -240,6 +240,20 @@ def adapt_preferences(current: dict, rating: int, correction: str) -> dict:
         result["successful_response_count"] = int(result.get("successful_response_count", 0)) + 1
     return result
 
+def plan_tools(query: str) -> list[str]:
+    """Legacy read-only intent helper retained for compatibility with existing tests."""
+    q = (query or "").casefold()
+    tools = []
+    if any(term in q for term in ("my applications", "application status", "applications")):
+        tools.append("application_summary")
+    if any(term in q for term in ("my interviews", "upcoming interview", "interview schedule")):
+        tools.append("interview_summary")
+    if any(term in q for term in ("my skills", "my profile", "my resume", "my cv")):
+        tools.append("candidate_profile")
+    if any(term in q for term in ("recommend jobs", "job recommendations", "jobs for me")):
+        tools.append("job_recommendations")
+    return tools
+
 def source_memory_is_active(db: Session, memory_id: int | None) -> bool:
     if memory_id is None:
         return True
