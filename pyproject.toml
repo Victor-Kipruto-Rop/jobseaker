@@ -24,6 +24,7 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+[tool.ruff.lint.flake8-bugbear]
 # FastAPI parameter declarations are immutable dependency/validation descriptors.
 extend-immutable-calls = [
   "fastapi.Depends",
