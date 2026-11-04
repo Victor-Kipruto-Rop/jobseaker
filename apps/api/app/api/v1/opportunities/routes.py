@@ -65,10 +65,18 @@ class OpportunityCreate(BaseModel):
     def normalize_required_skills(cls, values):
         return list(dict.fromkeys(value.strip()[:120] for value in values if value.strip()))
 
-    @field_validator("source_url", "company_website", "company_logo_url", "company_favicon_url", "company_brand_source")
+    @field_validator("source_url")
     @classmethod
     def safe_source_url(cls, value):
         return validate_http_url(value)
+
+    @field_validator("company_website", "company_logo_url", "company_favicon_url", "company_brand_source")
+    @classmethod
+    def secure_company_urls(cls, value):
+        safe = validate_http_url(value)
+        if safe and not safe.lower().startswith("https://"):
+            raise ValueError("Company websites and brand assets must use HTTPS")
+        return safe
 
 @router.post("/match")
 def match(body: MatchRequest, request: Request, user: User = Depends(get_current_user)):
