@@ -10,6 +10,10 @@ from apps.api.app.api.v1.analytics.routes import router as analytics
 from apps.api.app.api.v1.career_tools.routes import router as career_tools
 from apps.api.app.api.v1.companies.routes import router as companies
 from apps.api.app.api.v1.interviews.routes import router as interviews
+from apps.api.app.api.v1.integrations.calendar_routes import (
+    oauth_callback_router as calendar_oauth_callback_router,
+    router as calendar,
+)
 from apps.api.app.api.v1.integrations.gmail_routes import (
     oauth_callback_router,
     router as gmail,
@@ -84,6 +88,13 @@ router.include_router(
 router.include_router(
     gmail, prefix="/integrations", tags=["integrations"],
     dependencies=candidate_policy,
+)
+router.include_router(
+    calendar, prefix="/integrations", tags=["calendar integration"],
+    dependencies=candidate_policy,
+)
+router.include_router(
+    calendar_oauth_callback_router, prefix="/integrations", tags=["calendar integration"],
 )
 
 # OAuth callback is validated by a short-lived, single-use state bound to the
