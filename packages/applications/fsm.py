@@ -8,7 +8,7 @@ STATUSES = {
 
 TRANSITIONS = {
     "draft": {"ready", "withdrawn", "archived"},
-    "ready": {"draft", "withdrawn", "archived"},
+    "ready": {"draft", "approved", "withdrawn", "archived"},
     "approved": {"ready", "submitted", "withdrawn"},
     "submitted": {"screening", "interview", "assessment", "rejected", "withdrawn"},
     "screening": {"interview", "assessment", "rejected", "withdrawn"},
