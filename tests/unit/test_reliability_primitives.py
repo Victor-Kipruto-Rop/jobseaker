@@ -7,10 +7,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from packages.database.models import Base
-from packages.database.models.career import EventInbox, EventOutbox, Application, ApplicationDispatchKey
+from packages.database.models.career import EventInbox, EventOutbox, Application, ApplicationDispatchKey, CandidatePreferenceState, Notification
 from packages.database.models.identity import User
 from packages.events.outbox import enqueue_event, relay_outbox_batch
 from packages.events.inbox import consume_once
+from packages.events.handlers import handle_user_activity, handle_email_classified
 from packages.automation.idempotency import DispatchConflict, reserve_application_dispatch
 from packages.recommendations.skill_graph import expand_skills, skill_match_score
 from packages.ops.circuit_breaker import CircuitBreaker, CircuitOpen, CircuitState
@@ -202,3 +203,40 @@ def test_async_circuit_breaker_tracks_provider_failures():
     assert breaker.state == CircuitState.OPEN
     with pytest.raises(CircuitOpen):
         asyncio.run(breaker.call_async(failing))
+
+
+
+def test_user_activity_consumer_updates_preference_vector_once(db, owner):
+    envelope = {
+        "event_id": "00000000-0000-4000-8000-000000000002",
+        "event_type": "user.activity", "schema_version": 1,
+        "occurred_at": datetime.now(timezone.utc).isoformat(),
+        "producer": "test", "data": {
+            "user_id": owner.id, "event_type": "save",
+            "feature_snapshot": {"skill_overlap": 0.9, "remote_match": 1.0},
+        },
+    }
+    first = consume_once(db, "career-intelligence:user.activity", envelope, handle_user_activity)
+    second = consume_once(db, "career-intelligence:user.activity", envelope, handle_user_activity)
+    state = db.scalar(select(CandidatePreferenceState).where(
+        CandidatePreferenceState.user_id == owner.id
+    ))
+    assert first[0] is True and second[0] is False
+    assert state.preference_vector["skill_overlap"] > 0
+    assert state.interaction_count == 1
+
+
+def test_email_consumer_creates_review_notification(db, owner):
+    envelope = {
+        "event_id": "00000000-0000-4000-8000-000000000003",
+        "event_type": "email.classified", "schema_version": 1,
+        "occurred_at": datetime.now(timezone.utc).isoformat(),
+        "producer": "test", "data": {
+            "user_id": owner.id, "email_message_id": 77,
+            "classification": "interview_invitation", "action_required": True,
+        },
+    }
+    consume_once(db, "career-intelligence:email.classified", envelope, handle_email_classified)
+    notices = db.scalars(select(Notification).where(Notification.user_id == owner.id)).all()
+    assert len(notices) == 1
+    assert "needs review" in notices[0].title.lower()
