@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
-from packages.database.models.career import CareerWorkspaceItem
+from packages.database.models.career import CareerWorkspaceItem, AuditLog
 
 router = APIRouter()
 ItemType = Literal["task", "note", "learning", "project", "contact"]
