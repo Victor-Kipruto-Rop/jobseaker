@@ -14,6 +14,9 @@ from sqlalchemy.orm import Session
 from apps.api.app.core.config import get_settings
 from packages.database.models.career import OAuthState, EmailAccount, EmailMessage, Application
 from packages.integrations.gmail.intelligence import analyze_recruiter_email
+from packages.ops.circuit_breaker import CircuitBreaker
+
+_GMAIL_BREAKER = CircuitBreaker(failure_threshold=5, recovery_seconds=60.0)
 from packages.database.models.identity import User
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
@@ -84,10 +87,10 @@ def complete_authorization(db: Session, state: str, code: str) -> EmailAccount:
     record.consumed_at = datetime.now(timezone.utc)
     db.commit()
     flow = _flow(state)
-    flow.fetch_token(code=code)
+    _GMAIL_BREAKER.call(flow.fetch_token, code=code)
     credentials = flow.credentials
     service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
-    mailbox = service.users().getProfile(userId="me").execute().get("emailAddress", "").lower()
+    mailbox = _GMAIL_BREAKER.call(service.users().getProfile(userId="me").execute).get("emailAddress", "").lower()
     if not mailbox:
         raise RuntimeError("Google did not return a Gmail mailbox address.")
     serialized = credentials.to_json()
@@ -150,7 +153,7 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
         account.encrypted_credentials = _encrypt(raw)
     credentials = Credentials.from_authorized_user_info(json.loads(raw), SCOPES)
     if credentials.expired and credentials.refresh_token:
-        credentials.refresh(Request())
+        _GMAIL_BREAKER.call(credentials.refresh, Request())
         account.encrypted_credentials = _encrypt(credentials.to_json())
     if not credentials.valid:
         raise RuntimeError("Gmail authorization expired. Reconnect the account.")
@@ -160,9 +163,9 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
     ).order_by(Application.created_at.desc()).limit(100)).all()
     listed, inserted, page_token = 0, 0, None
     while listed < limit:
-        result = service.users().messages().list(
+        result = _GMAIL_BREAKER.call(service.users().messages().list(
             userId="me", q=JOB_QUERY, maxResults=min(100, limit-listed),
-            pageToken=page_token).execute()
+            pageToken=page_token).execute)
         messages = result.get("messages", [])
         for item in messages:
             message_id = item["id"]
@@ -171,9 +174,9 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
                 EmailMessage.gmail_message_id == message_id))
             if exists:
                 continue
-            metadata = service.users().messages().get(
+            metadata = _GMAIL_BREAKER.call(service.users().messages().get(
                 userId="me", id=message_id, format="full",
-                metadataHeaders=["From", "To", "Subject"]).execute()
+                metadataHeaders=["From", "To", "Subject"]).execute)
             headers = {h.get("name", "").lower(): h.get("value", "")
                        for h in metadata.get("payload", {}).get("headers", [])}
             subject, snippet = headers.get("subject", ""), metadata.get("snippet", "")
