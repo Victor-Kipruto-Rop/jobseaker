@@ -176,7 +176,7 @@ def remember(db: Session, user_id: int, content: str, conversation_id: int | Non
         row = AssistantMemory(user_id=user_id, conversation_id=conversation_id,
             memory_kind="episodic", content=chunk, summary=extractive_summary(chunk),
             embedding=embedding(chunk), keywords=list(dict.fromkeys(tokens(chunk)))[:40],
-            importance=0.55, source=source)
+            importance=0.25 if source == "assistant_response" else 0.55, source=source)
         db.add(row); db.flush()
         first_id = first_id or row.id
         for key, value, confidence in (extract_facts(chunk) if source in {"conversation", "document"} else []):
