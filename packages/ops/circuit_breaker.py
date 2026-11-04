@@ -74,3 +74,14 @@ class CircuitBreaker:
             raise
         self.record_success()
         return result
+
+    async def call_async(self, function, *args, **kwargs):
+        """Await an outbound provider call under the same breaker state."""
+        self.before_call()
+        try:
+            result = await function(*args, **kwargs)
+        except Exception:
+            self.record_failure()
+            raise
+        self.record_success()
+        return result
