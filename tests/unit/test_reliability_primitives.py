@@ -265,3 +265,23 @@ def test_credential_keyring_rejects_unknown_key_id(monkeypatch):
     monkeypatch.setenv("JOBSEEKER_CREDENTIAL_ACTIVE_KEY_ID", "missing")
     with pytest.raises(RuntimeError):
         encrypt_credential("secret", purpose="gmail")
+
+
+def test_outbox_retains_event_when_dlq_publish_fails(db, owner):
+    enqueue_event(db, "user.activity", {"user_id": owner.id})
+    db.commit()
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+
+    class FailingProducer:
+        async def send_and_wait(self, topic, value, key=None):
+            raise RuntimeError("broker unavailable")
+
+    import asyncio
+    result = asyncio.run(relay_outbox_batch(
+        factory, FailingProducer(), max_attempts=1,
+    ))
+    row = db.scalar(select(EventOutbox))
+    assert result["dead_lettered"] == 0
+    assert result["retrying"] == 1
+    assert row.status == "retry"
+    assert "DLQ publish failed" in row.last_error
