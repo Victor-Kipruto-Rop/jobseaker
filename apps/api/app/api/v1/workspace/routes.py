@@ -67,7 +67,10 @@ def serialize(row: CareerWorkspaceItem) -> dict:
 def search_workspace(q: str = Query(min_length=2, max_length=120),
                      user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Escape SQL LIKE metacharacters so search input is treated as literal text.
-    term = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    term = q.strip()
+    if len(term) < 2:
+        raise HTTPException(status_code=422, detail="Search query must contain at least two non-whitespace characters")
+    term = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     pattern = f"%{term}%"
     opportunities = db.scalars(select(CandidateOpportunity).where(
         CandidateOpportunity.user_id == user.id,
