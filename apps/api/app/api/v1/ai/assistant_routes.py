@@ -11,6 +11,8 @@ from apps.api.app.core.config import get_settings
 from packages.database.models.identity import User
 from packages.database.models.career import AIConversation, AIMessage, Application, Interview, CandidateProfile, CandidateSkill, ResumeDocument, CandidateOpportunity
 from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference, AssistantFeedback, AssistantEntity, AssistantRelation
+from packages.database.models.assistant_jobs import AssistantIngestionJob
+from packages.security.credential_vault import encrypt_credential
 from packages.assistant.engine import sanitize, remember, retrieve, build_context, plan_tools, adapt_preferences, embedding
 from packages.assistant.ingestion import parse_document, MAX_BYTES
 from packages.ai.providers.base import GenerationRequest
@@ -151,6 +153,11 @@ def assistant_feedback(body: FeedbackInput,user:User=Depends(get_current_user),d
 def set_memory(enabled: bool, user:User=Depends(get_current_user),db:Session=Depends(get_db)):
     pref=db.scalar(select(AssistantPreference).where(AssistantPreference.user_id==user.id))
     if pref is None: pref=AssistantPreference(user_id=user.id); db.add(pref)
+    if enabled:
+        try:
+            encrypt_credential("assistant-memory-key-check", purpose=f"assistant-memory:{user.id}")
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail="Configure JOBSEEKER_CREDENTIAL_KEYRING or JOBSEEKER_CREDENTIAL_KEK before enabling encrypted memory.") from exc
     pref.memory_enabled=enabled; db.commit()
     return {"memory_enabled":enabled}
 
