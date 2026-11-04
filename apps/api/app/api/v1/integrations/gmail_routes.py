@@ -230,6 +230,7 @@ def confirm_email_interview(email_id: int, body: ConfirmEmailInterview,
                body.candidate_note).strip()[:4000],
     )
     db.add(interview)
+    db.flush()
     before = application.status
     if before != "interview" and can_transition(before, "interview"):
         application.status = "interview"
