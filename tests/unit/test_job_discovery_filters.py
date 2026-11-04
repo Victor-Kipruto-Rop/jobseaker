@@ -66,10 +66,10 @@ def test_company_board_metadata_uses_published_name_and_https_brand_assets(monke
     assert result["company"] == "Acme Financial"
     assert result["company_website"] == "https://acme.example/careers"
     assert result["company_domain"] == "acme.example"
-    assert result["company_logo_url"] == "https://boards.greenhouse.io/brand/logo.svg"
-    assert result["company_favicon_url"] == "https://boards.greenhouse.io/favicon.ico"
+    assert result["company_logo_url"] == "https://job-boards.greenhouse.io/brand/logo.svg"
+    assert result["company_favicon_url"] == "https://job-boards.greenhouse.io/favicon.ico"
     assert result["company_description"] == "Payments infrastructure"
-    assert result["company_brand_source"] == "https://boards.greenhouse.io/acme"
+    assert result["company_brand_source"] == "https://job-boards.greenhouse.io/acme"
 
 
 def test_company_profile_does_not_invent_missing_brand_assets(monkeypatch):
