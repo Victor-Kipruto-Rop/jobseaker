@@ -9,6 +9,7 @@ from typing import Callable
 from packages.events.contracts import EventEnvelope
 from packages.events.inbox import consume_once
 from packages.ops.metrics import EVENT_DELIVERY, CONSUMER_RETRIES, CONSUMER_DLQ
+from packages.ops.tracing import consume_trace_context
 
 logger = logging.getLogger(__name__)
 
