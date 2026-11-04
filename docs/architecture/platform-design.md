@@ -114,7 +114,7 @@ Every lifecycle change and material detail update must produce an application ev
 
 Before a release candidate can be marked ready:
 
-1. Run python scripts/verification/verify_local.py.
+1. Run python scripts/verify_local_security.py from a clean local checkout with Docker, Python dependencies, pnpm dependencies, and a local .env configured.
 2. Run frontend lint, typecheck, and production build.
 3. Validate Compose configuration and start every service.
 4. Apply Alembic migrations against a clean PostgreSQL database and an upgrade fixture.
