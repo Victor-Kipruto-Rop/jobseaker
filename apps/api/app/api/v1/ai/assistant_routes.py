@@ -1,7 +1,7 @@
 """Personal AI assistant API: persistent memory, retrieval, feedback and safe career tools."""
 from __future__ import annotations
 import asyncio, logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import PurePath
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -141,9 +141,22 @@ async def enqueue_assistant_ingestion(file: UploadFile = File(...),
         raise HTTPException(status_code=409, detail="Enable assistant memory before uploading documents.")
     filename = PurePath(file.filename or "upload").name[:255]
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    allowed = {"pdf", "docx", "txt", "md", "markdown", "py", "jpg", "jpeg", "png"}
+    allowed = {"pdf", "docx", "txt", "md", "markdown", "rst", "json", "yaml", "yml", "toml", "csv", "log", "py", "jpg", "jpeg", "png", "webp", "tif", "tiff"}
     if extension not in allowed:
         raise HTTPException(status_code=415, detail="Supported files: PDF, DOCX, TXT, Markdown, Python, JPG and PNG.")
+    now = datetime.now(timezone.utc)
+    active_count = db.scalar(select(func.count(AssistantIngestionJob.id)).where(
+        AssistantIngestionJob.user_id == user.id,
+        AssistantIngestionJob.status.in_(("queued", "processing"))
+    )) or 0
+    daily_count = db.scalar(select(func.count(AssistantIngestionJob.id)).where(
+        AssistantIngestionJob.user_id == user.id,
+        AssistantIngestionJob.created_at >= now - timedelta(hours=24)
+    )) or 0
+    if active_count >= 3:
+        raise HTTPException(status_code=429, detail="You can have at most three active document jobs.")
+    if daily_count >= 20:
+        raise HTTPException(status_code=429, detail="You have reached the limit of 20 document uploads per 24 hours.")
     payload = await file.read(12 * 1024 * 1024 + 1)
     if not payload or len(payload) > 12 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Upload must be between 1 byte and 12 MB.")
