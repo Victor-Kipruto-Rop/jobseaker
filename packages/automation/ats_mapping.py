@@ -39,5 +39,5 @@ def approval_manifest(application_id: int, mappings: list[FieldMapping], confirm
  digest = hashlib.sha256(json.dumps([application_id, rows], sort_keys=True).encode()).hexdigest()
  return {"application_id": application_id, "mapping_sha256": digest,
   "candidate_confirmed": bool(confirmed),
-  "approved": bool(confirmed) and all(row.status == "proposed" for row in mappings),
+  "approved": bool(confirmed) and bool(rows) and all(row.status == "proposed" for row in mappings),
   "mappings": rows, "execution_policy": "candidate_review_required"}
