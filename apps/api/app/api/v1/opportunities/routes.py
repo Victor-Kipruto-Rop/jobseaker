@@ -162,6 +162,7 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
     company.logo_url = profile["company_logo_url"] or company.logo_url
     company.favicon_url = profile["company_favicon_url"] or company.favicon_url
     company.brand_color = profile["company_brand_color"] or company.brand_color
+    company.social_links = {**(company.social_links or {}), **(profile.get("company_social_links") or {})}
     company.source_url = profile["company_brand_source"] or company.source_url
     company.evidence = {
         **(company.evidence or {}),
@@ -170,7 +171,7 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
         "last_discovered_at": datetime.now(timezone.utc).isoformat(),
         "published_fields": [key for key in (
             "company_website", "company_logo_url", "company_favicon_url",
-            "company_description", "company_brand_color",
+            "company_description", "company_brand_color", "company_social_links",
         ) if profile.get(key)],
     }
     company.last_enriched_at = datetime.now(timezone.utc)
@@ -231,6 +232,7 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
                 "favicon_url": profile["company_favicon_url"],
                 "description": profile["company_description"],
                 "brand_color": profile["company_brand_color"],
+                "social_links": profile.get("company_social_links", {}),
                 "source_url": profile["company_brand_source"],
                 "brand_assets_verified": bool(profile["company_logo_url"] or profile["company_favicon_url"]),
             }, "fetched": len(discovered), "matched_filters": len(filtered),
