@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from apps.api.app.core.redis_limits import enforce_rate_limit
+from packages.events.kafka import publish_event
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.ai.agents.job_matching.agent import JOB_SKILL_TAXONOMY
 from packages.database.models.identity import User
@@ -333,7 +334,7 @@ def get_recommendations(
 
 
 @router.post("/impressions", status_code=201)
-def record_impressions(
+async def record_impressions(
     body: InteractionBatch,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -353,11 +354,15 @@ def record_impressions(
         ))
     db.add_all(rows)
     db.commit()
+    await publish_event("user.activity", {
+        "user_id": user.id, "event_type": "impression_batch",
+        "count": len(rows), "item_keys": [row.item_key for row in rows],
+    }, key=str(user.id))
     return {"status": "recorded", "count": len(rows)}
 
 
 @router.post("/interactions", status_code=201)
-def record_interaction(
+async def record_interaction(
     body: InteractionInput,
     request: Request,
     user: User = Depends(get_current_user),
@@ -456,6 +461,11 @@ def record_interaction(
     )
     db.add(event)
     db.commit()
+    await publish_event("user.activity", {
+        "user_id": user.id, "event_id": event.id, "item_key": key,
+        "event_type": body.event_type, "recommendation_source": body.recommendation_source,
+        "position": body.position,
+    }, key=str(user.id))
     return {"status": "recorded", "event_id": event.id,
             "opportunity_id": row.id if row else (body.opportunity_id if body.opportunity_id else None),
             "item_key": key}
