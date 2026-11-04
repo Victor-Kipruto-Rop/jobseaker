@@ -11,9 +11,10 @@ from docx import Document
 from packages.storage.objects import store_private_object, delete_private_object
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
-from packages.database.models.career import ResumeDocument, AuditLog
+from packages.database.models.career import ResumeDocument, AuditLog, GeneratedArtifact, CandidateOpportunity
 from apps.api.app.core.redis_limits import enforce_rate_limit
 from packages.resumes.tailoring import tailor_resume
+from packages.resumes.cover_letter import build_cover_letter
 
 router = APIRouter()
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -188,6 +189,55 @@ def tailor_resume_for_role(resume_id: int, body: TailorRequest,
                     resource_type="resume", resource_id=str(row.id)))
     db.commit()
     return {"resume_id": row.id, "filename": row.filename, **proposal}
+
+
+class CoverLetterRequest(BaseModel):
+    job_description: str = Field(min_length=20, max_length=30000)
+    role_title: str = Field(min_length=2, max_length=250)
+    company_name: str = Field(default="", max_length=250)
+    opportunity_id: int | None = None
+
+@router.post("/{resume_id}/cover-letter", status_code=201)
+def create_cover_letter(resume_id: int, body: CoverLetterRequest,
+                        user: User = Depends(get_current_user),
+                        db: Session = Depends(get_db)):
+    """Save an evidence-grounded cover-letter draft for candidate editing."""
+    enforce_rate_limit(f"cover-letter:{user.id}", limit=10, window_seconds=3600)
+    resume = db.scalar(select(ResumeDocument).where(
+        ResumeDocument.id == resume_id, ResumeDocument.user_id == user.id))
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    opportunity = None
+    if body.opportunity_id is not None:
+        opportunity = db.scalar(select(CandidateOpportunity).where(
+            CandidateOpportunity.id == body.opportunity_id,
+            CandidateOpportunity.user_id == user.id))
+        if not opportunity:
+            raise HTTPException(status_code=404, detail="Opportunity not found")
+    try:
+        draft = build_cover_letter(resume.extracted_text, body.job_description,
+                                   body.role_title, body.company_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    artifact = GeneratedArtifact(
+        user_id=user.id, artifact_type="cover_letter", title=draft["title"],
+        content=draft["content"], source_resume_id=resume.id,
+        source_opportunity_id=opportunity.id if opportunity else None,
+        status="draft", provider="deterministic_evidence_builder",
+        model="resume-evidence-v1",
+    )
+    db.add(artifact)
+    db.flush()
+    db.add(AuditLog(user_id=user.id, action="resume.cover_letter_drafted",
+                    resource_type="generated_artifact", resource_id=str(artifact.id),
+                    metadata_json={"resume_id": resume.id,
+                                   "opportunity_id": opportunity.id if opportunity else None}))
+    db.commit()
+    db.refresh(artifact)
+    return {"id": artifact.id, "artifact_type": artifact.artifact_type,
+            "title": artifact.title, "content": artifact.content,
+            "status": artifact.status, "evidence_sentences": draft["evidence_sentences"],
+            "claims_invented": False, "requires_candidate_review": True}
 
 @router.delete("/{resume_id}", status_code=204)
 def delete_resume(resume_id: int, user: User = Depends(get_current_user),
