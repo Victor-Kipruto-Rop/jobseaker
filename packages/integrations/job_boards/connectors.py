@@ -59,7 +59,8 @@ def plain_text(value: str) -> str:
 
 def _safe_url(value: str) -> str:
     try:
-        return validate_http_url(value, allow_empty=False)
+        safe = validate_http_url(value, allow_empty=False)
+        return safe if len(safe) <= 2000 else ""
     except ValueError:
         return ""
 
@@ -137,9 +138,11 @@ async def discover_company_profile(source: str, board: str) -> dict:
             canonical_url = _safe_url(urljoin(page_url, canonical))
             host = urlsplit(canonical_url).hostname or ""
             ats_hosts = {"boards.greenhouse.io", "job-boards.greenhouse.io", "jobs.lever.co", "api.lever.co"}
-            if canonical_url and urlsplit(canonical_url).scheme == "https" and host.lower() not in ats_hosts:
+            domain = host.lower().removeprefix("www.")
+            if (canonical_url and len(canonical_url) <= 1000 and len(domain) <= 253
+                    and urlsplit(canonical_url).scheme == "https" and host.lower() not in ats_hosts):
                 profile["company_website"] = canonical_url
-                profile["company_domain"] = host.lower().removeprefix("www.")
+                profile["company_domain"] = domain
         if any(profile[key] for key in ("company_logo_url", "company_favicon_url", "company_website", "company_description")):
             profile["company_brand_source"] = page_url
     except (httpx.HTTPError, ValueError, UnicodeError):
