@@ -237,10 +237,10 @@ def adapt_preferences(current: dict, rating: int, correction: str) -> dict:
     return result
 
 def build_context(db: Session, user_id: int, query: str, history: list[dict],
-                  budget_chars: int = 12000) -> str:
+                  budget_chars: int = 12000, memories: list[dict] | None = None) -> str:
     facts = db.scalars(select(AssistantFact).where(
         AssistantFact.user_id == user_id, AssistantFact.active.is_(True)).limit(40)).all()
-    memories = retrieve(db, user_id, query, limit=8)
+    memories = memories if memories is not None else retrieve(db, user_id, query, limit=8)
     prefs = preference_snapshot(db, user_id)
     graph_rows = db.scalars(select(AssistantRelation).where(
         AssistantRelation.user_id == user_id).order_by(AssistantRelation.updated_at.desc()).limit(80)).all()
