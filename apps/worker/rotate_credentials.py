@@ -37,7 +37,7 @@ def rotate(dry_run: bool = False) -> dict[str, int]:
                     # next successful mailbox sync, which still has the legacy reader.
                     counts["skipped_legacy"] += 1
                     continue
-                plaintext = decrypt_credential(token, purpose=purpose)
+                decrypt_credential(token, purpose=purpose)
                 replacement = rewrap_credential(token, purpose=purpose)
                 new_id = credential_key_id(replacement)
                 if new_id != old_id:
