@@ -98,3 +98,10 @@ Not yet implemented:
 
 These boundaries are intentionally explicit so operators do not mistake optional fallbacks or
 initial integrations for completed infrastructure guarantees.
+
+
+## Operational requirements and privacy controls
+
+Persistent memory is opt-in and requires the existing AES-256-GCM credential keyring. The assistant refuses to enable encrypted memory when the keyring is missing. Keep key material in the deployment secret manager, retain old key IDs during rotation, and do not place key material in source control. Uploaded file bytes are encrypted before durable database persistence and cleared from the job record when processing finishes or reaches terminal failure. The worker rechecks memory consent before processing.
+
+The assistant ingestion queue is separate from general AI, email and discovery queues. The job table is the durable source of job status; Redis carries only the opaque job identifier. The API never returns stored ciphertext. Users can cancel their own queued jobs, and clearing memory disables further ingestion and clears pending payloads.
