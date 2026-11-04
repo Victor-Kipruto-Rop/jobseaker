@@ -18,6 +18,7 @@ The implementation extracts available Open Graph / Twitter metadata, the page ti
 - `company_logo_url`: published Open Graph / Twitter image when available.
 - `company_favicon_url`: published page icon when available.
 - `company_description`: public board description metadata when available.
+- `company_brand_color`: a validated public theme-color value when the board publishes one.
 - `company_brand_source`: source board page used to obtain the metadata.
 
 Migration: `20261104_0009_company_branding.py`.
