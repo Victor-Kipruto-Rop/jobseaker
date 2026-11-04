@@ -18,6 +18,7 @@ async def main() -> None:
         raise RuntimeError("KAFKA_ENABLED must be true for event consumers")
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
     start_http_server(int(os.getenv("METRICS_PORT", "9102")), addr="0.0.0.0")
+    configure_worker_telemetry("jobseeker-event-consumer")
     await run_kafka_consumer(
         SessionLocal,
         settings.kafka_bootstrap_servers,
