@@ -2,15 +2,13 @@ import re
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from uuid import uuid4
-import os
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from pypdf import PdfReader
 from docx import Document
-from apps.api.app.core.config import get_settings
+from packages.storage.objects import store_private_object, delete_private_object
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
 from packages.database.models.career import ResumeDocument, AuditLog
@@ -23,15 +21,26 @@ MAX_PDF_PAGES = 100
 MAX_DOCX_ENTRIES = 1_000
 MAX_DOCX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
 MAX_DOCX_COMPRESSION_RATIO = 100
-ALLOWED = {".pdf": "application/pdf",
-           ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+ALLOWED = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".md": "text/markdown", ".markdown": "text/markdown", ".txt": "text/plain",
+}
 
 def extract_text(filename: str, data: bytes) -> tuple[str, str]:
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED:
-        raise HTTPException(status_code=415, detail="Only PDF and DOCX files are supported")
+        raise HTTPException(status_code=415, detail="Supported formats are PDF, DOCX, Markdown and plain text")
     if not data:
         raise HTTPException(status_code=400, detail="The uploaded document is empty")
+
+    if suffix in {".md", ".markdown", ".txt"}:
+        try:
+            text = data.decode("utf-8-sig", errors="strict").replace("\x00", "")
+        except UnicodeDecodeError as exc:
+            raise HTTPException(status_code=400, detail="Text documents must use UTF-8 encoding") from exc
+        normalized = re.sub(r"\r\n?", "\n", text)
+        return normalized[:MAX_EXTRACTED_CHARS], ALLOWED[suffix]
 
     if suffix == ".pdf":
         if not data.startswith(b"%PDF-"):
@@ -89,34 +98,32 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
 @router.post("", status_code=201)
 async def upload_resume(file: UploadFile = File(...), user: User = Depends(get_current_user),
                         db: Session = Depends(get_db)):
-    if get_settings().app_env == "production":
-        raise HTTPException(status_code=503, detail="Production object storage is not configured. Resume uploads are disabled.")
     enforce_rate_limit(f"resume-upload:{user.id}", limit=10, window_seconds=3600)
     filename = Path(file.filename or "resume").name
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Resume exceeds the 10 MB upload limit")
     extracted, content_type = extract_text(filename, data)
-    root = Path(get_settings().storage_path).resolve()
-    user_dir = (root / str(user.id)).resolve()
-    user_dir.mkdir(parents=True, exist_ok=True)
-    if root not in user_dir.parents:
-        raise HTTPException(status_code=400, detail="Invalid storage location")
-    stored_name = uuid4().hex + Path(filename).suffix.lower()
-    destination = user_dir / stored_name
-    temporary = user_dir / (stored_name + ".tmp")
+    stored = store_private_object(
+        data, filename, content_type, owner_scope=str(user.id),
+    )
     try:
-        temporary.write_bytes(data)
-        os.replace(temporary, destination)
-        row = ResumeDocument(user_id=user.id, filename=filename[:255], content_type=content_type,
-                             storage_key=f"{user.id}/{stored_name}", extracted_text=extracted, version=1)
+        row = ResumeDocument(
+            user_id=user.id, filename=filename[:255], content_type=content_type,
+            storage_key=stored["object_key"], extracted_text=extracted, version=1,
+        )
         db.add(row)
         db.commit()
         db.refresh(row)
     except Exception:
         db.rollback()
-        temporary.unlink(missing_ok=True)
-        destination.unlink(missing_ok=True)
+        try:
+            delete_private_object(stored["object_key"])
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Unable to clean up failed resume upload", extra={"user_id": user.id}
+            )
         raise
     return {"id": row.id, "filename": row.filename, "content_type": row.content_type,
             "version": row.version, "extracted_characters": len(extracted)}
@@ -166,19 +173,16 @@ def delete_resume(resume_id: int, user: User = Depends(get_current_user),
     if not row:
         raise HTTPException(status_code=404, detail="Resume not found")
 
-    root = Path(get_settings().storage_path).resolve()
-    stored_path = (root / row.storage_key).resolve()
-    if root not in stored_path.parents:
-        raise HTTPException(status_code=409, detail="Stored resume path is outside the configured storage directory")
-
+    object_key = row.storage_key
     db.add(AuditLog(user_id=user.id, action="resume.deleted",
                     resource_type="resume", resource_id=str(row.id)))
     db.delete(row)
     db.commit()
     try:
-        stored_path.unlink(missing_ok=True)
-    except OSError:
-        # The database record is gone; log cleanup failure without leaking the path to the client.
+        delete_private_object(object_key)
+    except Exception:
         import logging
-        logging.getLogger(__name__).exception("Unable to remove deleted resume file", extra={"user_id": user.id})
+        logging.getLogger(__name__).exception(
+            "Unable to remove deleted resume object", extra={"user_id": user.id}
+        )
     return None

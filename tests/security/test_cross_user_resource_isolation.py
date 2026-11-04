@@ -7,14 +7,14 @@ from sqlalchemy.pool import StaticPool
 from packages.database.models import Base
 from packages.database.models.identity import User
 from packages.database.models.career import (
-    Application, AIConversation, AIMessage, Company, EmailAccount, EmailMessage,
+    Application, AIConversation, AIMessage, Company, EmailAccount, EmailMessage, AuditLog,
     Interview, Recruiter, ResumeDocument, CandidateProfile, CandidateOpportunity,
     GeneratedArtifact, SavedSearch, Notification, OAuthState, ApplicationEvent, CandidateSkill,
     UserAIBudget,
 )
 from apps.api.app.api.v1.resumes.routes import list_resumes, resume_text
 from apps.api.app.api.v1.recruiters.routes import RecruiterInput, create_recruiter, list_recruiters
-from apps.api.app.api.v1.interviews.routes import InterviewInput, create_interview, list_interviews
+from apps.api.app.api.v1.interviews.routes import InterviewInput, InterviewUpdate, create_interview, list_interviews, update_interview, delete_interview
 from apps.api.app.api.v1.ai.routes import (
     conversations, conversation_messages, usage, get_budget, update_budget,
     BudgetUpdate, chat, ChatRequest,
@@ -39,6 +39,9 @@ from packages.automation.approvals.service import create_approval
 from packages.database.models.entities import AIUsage
 from packages.integrations.gmail import client as gmail_client
 from packages.automation import tasks
+from apps.api.app.api.v1.workspace.routes import (
+    WorkspaceItemCreate, WorkspaceItemUpdate, list_items, create_item, update_item, delete_item, search_workspace,
+)
 
 
 @pytest.fixture
@@ -371,18 +374,47 @@ def test_saved_search_worker_persists_each_result_to_its_search_owner(db, users,
     ])
     db.commit()
 
-    async def fake_discover(board, limit):
-        return [{
-            "title": f"Role from {board}",
+    live_jobs = {
+        "owner-board": [{
+            "title": "Data Engineer",
+            "description": "Build Python and Kafka pipelines",
             "source_name": "greenhouse",
-            "source_url": f"https://jobs.example/{board}",
-        }]
+            "source_url": "https://jobs.example/owner-board",
+            "required_skills": ["Python", "Kafka"],
+        }],
+        "other-board": [{
+            "title": "Analytics Engineer",
+            "description": "Build SQL analytics models",
+            "source_name": "greenhouse",
+            "source_url": "https://jobs.example/other-board",
+            "required_skills": ["SQL"],
+        }],
+    }
+
+    async def fake_discover(board, limit):
+        return live_jobs[board]
+
+    async def fake_company_profile(source, board):
+        return {
+            "company": "Owner Board Inc" if board == "owner-board" else "Other Board Ltd",
+            "company_website": f"https://{board}.example",
+            "company_domain": f"{board}.example",
+            "company_logo_url": f"https://{board}.example/logo.svg",
+            "company_favicon_url": "",
+            "company_description": f"Public profile for {board}",
+            "company_brand_color": "#123456",
+            "company_brand_source": f"https://jobs.example/{board}",
+            "company_social_links": {"linkedin": f"https://www.linkedin.com/company/{board}"},
+            "company_industry": "Technology",
+            "company_headquarters": "",
+        }
 
     monkeypatch.setattr(tasks, "get_settings", lambda: SimpleNamespace(
         global_automation_paused=False,
         job_discovery_enabled=True,
     ))
     monkeypatch.setattr(tasks, "discover_greenhouse", fake_discover)
+    monkeypatch.setattr(tasks, "discover_company_profile", fake_company_profile)
     monkeypatch.setattr(tasks, "SessionLocal", lambda: Session(bind=db.get_bind()))
 
     result = tasks.run_saved_search_discovery()
@@ -391,9 +423,26 @@ def test_saved_search_worker_persists_each_result_to_its_search_owner(db, users,
     rows = db.scalars(select(CandidateOpportunity)).all()
     by_title = {row.title: row.user_id for row in rows}
     assert by_title == {
-        "Role from owner-board": owner.id,
-        "Role from other-board": other.id,
+        "Data Engineer": owner.id,
+        "Analytics Engineer": other.id,
     }
+    companies = db.scalars(select(Company).order_by(Company.user_id)).all()
+    assert len(companies) == 2
+    assert companies[0].user_id != companies[1].user_id
+    assert all(company.logo_url.endswith("/logo.svg") for company in companies)
+    imported = db.scalars(select(CandidateOpportunity).order_by(CandidateOpportunity.user_id)).all()
+    assert all(row.company_id is not None for row in imported)
+    assert all(row.availability_status == "active" for row in imported)
+    assert imported[0].company_id != imported[1].company_id
+
+    # A successful empty board snapshot marks the old vacancy as removed.
+    live_jobs["owner-board"] = []
+    refreshed = tasks.run_saved_search_discovery()
+    assert refreshed["removed"] == 1
+    owner_role = db.scalar(select(CandidateOpportunity).where(
+        CandidateOpportunity.user_id == owner.id,
+    ))
+    assert owner_role.availability_status == "removed"
 
 
 
@@ -468,3 +517,128 @@ def test_gmail_authorization_does_not_persist_state_when_provider_config_is_inva
         gmail_client.create_authorization(db, owner.id)
 
     assert db.scalars(select(OAuthState).where(OAuthState.user_id == owner.id)).all() == []
+
+
+def test_career_workspace_items_are_private_and_mutations_are_owner_scoped(db, users):
+    owner, other = users
+    own_task = CareerWorkspaceItem(
+        user_id=owner.id, item_type="task", title="Follow up with recruiter",
+        description="Send a follow-up after the interview", status="open", priority="high",
+    )
+    private_note = CareerWorkspaceItem(
+        user_id=other.id, item_type="note", title="Private career note",
+        description="Other user's confidential notes", status="open",
+    )
+    db.add_all([own_task, private_note])
+    db.flush()
+
+    records = list_items(item_type=None, status=None, user=owner, db=db)
+    assert [item["title"] for item in records] == ["Follow up with recruiter"]
+
+    with pytest.raises(HTTPException) as error:
+        update_item(private_note.id, WorkspaceItemUpdate(title="Tampered"), owner, db)
+    assert error.value.status_code == 404
+    with pytest.raises(HTTPException) as error:
+        delete_item(private_note.id, owner, db)
+    assert error.value.status_code == 404
+    assert private_note.title == "Private career note"
+
+    updated = update_item(own_task.id, WorkspaceItemUpdate(status="in_progress"), owner, db)
+    assert updated["status"] == "in_progress"
+    assert private_note.status == "open"
+
+
+def test_career_workspace_validates_item_lifecycle_and_persists_metadata(db, users):
+    owner, _ = users
+    created = create_item(
+        WorkspaceItemCreate(
+            item_type="project", title="Build a portfolio pipeline",
+            description="Demonstrate ingestion, validation and analytics",
+            status="in_progress", priority="high",
+            metadata={"repository": "https://github.com/example/project"},
+        ),
+        owner, db,
+    )
+    assert created["item_type"] == "project"
+    assert created["metadata"]["repository"].startswith("https://")
+    with pytest.raises(HTTPException) as error:
+        update_item(created["id"], WorkspaceItemUpdate(status="cancelled"), owner, db)
+    assert error.value.status_code == 422
+    deleted = delete_item(created["id"], owner, db)
+    assert deleted is None
+    assert list_items(item_type="project", status=None, user=owner, db=db) == []
+
+
+def test_interview_update_and_delete_require_record_ownership(db, users):
+    owner, other = users
+    owned = Interview(user_id=owner.id, interview_type="technical", notes="Prepare SQL")
+    foreign = Interview(user_id=other.id, interview_type="screening", notes="Private")
+    db.add_all([owned, foreign])
+    db.flush()
+
+    updated = update_interview(owned.id, InterviewUpdate(notes="Prepare SQL and Python"), owner, db)
+    assert updated["notes"] == "Prepare SQL and Python"
+    with pytest.raises(HTTPException) as error:
+        update_interview(foreign.id, InterviewUpdate(notes="Tampered"), owner, db)
+    assert error.value.status_code == 404
+    with pytest.raises(HTTPException) as error:
+        delete_interview(foreign.id, owner, db)
+    assert error.value.status_code == 404
+    assert foreign.notes == "Private"
+    assert delete_interview(owned.id, owner, db) is None
+
+
+def test_global_workspace_search_only_returns_the_signed_in_users_records(db, users):
+    owner, other = users
+    db.add_all([
+        CandidateOpportunity(user_id=owner.id, title="Data Engineer", company="Owner Labs"),
+        CandidateOpportunity(user_id=other.id, title="Data Engineer", company="Private Labs"),
+        Application(user_id=owner.id, role_title="Analytics Engineer", company_name="Owner Labs"),
+        Application(user_id=other.id, role_title="Analytics Engineer", company_name="Private Labs"),
+        CareerWorkspaceItem(user_id=owner.id, item_type="note", title="Interview preparation"),
+        CareerWorkspaceItem(user_id=other.id, item_type="note", title="Interview private notes"),
+    ])
+    db.flush()
+
+    results = search_workspace("Engineer", owner, db)
+    assert len(results) == 2
+    assert {item["subtitle"] for item in results} == {"Owner Labs"}
+    assert all(item["kind"] in {"OPPORTUNITY", "APPLICATION"} for item in results)
+
+
+def test_global_workspace_search_rejects_whitespace_only_queries(db, users):
+    owner, _ = users
+    with pytest.raises(HTTPException) as error:
+        search_workspace("   ", owner, db)
+    assert error.value.status_code == 422
+    assert error.value.detail == "Search query must contain at least two non-whitespace characters"
+
+
+def test_workspace_mutations_write_audit_records_and_normalize_titles(db, users):
+    owner, _ = users
+    created = create_item(
+        WorkspaceItemCreate(item_type="task", title="  Prepare portfolio review  "),
+        owner, db,
+    )
+    assert created["title"] == "Prepare portfolio review"
+
+    updated = update_item(
+        created["id"], WorkspaceItemUpdate(title="  Confirm interview time  "), owner, db,
+    )
+    assert updated["title"] == "Confirm interview time"
+
+    actions = db.scalars(
+        select(AuditLog).where(AuditLog.user_id == owner.id)
+        .order_by(AuditLog.created_at.asc(), AuditLog.id.asc())
+    ).all()
+    assert [entry.action for entry in actions] == [
+        "career_workspace.created", "career_workspace.updated",
+    ]
+    assert all(entry.resource_type == "task" for entry in actions)
+
+    delete_item(created["id"], owner, db)
+    assert db.scalar(
+        select(AuditLog).where(
+            AuditLog.user_id == owner.id, AuditLog.action == "career_workspace.deleted",
+        )
+    ) is not None

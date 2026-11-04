@@ -10,6 +10,10 @@ from apps.api.app.api.v1.analytics.routes import router as analytics
 from apps.api.app.api.v1.career_tools.routes import router as career_tools
 from apps.api.app.api.v1.companies.routes import router as companies
 from apps.api.app.api.v1.interviews.routes import router as interviews
+from apps.api.app.api.v1.integrations.calendar_routes import (
+    oauth_callback_router as calendar_oauth_callback_router,
+    router as calendar,
+)
 from apps.api.app.api.v1.integrations.gmail_routes import (
     oauth_callback_router,
     router as gmail,
@@ -17,9 +21,11 @@ from apps.api.app.api.v1.integrations.gmail_routes import (
 from apps.api.app.api.v1.notifications.routes import router as notifications
 from apps.api.app.api.v1.opportunities.routes import router as opportunities
 from apps.api.app.api.v1.profile.routes import router as profile
+from apps.api.app.api.v1.recommendations.routes import router as recommendations
 from apps.api.app.api.v1.recruiters.routes import router as recruiters
 from apps.api.app.api.v1.resumes.routes import router as resumes
 from apps.api.app.api.v1.saved_searches.routes import router as saved_searches
+from apps.api.app.api.v1.workspace.routes import router as workspace
 
 router = APIRouter()
 
@@ -83,6 +89,13 @@ router.include_router(
     gmail, prefix="/integrations", tags=["integrations"],
     dependencies=candidate_policy,
 )
+router.include_router(
+    calendar, prefix="/integrations", tags=["calendar integration"],
+    dependencies=candidate_policy,
+)
+router.include_router(
+    calendar_oauth_callback_router, prefix="/integrations", tags=["calendar integration"],
+)
 
 # OAuth callback is validated by a short-lived, single-use state bound to the
 # initiating candidate; it cannot rely on the user's browser session surviving Google redirect.
@@ -91,5 +104,15 @@ router.include_router(
 )
 router.include_router(
     career_tools, prefix="/career-tools", tags=["career intelligence"],
+    dependencies=candidate_policy,
+)
+
+router.include_router(
+    workspace, prefix="/workspace/items", tags=["career workspace"],
+    dependencies=candidate_policy,
+)
+
+router.include_router(
+    recommendations, prefix="/recommendations", tags=["personalized recommendations"],
     dependencies=candidate_policy,
 )

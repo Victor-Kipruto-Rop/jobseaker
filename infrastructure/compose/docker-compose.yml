@@ -39,6 +39,15 @@ services:
       GMAIL_CLIENT_SECRET_FILE: ""
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
       REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_ENABLED: "true"
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_BUCKET: jobseeker-local
+      S3_ACCESS_KEY_ID: jobseeker_local
+      S3_SECRET_ACCESS_KEY: jobseeker_local_secret
+      S3_REGION: us-east-1
+      S3_FORCE_PATH_STYLE: "true"
+      STORAGE_BACKEND: s3
       STORAGE_PATH: /workspace/data/uploads
       GLOBAL_AUTOMATION_PAUSED: "true"
       AUTO_EMAIL_SEND: "false"
@@ -55,6 +64,8 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+      redpanda: {condition: service_healthy}
+      minio-init: {condition: service_completed_successfully}
       migrate: {condition: service_completed_successfully}
     restart: unless-stopped
   web:
@@ -95,10 +106,56 @@ services:
       GMAIL_ENABLED: "false"
       JOB_DISCOVERY_ENABLED: "false"
       REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_ENABLED: "true"
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_BUCKET: jobseeker-local
+      S3_ACCESS_KEY_ID: jobseeker_local
+      S3_SECRET_ACCESS_KEY: jobseeker_local_secret
+      S3_REGION: us-east-1
+      S3_FORCE_PATH_STYLE: "true"
+      STORAGE_BACKEND: s3
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+      redpanda: {condition: service_healthy}
+      minio-init: {condition: service_completed_successfully}
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+  event-relay:
+    build: {context: ../.., dockerfile: apps/worker/Dockerfile}
+    env_file: ../../.env
+    environment:
+      APP_ENV: local
+      DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_ENABLED: "true"
+      KAFKA_CLIENT_ID: jobseeker-outbox-relay
+      METRICS_PORT: "9101"
+    ports: ["127.0.0.1:9101:9101"]
+    command: ["python", "-m", "apps.worker.outbox_relay"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redpanda: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+  event-consumer:
+    build: {context: ../.., dockerfile: apps/worker/Dockerfile}
+    env_file: ../../.env
+    environment:
+      APP_ENV: local
+      DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_ENABLED: "true"
+      KAFKA_CLIENT_ID: jobseeker-event-consumer
+      KAFKA_CONSUMER_GROUP_ID: jobseeker-career-intelligence-v1
+      METRICS_PORT: "9102"
+    ports: ["127.0.0.1:9102:9102"]
+    command: ["python", "-m", "apps.worker.event_consumer"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redpanda: {condition: service_healthy}
       migrate: {condition: service_completed_successfully}
     restart: unless-stopped
   scheduler:
@@ -124,17 +181,77 @@ services:
       GMAIL_ENABLED: "false"
       JOB_DISCOVERY_ENABLED: "false"
       REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_ENABLED: "true"
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_BUCKET: jobseeker-local
+      S3_ACCESS_KEY_ID: jobseeker_local
+      S3_SECRET_ACCESS_KEY: jobseeker_local_secret
+      S3_REGION: us-east-1
+      S3_FORCE_PATH_STYLE: "true"
+      STORAGE_BACKEND: s3
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+      redpanda: {condition: service_healthy}
+      minio-init: {condition: service_completed_successfully}
       migrate: {condition: service_completed_successfully}
     restart: unless-stopped
+  redpanda:
+    image: redpandadata/redpanda:v25.2.5
+    command:
+      - redpanda
+      - start
+      - --mode
+      - dev-container
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --overprovisioned
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://localhost:19092
+    ports: ["127.0.0.1:19092:19092"]
+    volumes: [jobseeker_redpanda:/var/lib/redpanda/data]
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health --exit-when-healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: jobseeker_local
+      MINIO_ROOT_PASSWORD: jobseeker_local_secret
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+    volumes: [jobseeker_minio:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio: {condition: service_healthy}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["mc alias set local http://minio:9000 jobseeker_local jobseeker_local_secret && mc mb --ignore-existing local/jobseeker-local"]
+    restart: "no"
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     ports: ["127.0.0.1:5432:5432"]
     environment: {POSTGRES_DB: jobseeker, POSTGRES_USER: jobseeker, POSTGRES_PASSWORD: jobseeker_local}
-    volumes: [jobseeker_pgdata:/var/lib/postgresql/data]
+    volumes:
+      - jobseeker_pgdata:/var/lib/postgresql/data
+      - ./init/001-enable-pgvector.sql:/docker-entrypoint-initdb.d/001-enable-pgvector.sql:ro
     healthcheck: {test: ["CMD-SHELL","pg_isready -U jobseeker -d jobseeker"], interval: 5s, timeout: 5s, retries: 15}
     restart: unless-stopped
   redis:
@@ -146,3 +263,5 @@ services:
 volumes:
   jobseeker_pgdata:
   jobseeker_redisdata:
+  jobseeker_redpanda:
+  jobseeker_minio:

@@ -1,8 +1,12 @@
+import base64
 import hashlib
 import json
 import secrets
 from datetime import datetime, timedelta, timezone
 from cryptography.fernet import Fernet, InvalidToken
+from packages.security.credential_vault import (
+    encrypt_credential, decrypt_credential, rewrap_credential, credential_needs_rotation,
+)
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -10,7 +14,11 @@ from google.auth.transport.requests import Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.core.config import get_settings
-from packages.database.models.career import OAuthState, EmailAccount, EmailMessage
+from packages.database.models.career import OAuthState, EmailAccount, EmailMessage, Application
+from packages.integrations.gmail.intelligence import analyze_recruiter_email
+from packages.ops.circuit_breaker import CircuitBreaker
+
+_GMAIL_BREAKER = CircuitBreaker(failure_threshold=5, recovery_seconds=60.0)
 from packages.database.models.identity import User
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
@@ -22,13 +30,20 @@ def _fernet():
     return Fernet(key)
 
 def _encrypt(value: str) -> str:
-    return _fernet().encrypt(value.encode("utf-8")).decode("ascii")
+    return encrypt_credential(value, purpose="gmail-oauth")
 
 def _decrypt(value: str) -> str:
+    if value.startswith(("v1:", "v2:")):
+        try:
+            return decrypt_credential(value, purpose="gmail-oauth")
+        except Exception as exc:
+            raise RuntimeError("Stored Gmail credentials cannot be decrypted. Check the credential key.") from exc
+    # Read-only compatibility for existing Fernet ciphertexts. The next successful
+    # sync rewrites the token using the dedicated credential key.
     try:
         return _fernet().decrypt(value.encode("ascii")).decode("utf-8")
     except InvalidToken as exc:
-        raise RuntimeError("Stored Gmail credentials cannot be decrypted. Check APP_SECRET_KEY.") from exc
+        raise RuntimeError("Stored Gmail credentials cannot be decrypted. Check credential key configuration.") from exc
 
 def _flow(state: str | None = None):
     settings = get_settings()
@@ -74,10 +89,10 @@ def complete_authorization(db: Session, state: str, code: str) -> EmailAccount:
     record.consumed_at = datetime.now(timezone.utc)
     db.commit()
     flow = _flow(state)
-    flow.fetch_token(code=code)
+    _GMAIL_BREAKER.call(flow.fetch_token, code=code)
     credentials = flow.credentials
     service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
-    mailbox = service.users().getProfile(userId="me").execute().get("emailAddress", "").lower()
+    mailbox = _GMAIL_BREAKER.call(service.users().getProfile(userId="me").execute).get("emailAddress", "").lower()
     if not mailbox:
         raise RuntimeError("Google did not return a Gmail mailbox address.")
     serialized = credentials.to_json()
@@ -110,24 +125,56 @@ def classify(subject: str, snippet: str) -> tuple[str, float, bool]:
             return category, 0.8, action
     return "unclassified_job_related", 0.25, False
 
+def _plain_text_from_payload(payload: dict) -> str:
+    """Extract bounded text/plain content without persisting full message bodies."""
+    chunks = []
+    def walk(part):
+        if not isinstance(part, dict):
+            return
+        mime = (part.get("mimeType") or "").lower()
+        data = (part.get("body") or {}).get("data")
+        if mime == "text/plain" and data:
+            try:
+                decoded = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+                chunks.append(decoded.decode("utf-8", errors="replace"))
+            except Exception:
+                pass
+        for child in part.get("parts", []) or []:
+            walk(child)
+    walk(payload)
+    return "\n".join(chunks)[:12000]
+
+
 def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
     account = db.scalar(select(EmailAccount).where(
         EmailAccount.user_id == user_id, EmailAccount.provider == "gmail"))
     if not account:
         raise LookupError("Connect a Gmail account before synchronizing.")
     raw = _decrypt(account.encrypted_credentials)
+    if not account.encrypted_credentials.startswith(("v1:", "v2:")):
+        account.encrypted_credentials = _encrypt(raw)
+    elif credential_needs_rotation(
+        account.encrypted_credentials,
+    ):
+        account.encrypted_credentials = rewrap_credential(
+            account.encrypted_credentials, purpose="gmail-oauth",
+        )
     credentials = Credentials.from_authorized_user_info(json.loads(raw), SCOPES)
     if credentials.expired and credentials.refresh_token:
-        credentials.refresh(Request())
+        _GMAIL_BREAKER.call(credentials.refresh, Request())
         account.encrypted_credentials = _encrypt(credentials.to_json())
     if not credentials.valid:
         raise RuntimeError("Gmail authorization expired. Reconnect the account.")
     service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
+    applications = db.scalars(select(Application).where(
+        Application.user_id == user_id,
+    ).order_by(Application.created_at.desc()).limit(100)).all()
     listed, inserted, page_token = 0, 0, None
+    new_message_ids = []
     while listed < limit:
-        result = service.users().messages().list(
+        result = _GMAIL_BREAKER.call(service.users().messages().list(
             userId="me", q=JOB_QUERY, maxResults=min(100, limit-listed),
-            pageToken=page_token).execute()
+            pageToken=page_token).execute)
         messages = result.get("messages", [])
         for item in messages:
             message_id = item["id"]
@@ -136,26 +183,38 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
                 EmailMessage.gmail_message_id == message_id))
             if exists:
                 continue
-            metadata = service.users().messages().get(
-                userId="me", id=message_id, format="metadata",
-                metadataHeaders=["From", "To", "Subject"]).execute()
+            metadata = _GMAIL_BREAKER.call(service.users().messages().get(
+                userId="me", id=message_id, format="full",
+                metadataHeaders=["From", "To", "Subject"]).execute)
             headers = {h.get("name", "").lower(): h.get("value", "")
                        for h in metadata.get("payload", {}).get("headers", [])}
             subject, snippet = headers.get("subject", ""), metadata.get("snippet", "")
-            classification, confidence, action = classify(subject, snippet)
+            body_text = _plain_text_from_payload(metadata.get("payload", {}))
+            intelligence = analyze_recruiter_email(subject, body_text or snippet, applications)
+            classification, confidence, action = (
+                intelligence["intent"], intelligence["confidence"], intelligence["action_required"],
+            )
             internal_date = metadata.get("internalDate")
             received = datetime.fromtimestamp(int(internal_date)/1000, tz=timezone.utc) if internal_date else None
-            db.add(EmailMessage(user_id=user_id, account_id=account.id,
+            message_row = EmailMessage(user_id=user_id, account_id=account.id,
                 gmail_message_id=message_id, gmail_thread_id=metadata.get("threadId", ""),
                 sender=headers.get("from", "")[:320], recipient=headers.get("to", "")[:320],
                 subject=subject[:1000], snippet=snippet[:5000], classification=classification,
-                confidence=confidence, action_required=action, received_at=received))
+                confidence=confidence, action_required=action,
+                application_id=intelligence["application_id"],
+                intent=intelligence["intent"], suggested_status=intelligence["suggested_status"],
+                intent_confidence=intelligence["confidence"],
+                interview_proposed_text=intelligence["interview_proposed_text"],
+                classification_evidence=intelligence["evidence"],
+                received_at=received)
+            db.add(message_row)
+            db.flush()
+            new_message_ids.append(message_row.id)
             inserted += 1
         listed += len(messages)
         page_token = result.get("nextPageToken")
         if not page_token or not messages:
             break
     account.last_synced_at = datetime.now(timezone.utc)
-    db.commit()
-    return {"mailbox": account.email, "listed": listed, "new_messages": inserted,
+    return {"mailbox": account.email, "listed": listed, "new_messages": inserted, "new_message_ids": new_message_ids,
             "query": JOB_QUERY, "read_only": True}

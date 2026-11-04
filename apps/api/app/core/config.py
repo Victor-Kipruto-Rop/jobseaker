@@ -1,4 +1,6 @@
 from functools import lru_cache
+import os
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -8,10 +10,28 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./jobseeker.db"
     redis_url: str = "redis://localhost:6379/0"
     storage_path: str = "data/uploads"
+    storage_backend: str = "local"
+    s3_endpoint_url: str | None = None
+    s3_bucket: str = "jobseeker"
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
+    s3_region: str = "us-east-1"
+    s3_force_path_style: bool = True
+    kafka_enabled: bool = False
+    kafka_bootstrap_servers: str = "localhost:9092"
+    kafka_client_id: str = "jobseeker-api"
+    kafka_consumer_group_id: str = "jobseeker-career-intelligence-v1"
     gmail_enabled: bool = False
+    credential_kek: str | None = Field(default=None, validation_alias="JOBSEEKER_CREDENTIAL_KEK")
+    credential_keyring: str | None = Field(default=None, validation_alias="JOBSEEKER_CREDENTIAL_KEYRING")
+    credential_active_key_id: str | None = Field(default=None, validation_alias="JOBSEEKER_CREDENTIAL_ACTIVE_KEY_ID")
+    otel_exporter_otlp_endpoint: str | None = None
+    otel_service_name: str = "jobseeker-api"
     job_discovery_enabled: bool = False
     gmail_client_secret_file: str | None = None
     gmail_redirect_uri: str = "http://localhost:8000/api/v1/integrations/gmail/callback"
+    calendar_redirect_uri: str = "http://localhost:8000/api/v1/integrations/calendar/callback"
+    calendar_enabled: bool = False
     web_app_url: str = "http://localhost:3000"
     smtp_host: str | None = None
     smtp_port: int = 587
@@ -46,6 +66,14 @@ def get_settings():
             raise ValueError("APP_SECRET_KEY must be a unique random value of at least 32 characters in production")
         if not settings.database_url.startswith("postgresql"):
             raise ValueError("Production requires PostgreSQL")
+        if settings.storage_backend == "s3" and not (
+            settings.s3_bucket and settings.s3_access_key_id and settings.s3_secret_access_key
+        ):
+            raise ValueError("S3-compatible storage requires bucket and credentials in production")
+        if settings.kafka_enabled and not settings.kafka_bootstrap_servers:
+            raise ValueError("Kafka bootstrap servers are required when event streaming is enabled")
+        if (settings.gmail_enabled or settings.calendar_enabled) and not (settings.credential_kek or settings.credential_keyring or os.getenv("JOBSEEKER_CREDENTIAL_KEK") or os.getenv("JOBSEEKER_CREDENTIAL_KEYRING")):
+            raise ValueError("JOBSEEKER_CREDENTIAL_KEK is required when Gmail OAuth is enabled")
         if not settings.allowed_origins or any(not origin.startswith("https://") for origin in settings.allowed_origins):
             raise ValueError("Production CORS origins must be explicit HTTPS origins")
     return settings

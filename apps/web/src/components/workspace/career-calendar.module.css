@@ -1,0 +1,47 @@
+.page{max-width:1320px;margin:0 auto;display:grid;gap:20px;color:#293a2f}
+.heading{display:flex;align-items:flex-end;justify-content:space-between;gap:18px}
+.eyebrow{color:#8f9a90;font-size:8px;font-weight:800;letter-spacing:1.6px}
+.heading h1{margin:10px 0 7px;font-family:Georgia,"Times New Roman",serif;font-size:35px;font-weight:500;letter-spacing:-1px}
+.heading p{margin:0;color:#7e8a80;font-size:12px;line-height:1.6}
+.actions{display:flex;gap:13px;flex-wrap:wrap}.actions a{display:flex;align-items:center;gap:6px;color:#4e6c53;font-size:9px;font-weight:700;text-decoration:none}
+.layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,.75fr);gap:14px;align-items:start}
+.calendar,.agenda{border:1px solid #e5eae3;border-radius:9px;background:#fff;overflow:hidden}
+.calendar{padding:19px}
+.calendarHead{display:flex;align-items:center;gap:9px;margin-bottom:18px}
+.calendarHead button{width:30px;height:30px;display:grid;place-items:center;border:1px solid #e8ede6;border-radius:5px;background:#fff;color:#66796a;cursor:pointer}
+.calendarHead h2{margin:0 auto 0 4px;font-family:Georgia,"Times New Roman",serif;font-size:22px;font-weight:500;color:#34483a}
+.calendarHead .today{width:auto;padding:0 10px;font-size:9px}
+.weekdays,.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.weekdays{padding-bottom:8px;border-bottom:1px solid #edf0eb}
+.weekdays span{text-align:center;color:#99a39a;font-size:8px;font-weight:800;letter-spacing:.7px}
+.days{border-left:1px solid #f0f2ee;border-top:1px solid #f0f2ee}
+.day{height:82px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:8px;border:0;border-right:1px solid #f0f2ee;border-bottom:1px solid #f0f2ee;background:#fff;color:#526257;text-align:left;cursor:pointer}
+.day:hover{background:#f8faf7}
+.day>span{width:24px;height:24px;display:grid;place-items:center;border-radius:50%;font-size:10px}
+.day>i{display:flex;gap:3px;min-height:6px}
+.outside{background:#fafbf9;color:#c1c9c0}
+.isToday>span{background:#eaf2e9;color:#315b40;font-weight:800}
+.selected{background:#f5f8f3;box-shadow:inset 0 0 0 1px #b9cdb8}
+.interviewDot,.taskDot{display:block;width:6px;height:6px;border-radius:50%;background:#62836a}
+.taskDot{background:#c18a4a}
+.legend{display:flex;gap:15px;padding-top:13px;color:#8d988e;font-size:8px}
+.legend span{display:flex;align-items:center;gap:6px}.legend i{width:6px;height:6px;border-radius:50%}
+.agendaHead{padding:18px 17px;border-bottom:1px solid #edf0eb}
+.agendaHead>span,.upcomingHead{color:#99a399;font-size:8px;font-weight:800;letter-spacing:1.5px}
+.agendaHead h2{margin:7px 0 0;font-family:Georgia,"Times New Roman",serif;font-size:18px;font-weight:500;color:#364a3b}
+.event{display:flex;align-items:flex-start;gap:9px;padding:13px 14px;border-bottom:1px solid #f0f2ee;text-decoration:none;color:inherit}
+.event>span:nth-child(2){display:grid;gap:5px;flex:1;min-width:0}
+.event strong{font-size:10px;color:#405344}.event small{font-size:8px;color:#89958b}.event em{display:flex;align-items:center;gap:5px;color:#758478;font-size:8px;font-style:normal}
+.event>svg{margin-top:5px;color:#99a49a}
+.eventIconInterview,.eventIconTask{width:27px;height:27px;display:grid;place-items:center;border-radius:6px;background:#eef4ed;color:#58795c}
+.eventIconTask{background:#fbf3e9;color:#a87a42}
+.empty{padding:17px;color:#98a299;font-size:9px;line-height:1.5}
+.upcomingHead{padding:16px 14px 8px}
+.upcomingItem{display:flex;gap:10px;align-items:center;padding:9px 14px;border-top:1px solid #f2f4f0;text-decoration:none}
+.upcomingItem span{min-width:48px;color:#8b978d;font-size:8px}
+.upcomingItem strong{font-size:9px;color:#506253;font-weight:600}
+.loading{padding:9px 0;color:#98a198;font-size:8px}
+.error{display:flex;gap:9px;padding:11px;border:1px solid #efded8;border-radius:6px;background:#fff8f5;color:#a35e4e;font-size:10px}
+.error button{margin-left:auto;border:0;background:transparent;color:inherit;cursor:pointer}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.agenda{display:grid;grid-template-columns:1fr 1fr}.agendaHead{grid-column:1/-1}.upcomingHead{align-self:start}}
+@media(max-width:560px){.heading{align-items:flex-start;flex-direction:column}.heading h1{font-size:29px}.calendar{padding:11px}.day{height:57px;padding:5px}.day>span{font-size:9px}.calendarHead h2{font-size:18px}.agenda{display:block}}

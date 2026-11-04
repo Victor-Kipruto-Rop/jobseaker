@@ -4,8 +4,9 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 import structlog
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from apps.api.app.api.v1.router import router
 from apps.api.app.core.config import get_settings
@@ -15,9 +16,12 @@ from apps.api.app.core.security import resolve_session
 from apps.api.app.health.routes import router as health_router
 from apps.api.app.lifespan import lifespan
 from packages.database.sessions import SessionLocal
+from packages.ops.observability import configure_telemetry
+from packages.ops.metrics import HTTP_REQUESTS, HTTP_DURATION
 
 s = get_settings()
 app = FastAPI(title="JobSeeker Intelligence", version="0.3.0", lifespan=lifespan)
+configure_telemetry(app)
 app.add_middleware(CORSMiddleware, allow_origins=s.allowed_origins, allow_credentials=True,
                    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
                    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-CSRF-Token"],
@@ -88,7 +92,11 @@ async def request_context(request: Request, call_next):
         _request_logger.exception("http.request.failed", request_id=request_id,
                                   method=request.method, path=request.url.path)
         raise
-    duration_ms = round((time.perf_counter() - started) * 1000, 2)
+    duration_seconds = time.perf_counter() - started
+    duration_ms = round(duration_seconds * 1000, 2)
+    route = getattr(request.scope.get("route"), "path", "unmatched")
+    HTTP_REQUESTS.labels(request.method, route, str(response.status_code)).inc()
+    HTTP_DURATION.labels(request.method, route).observe(duration_seconds)
     response.headers["X-Request-ID"] = request_id
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
@@ -101,3 +109,8 @@ async def request_context(request: Request, call_next):
                          method=request.method, path=request.url.path,
                          status_code=response.status_code, duration_ms=duration_ms)
     return response
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)

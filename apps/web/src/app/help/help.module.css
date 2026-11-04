@@ -1,0 +1,15 @@
+.page{max-width:1050px;margin:0 auto;display:grid;gap:18px;color:#293a2f}
+.page>header>span{color:#8f9a90;font-size:8px;font-weight:800;letter-spacing:1.7px}
+.page>header h1{margin:10px 0 7px;font-family:Georgia,"Times New Roman",serif;font-size:35px;font-weight:500;letter-spacing:-1px}
+.page>header p{max-width:680px;margin:0;color:#7e8a80;font-size:12px;line-height:1.65}
+.intro,.boundaries{display:flex;align-items:flex-start;gap:12px;padding:16px;border:1px solid #e2eae0;border-radius:8px;background:#f8faf7;color:#56735a}
+.intro strong,.boundaries strong{font-size:11px;color:#405b44}
+.intro p,.boundaries p{margin:6px 0 0;color:#7e8b80;font-size:10px;line-height:1.65}
+.guides{display:grid;gap:10px}
+.guides article{display:flex;gap:13px;padding:17px;border:1px solid #e6ebe4;border-radius:8px;background:#fff}
+.icon{width:33px;height:33px;display:grid;place-items:center;border:1px solid #e5ece3;border-radius:7px;background:#f7faf6;color:#5e7b61;flex:0 0 auto}
+.guides h2{margin:0;color:#35483a;font-size:12px}
+.guides p{margin:6px 0 9px;color:#7e8a80;font-size:10px;line-height:1.65}
+.guides a{display:inline-flex;align-items:center;gap:5px;color:#416747;font-size:9px;font-weight:700;text-decoration:none}
+.boundaries{background:#fff;border-color:#e6ebe4}
+@media(max-width:600px){.page>header h1{font-size:29px}.guides article{padding:13px}}

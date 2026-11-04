@@ -40,13 +40,30 @@ class ResumeDocument(Base):
 
 class Company(Base):
     __tablename__ = "companies"
+    __table_args__ = (Index(
+        "uq_company_user_source_board", "user_id", "source_provider", "source_board", unique=True,
+        sqlite_where=text("source_provider <> ''"),
+        postgresql_where=text("source_provider <> ''"),
+    ),)
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(250), index=True)
     website: Mapped[str] = mapped_column(String(1000), default="")
+    domain: Mapped[str] = mapped_column(String(253), default="")
     careers_url: Mapped[str] = mapped_column(String(1000), default="")
     description: Mapped[str] = mapped_column(Text, default="")
+    industry: Mapped[str] = mapped_column(String(160), default="")
+    headquarters: Mapped[str] = mapped_column(String(250), default="")
+    logo_url: Mapped[str] = mapped_column(String(2000), default="")
+    favicon_url: Mapped[str] = mapped_column(String(2000), default="")
+    brand_color: Mapped[str] = mapped_column(String(7), default="")
+    source_provider: Mapped[str] = mapped_column(String(40), default="")
+    source_board: Mapped[str] = mapped_column(String(100), default="")
+    source_url: Mapped[str] = mapped_column(String(1000), default="")
+    social_links: Mapped[dict] = mapped_column(JSON, default=dict)
     evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 class Recruiter(Base):
     __tablename__ = "recruiters"
@@ -68,6 +85,8 @@ class Application(Base):
     status: Mapped[str] = mapped_column(String(40), default="draft", index=True)
     job_url: Mapped[str] = mapped_column(String(2000), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
+    job_description_snapshot: Mapped[str] = mapped_column(Text, default="")
+    company_profile_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -137,6 +156,8 @@ class Interview(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), nullable=True)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    calendar_event_id: Mapped[str] = mapped_column(String(255), default="")
     interview_type: Mapped[str] = mapped_column(String(60), default="unspecified")
     notes: Mapped[str] = mapped_column(Text, default="")
     feedback: Mapped[str] = mapped_column(Text, default="")
@@ -167,6 +188,14 @@ class CandidateOpportunity(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(250), index=True)
     company: Mapped[str] = mapped_column(String(250), default="")
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True)
+    company_website: Mapped[str] = mapped_column(String(1000), default="")
+    company_domain: Mapped[str] = mapped_column(String(253), default="")
+    company_logo_url: Mapped[str] = mapped_column(String(2000), default="")
+    company_favicon_url: Mapped[str] = mapped_column(String(2000), default="")
+    company_description: Mapped[str] = mapped_column(Text, default="")
+    company_brand_color: Mapped[str] = mapped_column(String(7), default="")
+    company_brand_source: Mapped[str] = mapped_column(String(1000), default="")
     description: Mapped[str] = mapped_column(Text, default="")
     source_name: Mapped[str] = mapped_column(String(100), default="manual")
     source_url: Mapped[str] = mapped_column(String(2000), default="")
@@ -176,9 +205,14 @@ class CandidateOpportunity(Base):
     salary_min: Mapped[float | None] = mapped_column(Float, nullable=True)
     salary_max: Mapped[float | None] = mapped_column(Float, nullable=True)
     required_skills: Mapped[list] = mapped_column(JSON, default=list)
+    semantic_embedding: Mapped[list] = mapped_column(JSON, default=list)
+    embedding_model: Mapped[str] = mapped_column(String(120), default="")
+    embedding_text_hash: Mapped[str] = mapped_column(String(64), default="")
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     application_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(40), default="discovered", index=True)
+    availability_status: Mapped[str] = mapped_column(String(24), default="active", index=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 class OAuthState(Base):
@@ -216,6 +250,12 @@ class EmailMessage(Base):
     classification: Mapped[str] = mapped_column(String(80), default="unclassified")
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     action_required: Mapped[bool] = mapped_column(default=False)
+    application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), nullable=True, index=True)
+    intent: Mapped[str] = mapped_column(String(80), default="unclassified")
+    suggested_status: Mapped[str] = mapped_column(String(40), default="")
+    intent_confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    interview_proposed_text: Mapped[str] = mapped_column(String(500), default="")
+    classification_evidence: Mapped[dict] = mapped_column(JSON, default=dict)
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -242,3 +282,153 @@ class GeneratedArtifact(Base):
     provider: Mapped[str] = mapped_column(String(40), default="")
     model: Mapped[str] = mapped_column(String(120), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CareerWorkspaceItem(Base):
+    """User-owned tasks, notes, learning milestones, projects and contacts."""
+    __tablename__ = "career_workspace_items"
+    __table_args__ = (
+        Index("ix_career_workspace_user_type_status", "user_id", "item_type", "status"),
+        Index("ix_career_workspace_user_due", "user_id", "due_at"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    item_type: Mapped[str] = mapped_column(String(30), index=True)
+    title: Mapped[str] = mapped_column(String(250))
+    description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(30), default="open")
+    priority: Mapped[str] = mapped_column(String(20), default="normal")
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    metadata_json: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class RecommendationInteraction(Base):
+    """User-owned behavioral events used for recommendations and bandit feedback."""
+    __tablename__ = "recommendation_interactions"
+    __table_args__ = (
+        Index("ix_recommendation_interactions_user_created", "user_id", "created_at"),
+        Index("ix_recommendation_interactions_item_event", "item_key", "event_type"),
+        Index("ix_recommendation_interactions_source_event", "recommendation_source", "event_type"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    opportunity_id: Mapped[int | None] = mapped_column(
+        ForeignKey("candidate_opportunities.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    item_key: Mapped[str] = mapped_column(String(2200), index=True)
+    event_type: Mapped[str] = mapped_column(String(32), index=True)
+    recommendation_source: Mapped[str] = mapped_column(String(40), default="")
+    position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dwell_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    scroll_depth: Mapped[float | None] = mapped_column(Float, nullable=True)
+    feature_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class EventOutbox(Base):
+    """Durable producer-side event record; published only after the domain transaction commits."""
+    __tablename__ = "event_outbox"
+    __table_args__ = (
+        Index("ix_event_outbox_status_available", "status", "available_at"),
+        Index("ix_event_outbox_topic_created", "topic", "created_at"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(36), unique=True, index=True)
+    topic: Mapped[str] = mapped_column(String(120), index=True)
+    partition_key: Mapped[str] = mapped_column(String(255), default="")
+    envelope: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class EventInbox(Base):
+    """Consumer idempotency receipt, unique per consumer and event."""
+    __tablename__ = "event_inbox"
+    __table_args__ = (
+        UniqueConstraint("consumer_name", "event_id", name="uq_event_inbox_consumer_event"),
+        Index("ix_event_inbox_processed_at", "processed_at"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    consumer_name: Mapped[str] = mapped_column(String(120))
+    event_id: Mapped[str] = mapped_column(String(36))
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    result: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class ApplicationDispatchKey(Base):
+    """Database-enforced one-dispatch-per-application and request idempotency."""
+    __tablename__ = "application_dispatch_keys"
+    __table_args__ = (
+        UniqueConstraint("user_id", "idempotency_key", name="uq_application_dispatch_user_key"),
+        UniqueConstraint("user_id", "application_id", name="uq_application_dispatch_user_app"),
+        UniqueConstraint("user_id", "job_key", name="uq_application_dispatch_user_job"),
+        Index("ix_application_dispatch_status", "status", "created_at"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    application_id: Mapped[int] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"))
+    job_key: Mapped[str] = mapped_column(String(64))
+    idempotency_key: Mapped[str] = mapped_column(String(128))
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(20), default="reserved")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RecommendationModel(Base):
+    """Immutable model registry record; candidate artifacts are not active by default."""
+    __tablename__ = "recommendation_models"
+    __table_args__ = (
+        UniqueConstraint("model_name", "model_version", name="uq_recommendation_model_version"),
+        Index("ix_recommendation_models_status_trained", "status", "trained_at"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    model_name: Mapped[str] = mapped_column(String(120))
+    model_version: Mapped[str] = mapped_column(String(80))
+    algorithm: Mapped[str] = mapped_column(String(80))
+    artifact_key: Mapped[str] = mapped_column(String(500))
+    artifact_sha256: Mapped[str] = mapped_column(String(64))
+    feature_schema_version: Mapped[int] = mapped_column(Integer, default=1)
+    training_rows: Mapped[int] = mapped_column(Integer, default=0)
+    metrics: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="candidate")
+    trained_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class CandidatePreferenceState(Base):
+    """Compact, explainable preference vector updated from candidate activity events."""
+    __tablename__ = "candidate_preference_states"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    preference_vector: Mapped[dict] = mapped_column(JSON, default=dict)
+    interaction_count: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class CalendarAccount(Base):
+    __tablename__ = "calendar_accounts"
+    __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_user_calendar_provider"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(40), default="google")
+    email: Mapped[str] = mapped_column(String(320), default="")
+    encrypted_credentials: Mapped[str] = mapped_column(Text)
+    scopes: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CalendarOAuthState(Base):
+    __tablename__ = "calendar_oauth_states"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    state_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
