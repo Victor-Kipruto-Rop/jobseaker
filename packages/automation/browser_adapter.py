@@ -5,6 +5,7 @@ an externally persisted approval plus an idempotency store for every action.
 """
 from __future__ import annotations
 import hashlib
+import hmac
 import json
 from typing import Protocol
 
@@ -21,13 +22,15 @@ def action_digest(application_id: int, draft_hash: str, field_id: str,
 
 async def execute_approved_fill(page, *, application_id: int, draft_hash: str,
                                 field_id: str, label: str, value: str,
-                                approved_digest: str, action_store: ActionStore) -> dict:
+                                approved_digest: str, approved_origin: str,
+                                action_store: ActionStore) -> dict:
     """Fill one exact label only after matching the candidate-approved digest."""
     if not label.strip() or len(label) > 200 or not field_id.strip() or len(field_id) > 200:
         raise ValueError("A bounded, exact field label and identifier are required")
     expected = action_digest(application_id, draft_hash, field_id, label, value)
-    if not approved_digest or not hashlib.compare_digest(expected, approved_digest):
+    if not approved_digest or not hmac.compare_digest(expected, approved_digest):
         raise PermissionError("Candidate approval does not match this exact field action")
+    assert_safe_target(str(page.url), approved_origin)
     action_id = hashlib.sha256(f"{application_id}:{draft_hash}:{field_id}".encode()).hexdigest()
     if not action_store.claim(action_id, expected):
         return {"status": "already_claimed_or_completed", "action_id": action_id}
