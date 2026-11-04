@@ -5,7 +5,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 from packages.database.models.career import EventOutbox
 from uuid import uuid4
@@ -48,10 +48,14 @@ async def relay_outbox_batch(
     database update can cause a duplicate. Consumers must use EventInbox.
     """
     now = datetime.now(timezone.utc)
+    stale_lock = now - timedelta(minutes=5)
+    eligible = or_(
+        and_(EventOutbox.status.in_(("pending", "retry")), EventOutbox.available_at <= now),
+        and_(EventOutbox.status == "processing", EventOutbox.locked_at < stale_lock),
+    )
     with session_factory() as db:
         query = (select(EventOutbox)
-                 .where(EventOutbox.status.in_(("pending", "retry")),
-                        EventOutbox.available_at <= now)
+                 .where(eligible)
                  .order_by(EventOutbox.created_at)
                  .limit(max(1, min(batch_size, 500)))
                  .with_for_update(skip_locked=True))
