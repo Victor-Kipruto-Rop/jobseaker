@@ -11,7 +11,8 @@ from apps.api.app.core.config import get_settings
 from packages.database.models.identity import User
 from packages.database.models.career import AIConversation, AIMessage, Application, Interview, CandidateProfile, CandidateSkill, ResumeDocument, CandidateOpportunity
 from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference, AssistantFeedback
-from packages.assistant.engine import sanitize, remember, retrieve, build_context, plan_tools, adapt_preferences, embedding\nfrom packages.assistant.ingestion import parse_document, MAX_BYTES
+from packages.assistant.engine import sanitize, remember, retrieve, build_context, plan_tools, adapt_preferences, embedding
+from packages.assistant.ingestion import parse_document, MAX_BYTES
 from packages.ai.providers.base import GenerationRequest
 from packages.ai.providers.router import generate_with_fallback
 from packages.ai.budget import AIQuotaExceeded, reserve_ai_tokens, finish_ai_reservation, record_ai_usage
