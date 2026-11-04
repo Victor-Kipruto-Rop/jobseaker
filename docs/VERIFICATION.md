@@ -189,3 +189,62 @@ The two worker regressions from the preceding run were resolved. The session fac
 The nine pytest warnings include Starlette/httpx deprecation notices and per-request cookie deprecation notices. They did not fail the test run.
 
 These are repository-owner-reported local results, not GitHub Actions results. Docker builds, Compose startup, Alembic migration/drift checks, dependency audits, coverage percentage, and GitHub Actions execution remain outstanding. No claim is made that Phase 2 is fully verified.
+
+
+## Phase 3: complete light-mode career workspace
+
+**Branch:** phase-3-frontend-experience  
+**Pull request:** #8  
+**Latest implementation commit:** 378b6401cc39ef2a94ca62bc99694f434260f1e7
+
+### Implemented
+
+- Replaced the dark visual system with a light-only warm off-white, white, forest-green and restrained brass palette.
+- Rebuilt the sidebar around five primary destinations: Overview, Opportunities, Applications, Career profile and Settings.
+- Rebuilt the overview with authenticated account metrics, application stage distribution, contextual attention items, recent applications, profile completeness and saved skill matches.
+- Consolidated Greenhouse/Lever discovery, saved searches, saved opportunities and application draft creation.
+- Consolidated application lifecycle management, notes, approval requests and user decisions.
+- Consolidated profile editing, skill evidence, CV uploads, keyword coverage, AI career draft generation and draft editing.
+- Connected account verification, AI token budget and Gmail read-only controls.
+- Added a notification dropdown and pending approval count to the shared workspace shell.
+- Consolidated legacy routes into the five primary destinations with redirects.
+- Reworked public, sign-in, registration, password recovery, password reset and email verification screens to use the light design system.
+- Updated docs/FRONTEND_DESIGN.md with the route map, backend routes, safety constraints and environment-dependent behavior.
+
+### Source inspection
+
+| Check | Method | Result |
+|---|---|---|
+| Main navigation | GitHub file inspection | Five primary destinations |
+| Theme tokens | GitHub file inspection | Light color scheme only in global tokens |
+| Dashboard API calls | Source inspection | Auth, applications, opportunities, analytics and profile endpoints |
+| Opportunity workflows | Source inspection | Discovery, saved searches, opportunity library and application creation endpoints |
+| Application workflows | Source inspection | Application CRUD, approval list and decision endpoints |
+| Career profile workflows | Source inspection | Profile, skills, resumes, keyword analysis and career-tools endpoints |
+| Settings workflows | Source inspection | AI budget, verification and Gmail read-only endpoints |
+| Notifications | Source inspection | Account-scoped list and mark-read endpoints |
+| Legacy routes | Source inspection | Redirect to consolidated workspace destinations |
+
+Source inspection confirms the frontend calls the existing backend routes. It does not prove that the running backend, provider configuration, Gmail OAuth, AI provider, database, or local storage are correctly configured.
+
+### GitHub Actions attempts
+
+- [CI run 41796942636](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41796942636): Python, web and Docker jobs all failed with empty step lists.
+- [Secret scan run 41796942693](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41796942693): failed with an empty step list.
+
+The failed CI jobs were re-run. GitHub again returned zero recorded steps for Python, Web, Docker and Gitleaks. No command executed in those jobs, so these results are not evidence of code test failures or passes.
+
+### Required local verification
+
+The earlier owner-reported Next.js lint/build results apply to the previous frontend state, not this Phase 3 branch. They must be repeated against this branch.
+
+Run from the repository root after checking out phase-3-frontend-experience:
+
+```powershell
+pnpm --filter web lint
+pnpm --filter web build
+```
+
+Then run the backend suite and the authenticated local Compose smoke test. Review all five destinations at desktop and mobile widths, including notification actions, application approval decisions, opportunity discovery, CV upload/analysis, AI draft editing, Gmail authorization and AI budget changes. Do not enable outbound email or automatic application submission.
+
+**Phase status:** implementation committed; runtime, browser, responsive, accessibility and authenticated integration verification remain outstanding. Do not merge or deploy until actual command outputs and browser evidence have been recorded.
