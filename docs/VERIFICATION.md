@@ -258,3 +258,29 @@ Then run the backend suite and the authenticated local Compose smoke test. Revie
 - [Secret scan run 41797581485](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41797581485): Gitleaks job failed with zero recorded steps.
 
 The jobs were created and queued, then failed before recording a step. This is still no evidence of a source-code failure or a successful check. Local verification on the current branch is required.
+
+
+### Phase 3 dashboard refinement follow-up — 2026-11-04
+
+**Latest branch head:** `98003a6bd917007b32dfff7c3565fe196585d7f1`
+
+- Refined the light-mode sidebar into three clearly labeled groups and five primary destinations: Overview, Opportunities, Applications, Career profile and Settings.
+- Consolidated the standalone Career Studio route into Career Profile, where CV management, role alignment and editable AI career drafts already exist.
+- Improved dashboard typography, spacing, responsive shell proportions and sidebar account/security treatment. No dark theme or gradient-based visual treatment was introduced.
+- Tightened dashboard data integrity: account, applications, opportunities, analytics and profile requests must all succeed and return expected shapes. Failed resources now surface an error rather than silently appearing as empty records or substituted demo data.
+- Updated the Phase 3 pull request description to reflect these refinements and their verification status.
+
+| Check | Method | Result |
+|---|---|---|
+| Five-destination navigation | Current branch source inspection | Confirmed |
+| Career Studio consolidation | Current branch source inspection | Redirects to `/profile` |
+| Dashboard API response handling | Current branch source inspection | All five resources checked; no fallback demo data |
+| Light-mode shell and dashboard styling | Current branch CSS inspection | Light surfaces and forest-green accents |
+| GitHub Actions CI run 41799048803 | Workflow run/job metadata | Python, Web and Docker jobs failed before recording any steps |
+| GitHub Actions secret scan 41799048523 | Workflow run/job metadata | Failed before recording any steps |
+| Step-level logs | GitHub Actions job-step API | Zero steps returned for all four jobs |
+| Local Next.js lint/build | Local execution required | Not run in this environment |
+| Authenticated API smoke test | Running local stack required | Not run in this environment |
+| Browser responsive/accessibility review | Browser execution required | Not run in this environment |
+
+The GitHub Actions failures above are runner/workflow execution failures with no recorded step output. They do not establish that source checks passed or failed. The latest branch still requires local lint/build, authenticated integration testing and browser verification before merge.
