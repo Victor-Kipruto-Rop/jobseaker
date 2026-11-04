@@ -138,9 +138,12 @@ def assistant_feedback(body: FeedbackInput,user:User=Depends(get_current_user),d
     row=AssistantFeedback(user_id=user.id,conversation_id=body.conversation_id,message_id=body.message_id,rating=body.rating,correction=sanitize(body.correction))
     db.add(row)
     pref=db.scalar(select(AssistantPreference).where(AssistantPreference.user_id==user.id))
-    if pref is None: pref=AssistantPreference(user_id=user.id); db.add(pref)
+    if pref is None:
+        pref=AssistantPreference(user_id=user.id, feedback_count=1)
+        db.add(pref)
+    else:
+        pref.feedback_count = int(pref.feedback_count or 0) + 1
     pref.preferences=adapt_preferences(pref.preferences or {},body.rating,body.correction)
-    pref.feedback_count += 1
     db.commit()
     return {"recorded":True,"feedback_count":pref.feedback_count}
 
