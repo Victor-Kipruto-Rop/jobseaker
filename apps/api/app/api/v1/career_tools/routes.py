@@ -27,6 +27,7 @@ def _format_skill_evidence(skills):
 class CVTailorRequest(BaseModel):
     resume_id: int
     job_description: str = Field(min_length=30, max_length=30000)
+    opportunity_id: int | None = None
     provider: str | None = Field(default=None, max_length=40)
 
 class CoverLetterRequest(CVTailorRequest):
@@ -96,6 +97,14 @@ async def tailor_cv(body: CVTailorRequest, user: User = Depends(get_current_user
         ResumeDocument.id == body.resume_id, ResumeDocument.user_id == user.id))
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
+    opportunity = None
+    if body.opportunity_id is not None:
+        opportunity = db.scalar(select(CandidateOpportunity).where(
+            CandidateOpportunity.id == body.opportunity_id,
+            CandidateOpportunity.user_id == user.id,
+        ))
+        if not opportunity:
+            raise HTTPException(status_code=404, detail="Opportunity not found")
     prompt = (
         "TARGET JOB DESCRIPTION:\n" + body.job_description +
         "\n\nSOURCE CV TEXT:\n" + resume.extracted_text[:20000] +
