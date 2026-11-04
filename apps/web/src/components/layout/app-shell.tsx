@@ -154,7 +154,18 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
     return () => window.removeEventListener("keydown", handle);
   }, []);
 
-  useEffect(() => {\n    if (searchQuery.trim().length < 2) { searchSequence.current += 1; setSearchRecords([]); setSearchError(""); setSearchBusy(false); return; }\n    searchSequence.current += 1;\n    const timer = window.setTimeout(() => void searchWorkspace(searchQuery), 220);\n    return () => window.clearTimeout(timer);\n  }, [searchQuery, searchWorkspace]);
+  useEffect(() => {
+    if (searchQuery.trim().length < 2) {
+      searchSequence.current += 1;
+      setSearchRecords([]);
+      setSearchError("");
+      setSearchBusy(false);
+      return;
+    }
+    searchSequence.current += 1;
+    const timer = window.setTimeout(() => void searchWorkspace(searchQuery), 220);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery, searchWorkspace]);
   useEffect(() => { if (paletteOpen) setPaletteQuery(""); }, [paletteOpen]);
 
   const unread = useMemo(() => notices.filter(item => !item.read_at).length, [notices]);
