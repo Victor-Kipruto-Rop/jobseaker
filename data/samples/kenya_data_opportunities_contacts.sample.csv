@@ -1,0 +1,3 @@
+organization,sector,county,contact_email,website,source_url,record_status
+Example Data Cooperative,Technology,Nairobi,hello@example.invalid,https://example.invalid,https://example.invalid/opportunities,synthetic
+Sample Research Group,Research,Kajiado,contact@example.invalid,https://example.invalid,https://example.invalid/careers,synthetic

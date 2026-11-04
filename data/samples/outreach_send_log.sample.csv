@@ -1,0 +1,3 @@
+gmail_message_id,gmail_thread_id,organization,recipient,status
+synthetic-message-001,synthetic-thread-001,Example Analytics Cooperative,careers@example.invalid,not_sent
+synthetic-message-002,synthetic-thread-002,Sample Fintech Works,talent@example.invalid,draft_only
