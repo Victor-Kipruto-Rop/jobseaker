@@ -110,3 +110,31 @@ def test_company_profile_does_not_invent_missing_brand_assets(monkeypatch):
     assert result["company_favicon_url"] == ""
     assert result["company_website"] == ""
     assert result["company_brand_source"] == ""
+
+
+def test_job_parser_extracts_known_skills_without_matching_partial_words():
+    from packages.integrations.job_boards.connectors import extract_required_skills
+
+    skills = extract_required_skills(
+        "Build Python and Kafka data pipelines with PostgreSQL, dbt and Docker. "
+        "The role is not about py or sql injection."
+    )
+    assert skills == ["Python", "PostgreSQL", "Kafka", "dbt", "Docker"]
+
+
+def test_remote_type_uses_published_workplace_signal_and_does_not_guess():
+    from packages.integrations.job_boards.connectors import infer_remote_type
+
+    assert infer_remote_type("Nairobi, Kenya", "Work from anywhere") == "remote"
+    assert infer_remote_type("Nairobi", "", "Hybrid") == "hybrid"
+    assert infer_remote_type("London, UK", "", "On-site") == "onsite"
+    assert infer_remote_type("Nairobi, Kenya", "Join our engineering team") == "unspecified"
+
+
+def test_job_posting_timestamp_parser_accepts_epoch_and_iso_values():
+    from packages.integrations.job_boards.connectors import _epoch_datetime
+
+    epoch = _epoch_datetime(1_700_000_000_000)
+    iso = _epoch_datetime("2024-01-02T03:04:05Z")
+    assert epoch is not None and epoch.year == 2023
+    assert iso is not None and iso.isoformat() == "2024-01-02T03:04:05+00:00"
