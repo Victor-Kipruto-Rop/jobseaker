@@ -11,6 +11,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference, AssistantEntity, AssistantRelation
+from packages.assistant.entity_resolution import index_entities
+from packages.security.credential_vault import encrypt_credential, decrypt_credential
 
 TOKEN_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9+#.]{1,40}")
 PII_PATTERNS = [
@@ -59,13 +61,13 @@ def _cross_encoder():
     except Exception:
         return None
 
-def embedding(text: str, dimensions: int = 96) -> list[float]:
+def embedding(text: str, dimensions: int = 384) -> list[float]:
     """Configured transformer embeddings with deterministic offline fallback."""
     model = _sentence_model()
     if model is not None:
         try:
             values = model.encode([text], normalize_embeddings=True)[0].tolist()
-            return [round(float(x), 6) for x in values]
+            return [round(float(x), 6) for x in (list(values[:dimensions]) + [0.0] * max(0, dimensions - len(values)))]
         except Exception:
             pass
     vector = [0.0] * dimensions
@@ -174,11 +176,14 @@ def remember(db: Session, user_id: int, content: str, conversation_id: int | Non
     first_id = None
     for chunk in chunks[:80]:
         row = AssistantMemory(user_id=user_id, conversation_id=conversation_id,
-            memory_kind="episodic", content=chunk, summary=extractive_summary(chunk),
-            embedding=embedding(chunk), keywords=list(dict.fromkeys(tokens(chunk)))[:40],
+            memory_kind="episodic",
+            content=encrypt_credential(chunk, purpose=f"assistant-memory:{user_id}"),
+            summary=encrypt_credential(extractive_summary(chunk), purpose=f"assistant-memory:{user_id}"),
+            content_encrypted=True, embedding=embedding(chunk), embedding_vector=embedding(chunk), keywords=list(dict.fromkeys(tokens(chunk)))[:40],
             importance=0.25 if source == "assistant_response" else 0.55, source=source)
         db.add(row); db.flush()
         first_id = first_id or row.id
+        index_entities(db, user_id, chunk, row.id)
         for key, value, confidence in (extract_facts(chunk) if source in {"conversation", "document"} else []):
             fact = db.scalar(select(AssistantFact).where(
                 AssistantFact.user_id == user_id, AssistantFact.fact_key == key))
