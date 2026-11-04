@@ -148,9 +148,9 @@ async def cover_letter(body: CoverLetterRequest, user: User = Depends(get_curren
         "with [CANDIDATE INPUT REQUIRED].\nCompany: " + company_name +
         "\nPublished company description: " + (company_description or "[PUBLIC COMPANY DESCRIPTION UNAVAILABLE]") +
         "\nRole: " + (body.role_title or (opportunity.title if opportunity else "")) +
-        "\nJob description:\\n" + body.job_description +
-        "\nCandidate project history:\\n" + project_evidence +
-        "\nSource CV:\\n" + resume.extracted_text[:16000]
+        "\nJob description:\n" + body.job_description +
+        "\nCandidate project history:\n" + project_evidence +
+        "\nSource CV:\n" + resume.extracted_text[:16000]
     )
     system = "You are a precise professional writing assistant. Do not invent candidate or company facts."
     return await _generate(user, db, "cover_letter", "Cover letter: " + (body.role_title or "Target role"),
