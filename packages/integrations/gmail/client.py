@@ -153,7 +153,7 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
     raw = _decrypt(account.encrypted_credentials)
     if not account.encrypted_credentials.startswith(("v1:", "v2:")):
         account.encrypted_credentials = _encrypt(raw)
-    elif account.encrypted_credentials.startswith("v2:") and credential_needs_rotation(
+    elif credential_needs_rotation(
         account.encrypted_credentials,
     ):
         account.encrypted_credentials = rewrap_credential(
