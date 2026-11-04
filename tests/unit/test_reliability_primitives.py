@@ -15,7 +15,7 @@ from packages.events.handlers import handle_user_activity, handle_email_classifi
 from packages.automation.idempotency import DispatchConflict, reserve_application_dispatch
 from packages.recommendations.skill_graph import expand_skills, skill_match_score
 from packages.ops.circuit_breaker import CircuitBreaker, CircuitOpen, CircuitState
-from packages.security.credential_vault import encrypt_credential, decrypt_credential
+from packages.security.credential_vault import (\n    encrypt_credential, decrypt_credential, rewrap_credential, credential_key_id,\n)
 
 
 @pytest.fixture
@@ -240,3 +240,28 @@ def test_email_consumer_creates_review_notification(db, owner):
     notices = db.scalars(select(Notification).where(Notification.user_id == owner.id)).all()
     assert len(notices) == 1
     assert "needs review" in notices[0].title.lower()
+
+
+def test_credential_key_rotation_rewraps_without_changing_plaintext(monkeypatch):
+    old_key = base64.urlsafe_b64encode(b"o" * 32).decode()
+    new_key = base64.urlsafe_b64encode(b"n" * 32).decode()
+    monkeypatch.setenv("JOBSEEKER_CREDENTIAL_KEYRING", __import__("json").dumps({
+        "key-2026-10": old_key, "key-2026-11": new_key,
+    }))
+    monkeypatch.setenv("JOBSEEKER_CREDENTIAL_ACTIVE_KEY_ID", "key-2026-10")
+    monkeypatch.delenv("JOBSEEKER_CREDENTIAL_KEK", raising=False)
+    original = encrypt_credential("refresh-token-value", purpose="gmail")
+    assert credential_key_id(original) == "key-2026-10"
+    monkeypatch.setenv("JOBSEEKER_CREDENTIAL_ACTIVE_KEY_ID", "key-2026-11")
+    rotated = rewrap_credential(original, purpose="gmail")
+    assert credential_key_id(rotated) == "key-2026-11"
+    assert decrypt_credential(rotated, purpose="gmail") == "refresh-token-value"
+    assert decrypt_credential(original, purpose="gmail") == "refresh-token-value"
+
+
+def test_credential_keyring_rejects_unknown_key_id(monkeypatch):
+    key = base64.urlsafe_b64encode(b"z" * 32).decode()
+    monkeypatch.setenv("JOBSEEKER_CREDENTIAL_KEYRING", __import__("json").dumps({"known": key}))
+    monkeypatch.setenv("JOBSEEKER_CREDENTIAL_ACTIVE_KEY_ID", "missing")
+    with pytest.raises(RuntimeError):
+        encrypt_credential("secret", purpose="gmail")
