@@ -6,6 +6,7 @@ from redis import Redis
 from rq import Queue, Retry
 from packages.database.sessions import SessionLocal
 from packages.database.models.assistant_jobs import AssistantIngestionJob
+from packages.database.models.assistant import AssistantEntity, AssistantFact, AssistantRelation, AssistantMemory
 from packages.database.models.assistant import AssistantPreference
 from packages.assistant.engine import sanitize, remember
 from packages.assistant.ingestion import parse_document
@@ -78,6 +79,34 @@ def dispatch_pending_ingestion_jobs(redis_url: str, batch_size: int = 20) -> int
                 db.close()
     return published
 
+def purge_expired_assistant_memory(batch_size: int = 1000) -> int:
+    """Delete expired episodic records and their derived facts/graph nodes."""
+    now = datetime.now(timezone.utc)
+    db = SessionLocal()
+    try:
+        rows = db.scalars(select(AssistantMemory).where(
+            AssistantMemory.expires_at.is_not(None), AssistantMemory.expires_at <= now
+        ).order_by(AssistantMemory.expires_at.asc()).limit(batch_size).with_for_update(skip_locked=True)).all()
+        memory_ids = [row.id for row in rows]
+        if not memory_ids:
+            return 0
+        db.query(AssistantFact).filter(AssistantFact.source_memory_id.in_(memory_ids)).delete(synchronize_session=False)
+        entities = db.scalars(select(AssistantEntity).where(AssistantEntity.source_memory_id.in_(memory_ids))).all()
+        entity_ids = [entity.id for entity in entities]
+        if entity_ids:
+            db.query(AssistantRelation).filter(or_(
+                AssistantRelation.source_entity_id.in_(entity_ids),
+                AssistantRelation.target_entity_id.in_(entity_ids)
+            )).delete(synchronize_session=False)
+            db.query(AssistantEntity).filter(AssistantEntity.id.in_(entity_ids)).delete(synchronize_session=False)
+        db.query(AssistantMemory).filter(AssistantMemory.id.in_(memory_ids)).delete(synchronize_session=False)
+        db.commit()
+        return len(memory_ids)
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 def process_ingestion_job(job_id: str) -> dict:
     db = SessionLocal()
     try:
