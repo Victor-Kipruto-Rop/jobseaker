@@ -75,7 +75,10 @@ def process_ingestion_job(job_id: str) -> dict:
         now = datetime.now(timezone.utc)
         if job.status in {"completed", "cancelled"}:
             return {"status": job.status}
-        if job.status == "processing" and job.updated_at and job.updated_at > now - timedelta(minutes=20):
+        updated_at = job.updated_at
+        if updated_at and updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=timezone.utc)
+        if job.status == "processing" and updated_at and updated_at > now - timedelta(minutes=20):
             return {"status": "already_processing"}
         if not job.payload_ciphertext:
             job.status = "cancelled"
@@ -121,11 +124,14 @@ def process_ingestion_job(job_id: str) -> dict:
         job = db.scalar(select(AssistantIngestionJob).where(
             AssistantIngestionJob.job_id == job_id).with_for_update())
         if job:
-            job.status = "failed"
-            job.last_error = type(exc).__name__
-            job.updated_at = datetime.now(timezone.utc)
-            if job.attempts >= 3:
+            if job.status == "cancelled":
                 job.payload_ciphertext = ""
+            else:
+                job.status = "failed"
+                job.last_error = type(exc).__name__
+                job.updated_at = datetime.now(timezone.utc)
+                if job.attempts >= 3:
+                    job.payload_ciphertext = ""
             db.commit()
         raise
     finally:
