@@ -110,7 +110,7 @@ async def discover_company_profile(source: str, board: str) -> dict:
             if candidate_title.casefold() not in {"careers", "jobs", "job openings", "open positions"}:
                 title = candidate_title
         if title:
-            cleaned = re.split(r"\s+[|–—-]\\s+", title.strip())[0].strip()
+            cleaned = re.split(r"\s+[|–—-]\s+", title.strip())[0].strip()
             if 1 < len(cleaned) <= 250:
                 profile["company"] = cleaned
 
