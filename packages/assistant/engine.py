@@ -224,12 +224,27 @@ def build_context(db: Session, user_id: int, query: str, history: list[dict],
         AssistantFact.user_id == user_id, AssistantFact.active.is_(True)).limit(40)).all()
     memories = retrieve(db, user_id, query, limit=8)
     prefs = preference_snapshot(db, user_id)
+    graph_rows = db.scalars(select(AssistantRelation).where(
+        AssistantRelation.user_id == user_id).order_by(AssistantRelation.updated_at.desc()).limit(80)).all()
+    graph = []
+    for edge in graph_rows:
+        source = db.get(AssistantEntity, edge.source_entity_id)
+        target = db.get(AssistantEntity, edge.target_entity_id)
+        if source and target:
+            graph.append(f"{source.name} --{edge.relation_type}--> {target.name}")
     sections = ["USER FACTS (unverified unless explicitly marked):"]
     sections.extend(f"- {f.fact_key}: {f.fact_value} (confidence {f.confidence:.2f}; verified={f.verified_by_user})" for f in facts)
     sections.append("RELEVANT EPISODIC MEMORY:")
     sections.extend(f"- {m['content']}" for m in memories)
+    sections.append("SEMANTIC KNOWLEDGE GRAPH:")
+    sections.extend("- " + edge for edge in graph[:40])
     sections.append("PREFERENCES:")
     sections.append(str(prefs)[:2000])
+    style = str(prefs.get("response_style", "")).lower()
+    depth = str(prefs.get("technical_depth", "")).lower()
+    if style or depth:
+        sections.append("ADAPTIVE RESPONSE GUIDANCE: " + "; ".join(
+            x for x in (f"style={style}" if style else "", f"technical_depth={depth}" if depth else "") if x))
     sections.append("RECENT CONVERSATION:")
     sections.extend(f"{m.get('role','user')}: {sanitize(m.get('content',''))[:1800]}" for m in history[-8:])
     return "\n".join(sections)[:budget_chars]
