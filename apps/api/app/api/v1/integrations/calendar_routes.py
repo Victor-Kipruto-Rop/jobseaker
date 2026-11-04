@@ -11,6 +11,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -120,7 +121,9 @@ def _calendar_event(interview: Interview, application: Application | None) -> di
     end = start + timedelta(minutes=duration)
     role = application.role_title if application else "Job interview"
     company = application.company_name if application else ""
+    event_id = hashlib.sha256(f"jobseeker:interview:{interview.id}".encode()).hexdigest()[:32]
     return {
+        "id": event_id,
         "summary": f"{role} interview" + (f" · {company}" if company else ""),
         "description": (interview.notes or "")[:4000],
         "start": {"dateTime": start.isoformat()},
@@ -164,17 +167,22 @@ def sync_interview_to_calendar(
             raise RuntimeError("Google Calendar authorization expired; reconnect the calendar")
         service = build("calendar", "v3", credentials=credentials, cache_discovery=False)
         body = _calendar_event(interview, application)
-        if interview.calendar_event_id:
+        # Deterministic Google event IDs make retries safe even if Google created
+        # the event but the local transaction failed before persisting its ID.
+        event_id = interview.calendar_event_id or body["id"]
+        try:
             response = _CALENDAR_BREAKER.call(
                 service.events().update(
-                    calendarId="primary", eventId=interview.calendar_event_id, body=body,
+                    calendarId="primary", eventId=event_id, body=body,
                 ).execute,
             )
-        else:
+        except HttpError as google_error:
+            if getattr(google_error, "status_code", None) != 404:
+                raise
             response = _CALENDAR_BREAKER.call(
                 service.events().insert(calendarId="primary", body=body).execute,
             )
-        interview.calendar_event_id = response.get("id", interview.calendar_event_id)
+        interview.calendar_event_id = response.get("id", event_id)
         db.add(AuditLog(
             user_id=user.id, action="calendar.interview_synced",
             resource_type="interview", resource_id=str(interview.id),
