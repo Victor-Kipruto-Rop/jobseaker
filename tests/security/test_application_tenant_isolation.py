@@ -55,7 +55,7 @@ def test_application_list_is_scoped_to_authenticated_user(db, two_users_and_appl
 
 
 def test_user_cannot_update_another_users_application(db, two_users_and_applications):
-    owner, other, _, private = two_users_and_applications
+    owner, _other, _, private = two_users_and_applications
 
     with pytest.raises(HTTPException) as exc:
         routes.update_application(
