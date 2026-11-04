@@ -20,6 +20,7 @@ from apps.api.app.api.v1.profile.routes import router as profile
 from apps.api.app.api.v1.recruiters.routes import router as recruiters
 from apps.api.app.api.v1.resumes.routes import router as resumes
 from apps.api.app.api.v1.saved_searches.routes import router as saved_searches
+from apps.api.app.api.v1.workspace.routes import router as workspace
 
 router = APIRouter()
 
@@ -91,5 +92,10 @@ router.include_router(
 )
 router.include_router(
     career_tools, prefix="/career-tools", tags=["career intelligence"],
+    dependencies=candidate_policy,
+)
+
+router.include_router(
+    workspace, prefix="/workspace/items", tags=["career workspace"],
     dependencies=candidate_policy,
 )
