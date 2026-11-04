@@ -12,6 +12,7 @@ from packages.database.models.career import (
     Notification,
     SavedSearch,
 )
+from packages.database.sessions import SessionLocal
 from packages.integrations.job_boards.connectors import (
     discover_greenhouse,
     discover_lever,
