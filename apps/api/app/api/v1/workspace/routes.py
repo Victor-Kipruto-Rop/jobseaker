@@ -165,8 +165,10 @@ def update_item(item_id: int, body: WorkspaceItemUpdate,
     if not row:
         raise HTTPException(status_code=404, detail="Workspace item not found")
     values = body.model_dump(exclude_unset=True)
-    if values.get("title") is not None and not values["title"].strip():
-        raise HTTPException(status_code=422, detail="Title cannot be blank")
+    if values.get("title") is not None:
+        values["title"] = values["title"].strip()
+        if not values["title"]:
+            raise HTTPException(status_code=422, detail="Title cannot be blank")
     if values.get("status") is not None and values["status"] not in Statuses[row.item_type]:
         raise HTTPException(status_code=422, detail="Unsupported status for this item type")
     if values.get("priority") is not None and values["priority"] not in Priorities:
