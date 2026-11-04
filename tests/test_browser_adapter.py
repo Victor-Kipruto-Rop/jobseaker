@@ -28,7 +28,7 @@ async def test_adapter_requires_digest_and_records_evidence():
     store = Store()
     result = await execute_approved_fill(Page(), application_id=1, draft_hash="draft-hash",
         field_id="email", label="Email", value="a@example.com",
-        approved_digest=digest, approved_origin="https://jobs.example", action_store=store)
+        approved_digest=digest, approved_origin="https://jobs.example", evidence_owner_scope="1", action_store=store)
     assert result["status"] == "completed"
     assert result["evidence"]["verified"] is True
     assert result["evidence"]["screenshot_sha256"]
@@ -39,7 +39,7 @@ async def test_adapter_rejects_modified_value_after_approval():
     with pytest.raises(PermissionError):
         await execute_approved_fill(Page(), application_id=1, draft_hash="draft-hash",
             field_id="email", label="Email", value="new@example.com",
-            approved_digest=digest, approved_origin="https://jobs.example", action_store=Store())
+            approved_digest=digest, approved_origin="https://jobs.example", evidence_owner_scope="1", action_store=Store())
 
 def test_adapter_rejects_origin_change():
     with pytest.raises(PermissionError):
