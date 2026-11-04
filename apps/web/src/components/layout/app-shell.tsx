@@ -155,9 +155,9 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
   useEffect(() => {
     const handle = (event: globalThis.KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault(); setPaletteOpen(value => !value); setNoticeOpen(false); setQuickOpen(false);
+        event.preventDefault(); setPaletteOpen(value => !value); setNoticeOpen(false); setQuickOpen(false); setProfileOpen(false);
       }
-      if (event.key === "Escape") { setPaletteOpen(false); setQuickOpen(false); setNoticeOpen(false); }
+      if (event.key === "Escape") { setPaletteOpen(false); setQuickOpen(false); setNoticeOpen(false); setProfileOpen(false); }
     };
     window.addEventListener("keydown", handle);
     return () => window.removeEventListener("keydown", handle);
