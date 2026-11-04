@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, ArrowRight, ArrowUpRight, BriefcaseBusiness, CheckCircle2, CircleAlert, Clock3, FileSearch, ShieldCheck, Sparkles, Target, TrendingUp, Users } from "lucide-react";
+import { Activity, ArrowRight, ArrowUpRight, BriefcaseBusiness, CheckCircle2, Clock3, FileText, FileSearch, ShieldCheck, Sparkles, Target, TrendingUp, Users } from "lucide-react";
 import AppShell from "../../components/layout/app-shell";
 import styles from "./dashboard.module.css";
 
@@ -119,7 +119,7 @@ export default function Dashboard() {
             <div className={styles.panelHeader}><div><h2 className={styles.panelTitle}>Your next best moves</h2><p className={styles.panelDescription}>Actions based on what is actually in your workspace</p></div><Sparkles size={16} color="#83dca4"/></div>
             <div className={styles.insightList}>
               {applications.length === 0 && <div className={styles.insight}><span className={styles.insightIcon}><FileSearch size={15}/></span><div className={styles.insightText}><strong>Start with targeted discovery</strong><p>Search relevant job boards and save roles that match your target profile.</p></div></div>}
-              {applications.some(item => item.status === "draft") && <div className={styles.insight}><span className={styles.insightIcon}><FileTextIcon/></span><div className={styles.insightText}><strong>Review your application drafts</strong><p>{applications.filter(item => item.status === "draft").length} draft applications are waiting for your attention.</p></div></div>}
+              {applications.some(item => item.status === "draft") && <div className={styles.insight}><span className={styles.insightIcon}><FileText size={15}/></span><div className={styles.insightText}><strong>Review your application drafts</strong><p>{applications.filter(item => item.status === "draft").length} draft applications are waiting for your attention.</p></div></div>}
               {applications.some(item => item.status === "ready") && <div className={styles.insight}><span className={styles.insightIcon}><ShieldCheck size={15}/></span><div className={styles.insightText}><strong>Review approval requirements</strong><p>Ready applications need your explicit approval before they can be recorded as submitted.</p></div></div>}
               {activeApplications.length > 0 && <div className={styles.insight}><span className={styles.insightIcon}><Clock3 size={15}/></span><div className={styles.insightText}><strong>Keep your pipeline current</strong><p>Update application stages when an employer responds or your status changes.</p></div></div>}
               {applications.length > 0 && opportunities.length === 0 && <div className={styles.insight}><span className={styles.insightIcon}><Target size={15}/></span><div className={styles.insightText}><strong>Build your opportunity pipeline</strong><p>Save promising roles so you can compare fit and create drafts from them.</p></div></div>}
@@ -143,4 +143,3 @@ export default function Dashboard() {
   </AppShell>;
 }
 
-function FileTextIcon() { return <CircleAlert size={15}/>; }
