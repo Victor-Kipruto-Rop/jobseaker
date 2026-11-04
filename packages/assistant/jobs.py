@@ -25,11 +25,20 @@ def dispatch_pending_ingestion_jobs(redis_url: str, batch_size: int = 20) -> int
     db = SessionLocal()
     dispatches = []
     try:
+        # A worker that disappears after its final attempt must not be requeued forever.
+        db.query(AssistantIngestionJob).filter(
+            AssistantIngestionJob.status == "processing",
+            AssistantIngestionJob.attempts >= 3,
+            AssistantIngestionJob.updated_at < processing_cutoff,
+        ).update({"status": "failed", "payload_ciphertext": "",
+                  "last_error": "worker_timeout", "updated_at": now},
+                 synchronize_session=False)
         rows = db.scalars(select(AssistantIngestionJob).where(or_(
             (AssistantIngestionJob.status == "queued") &
             ((AssistantIngestionJob.dispatched_at.is_(None)) |
              (AssistantIngestionJob.dispatched_at < queued_cutoff)),
             (AssistantIngestionJob.status == "processing") &
+            (AssistantIngestionJob.attempts < 3) &
             (AssistantIngestionJob.updated_at < processing_cutoff),
             (AssistantIngestionJob.status == "failed") &
             (AssistantIngestionJob.attempts < 3) &
