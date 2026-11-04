@@ -207,6 +207,8 @@ def preference_snapshot(db: Session, user_id: int) -> dict:
     row = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user_id))
     if row is None:
         return {}
+    if row.preference_vector:
+        row.preference_vector = []
     if row.preferences_encrypted and isinstance(row.preferences, str):
         try:
             value = json.loads(decrypt_credential(row.preferences, purpose=f"assistant-preferences:{user_id}"))
