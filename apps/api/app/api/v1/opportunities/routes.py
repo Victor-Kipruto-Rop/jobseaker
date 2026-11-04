@@ -139,7 +139,7 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
         raise HTTPException(status_code=502, detail="Unable to reach the selected job board") from exc
     filtered = filter_jobs(discovered, keywords=body.keywords, location=body.location, remote_only=body.remote_only)
     profile = await discover_company_profile(body.source, body.board)
-    if body.company_name:
+    if body.company_name and body.company_name.strip():
         profile["company"] = body.company_name.strip()
     saved, skipped, refreshed = 0, 0, 0
     results = []
