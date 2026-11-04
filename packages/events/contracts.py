@@ -14,11 +14,13 @@ class EventEnvelope(BaseModel):
     model_config = ConfigDict(extra="forbid")
     event_id: str = Field(min_length=36, max_length=36)
     event_type: str = Field(min_length=1, max_length=120)
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     occurred_at: datetime
     producer: str = Field(min_length=1, max_length=120)
     data: dict[str, Any]
     trace_context: dict[str, str] = Field(default_factory=dict)
+    correlation_id: str | None = Field(default=None, max_length=120)
+    causation_id: str | None = Field(default=None, max_length=120)
 
     @field_validator("event_id")
     @classmethod
@@ -47,7 +49,7 @@ class EventEnvelope(BaseModel):
     def validate_topic_payload(cls, value: dict[str, Any], info):
         topic = info.data.get("event_type")
         if topic in {"user.activity", "email.classified", "application.status_changed",
-                     "application.dispatched"}:
+                     "application.dispatched", "ats.action.approved"}:
             user_id = value.get("user_id")
             if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id <= 0:
                 raise ValueError(f"{topic} requires a positive integer user_id")
@@ -55,6 +57,9 @@ class EventEnvelope(BaseModel):
             app_id = value.get("application_id")
             if isinstance(app_id, bool) or not isinstance(app_id, int) or app_id <= 0:
                 raise ValueError(f"{topic} requires a positive integer application_id")
+        if topic == "ats.action.approved":
+            if not isinstance(value.get("field_id"), str) or not value.get("field_id"):
+                raise ValueError("ats.action.approved requires field_id")
         if topic == "email.classified":
             email_id = value.get("email_message_id")
             if isinstance(email_id, bool) or not isinstance(email_id, int) or email_id <= 0:
