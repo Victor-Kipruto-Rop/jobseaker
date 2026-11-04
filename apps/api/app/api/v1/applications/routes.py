@@ -5,7 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
-from packages.database.models.career import Application, ApplicationEvent, CandidateOpportunity
+from packages.database.models.career import (
+    Application, ApplicationEvent, CandidateOpportunity, RecommendationInteraction,
+)
 from packages.integrations.url_validation import validate_http_url
 
 router = APIRouter()
@@ -129,6 +131,13 @@ def update_application(application_id: int, body: ApplicationUpdate,
             setattr(row, key, value)
     if status == "submitted" and row.applied_at is None:
         row.applied_at = datetime.now(timezone.utc)
+    if status == "submitted" and before != "submitted" and row.job_url:
+        db.add(RecommendationInteraction(
+            user_id=user.id, opportunity_id=row.opportunity_id,
+            item_key=row.job_url, event_type="apply",
+            recommendation_source="",
+            feature_snapshot={},
+        ))
     if status and status != before:
         db.add(ApplicationEvent(user_id=user.id, application_id=row.id,
                                 event_type="application.status_changed",
