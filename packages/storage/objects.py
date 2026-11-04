@@ -76,10 +76,12 @@ def delete_private_object(object_key: str) -> None:
     settings = get_settings()
     if settings.storage_backend == "s3":
         import boto3
+        from botocore.config import Config
         client = boto3.client(
             "s3", endpoint_url=settings.s3_endpoint_url, region_name=settings.s3_region,
             aws_access_key_id=settings.s3_access_key_id,
             aws_secret_access_key=settings.s3_secret_access_key,
+            config=Config(s3={"addressing_style": "path" if settings.s3_force_path_style else "auto"}),
         )
         client.delete_object(Bucket=settings.s3_bucket, Key=object_key)
         return
