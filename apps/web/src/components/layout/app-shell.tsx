@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, KeyboardEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -89,7 +89,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
   const [paletteQuery, setPaletteQuery] = useState("");
   const [searchBusy, setSearchBusy] = useState(false);
   const [searchRecords, setSearchRecords] = useState<SearchRecord[]>([]);
-  const [searchError, setSearchError] = useState("");
+  const [searchError, setSearchError] = useState("");\n  const searchSequence = useRef(0);
 
   useEffect(() => {
     if (user !== undefined) { setSessionUser(user); return; }
@@ -133,7 +133,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
       ]);
       if (!jobsResponse.ok || !appsResponse.ok || !itemsResponse.ok) throw new Error("Workspace search is temporarily unavailable.");
       const [jobs, apps, items] = await Promise.all([jobsResponse.json(), appsResponse.json(), itemsResponse.json()]);
-      const term = query.trim().toLowerCase();
+      if (requestId !== searchSequence.current) return;\n      const term = query.trim().toLowerCase();
       const records: SearchRecord[] = [];
       if (Array.isArray(jobs)) jobs.forEach((job: {id:number;title?:string;company?:string;status?:string}) => {
         if ((job.title + " " + job.company).toLowerCase().includes(term)) records.push({id:job.id,title:job.title||"Untitled opportunity",subtitle:job.company||"Saved opportunity",href:"/saved-opportunities",kind:"OPPORTUNITY"});
@@ -163,7 +163,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
     return () => window.removeEventListener("keydown", handle);
   }, []);
 
-  useEffect(() => { if (searchQuery.trim().length >= 2) void searchWorkspace(searchQuery); else setSearchRecords([]); }, [searchQuery, searchWorkspace]);
+  useEffect(() => {\n    if (searchQuery.trim().length < 2) { searchSequence.current += 1; setSearchRecords([]); setSearchError(""); setSearchBusy(false); return; }\n    const timer = window.setTimeout(() => void searchWorkspace(searchQuery), 220);\n    return () => window.clearTimeout(timer);\n  }, [searchQuery, searchWorkspace]);
   useEffect(() => { if (paletteOpen) setPaletteQuery(""); }, [paletteOpen]);
 
   const unread = useMemo(() => notices.filter(item => !item.read_at).length, [notices]);
