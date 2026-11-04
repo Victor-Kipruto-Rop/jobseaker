@@ -281,6 +281,10 @@ class GeneratedArtifact(Base):
     status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
     provider: Mapped[str] = mapped_column(String(40), default="")
     model: Mapped[str] = mapped_column(String(120), default="")
+    version_number: Mapped[int] = mapped_column(Integer, default=1)
+    source_sha256: Mapped[str] = mapped_column(String(64), default="")
+    job_description_sha256: Mapped[str] = mapped_column(String(64), default="")
+    parent_artifact_id: Mapped[int | None] = mapped_column(ForeignKey("generated_artifacts.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
