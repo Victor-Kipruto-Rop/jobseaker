@@ -398,3 +398,13 @@ class RecommendationModel(Base):
     status: Mapped[str] = mapped_column(String(20), default="candidate")
     trained_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class CandidatePreferenceState(Base):
+    """Compact, explainable preference vector updated from candidate activity events."""
+    __tablename__ = "candidate_preference_states"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    preference_vector: Mapped[dict] = mapped_column(JSON, default=dict)
+    interaction_count: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
