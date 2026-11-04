@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from contextlib import nullcontext
 from typing import Callable
 
 from packages.events.contracts import EventEnvelope
 from packages.events.inbox import consume_once
+from packages.ops.tracing import consume_trace_context
 from packages.ops.metrics import EVENT_DELIVERY, CONSUMER_RETRIES, CONSUMER_DLQ
 from packages.ops.tracing import consume_trace_context
 
@@ -15,19 +15,17 @@ logger = logging.getLogger(__name__)
 
 
 def _consume_transaction(session_factory, group_id, topic, envelope, handler, partition, offset):
-    try:
-        from opentelemetry import trace
-        tracer = trace.get_tracer(__name__)
-        span_context = tracer.start_as_current_span("jobseeker.kafka.consume")
-    except ImportError:
-        span_context = nullcontext(None)
-    with span_context as span:
-        if span is not None:
+    with consume_trace_context("jobseeker.kafka.consume", envelope.get("trace_context")):
+        try:
+            from opentelemetry import trace
+            span = trace.get_current_span()
             span.set_attribute("messaging.system", "kafka")
             span.set_attribute("messaging.destination.name", topic)
             span.set_attribute("messaging.consumer.group", group_id)
             span.set_attribute("messaging.kafka.partition", partition)
             span.set_attribute("messaging.kafka.offset", offset)
+        except ImportError:
+            pass
         with session_factory() as db:
             return consume_once(db, f"{group_id}:{topic}", envelope, handler)
 
