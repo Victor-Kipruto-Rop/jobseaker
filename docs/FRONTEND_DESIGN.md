@@ -71,3 +71,57 @@ Implementation is committed to phase-3-frontend-experience. GitHub API writes co
 - AI draft generation requires a configured server-side AI provider and available account token budget.
 - Gmail requires a verified account and configured Google OAuth credentials. It requests read-only scope only.
 - Production resume uploads remain unavailable until private object storage is configured.
+
+
+## Phase 4: career operations workspace
+
+**Branch:** `phase-4-career-operations-workspace`  
+**Base:** `phase-3-frontend-experience`
+
+### Navigation and topbar
+
+The primary navigation is grouped into five information-architecture sections:
+
+- **Workspace:** Overview, Discover jobs, Saved opportunities, Applications and Interviews.
+- **Career development:** Career profile, CV & documents, AI career studio, Skills inventory, Learning roadmap and Career projects.
+- **Intelligence:** Career analytics, Market insights and Role recommendations.
+- **Productivity:** Tasks & follow-ups, Career calendar, Notes & activity and Career contacts.
+- **Account:** Settings and Help & guidance.
+
+The shared topbar includes debounced global search across saved opportunities, applications and all career workspace records; a keyboard command palette; quick-create actions; calendar and AI studio shortcuts; a read-only activity inbox shortcut; notifications; and an account menu. The sidebar supports a compact collapsed state and a mobile drawer.
+
+### Persistent career operations
+
+Added `career_workspace_items` with user ownership, item type, title, description, status, priority, due date, JSON metadata and timestamps. Supported item types are task, note, learning, project and contact. The model is introduced by Alembic revision `20261104_0008`.
+
+Authenticated candidate endpoints:
+
+- `GET /api/v1/workspace/items` with item-type and status filters.
+- `POST /api/v1/workspace/items`.
+- `PATCH /api/v1/workspace/items/{item_id}`.
+- `DELETE /api/v1/workspace/items/{item_id}`.
+
+All reads and mutations filter by the current user's ID. Item-type-specific lifecycle statuses and priority values are validated. Mutations write audit-log entries in the same database transaction.
+
+### Interview management
+
+The interview API now supports owner-scoped update and deletion in addition to list and create. The interview workspace connects records to applications and stores scheduled time, interview type, preparation notes and feedback.
+
+### Intelligence and analytics
+
+- Career analytics uses the existing account-scoped application, interview and opportunity metrics.
+- Market insights aggregate only the signed-in user's saved opportunity library. The interface explicitly identifies this as a personal sample, not whole-market research.
+- Salary information is displayed only when a saved listing provides it; currency and pay period are not inferred.
+- Role recommendations rank saved roles using existing skill-fit evidence and disclose that fit scores are heuristic, not hiring probabilities.
+
+### Calendar and help
+
+The calendar combines persisted interview dates and open task deadlines. Help & guidance explains the supported workflows and the limits around AI, matching, Gmail and external actions.
+
+### Visual constraints
+
+The Phase 4 UI remains light-only. It uses white surfaces, warm neutral page backgrounds, forest-green actions, restrained borders, editorial headings, responsive tables and purposeful empty states. No dark mode, decorative fake analytics or placeholder job records are introduced.
+
+### Verification gate
+
+GitHub source updates and static inspection do not establish runtime correctness. Run the full Python suite, the cross-user workspace tests, Alembic upgrade from a clean database and from the previous migration head, Ruff, mypy, pnpm frontend type-check/build, Compose validation, and desktop/mobile browser plus accessibility checks against this branch. No external provider calls, outbound email or automatic application submission are enabled by this phase.
