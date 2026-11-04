@@ -50,7 +50,7 @@ class ApplicationUpdate(BaseModel):
 def _serialize(row, opportunity=None):
     snapshot = row.company_profile_snapshot or {}
     return {"id": row.id, "role_title": row.role_title, "company_name": row.company_name,
-            "company_id": opportunity.company_id if opportunity else None,
+            "company_id": opportunity.company_id if opportunity else snapshot.get("company_id"),
             "company_logo_url": snapshot.get("logo_url") or (opportunity.company_logo_url if opportunity else ""),
             "company_favicon_url": snapshot.get("favicon_url") or (opportunity.company_favicon_url if opportunity else ""),
             "company_website": snapshot.get("website") or (opportunity.company_website if opportunity else ""),
