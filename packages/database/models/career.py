@@ -359,11 +359,13 @@ class ApplicationDispatchKey(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "idempotency_key", name="uq_application_dispatch_user_key"),
         UniqueConstraint("user_id", "application_id", name="uq_application_dispatch_user_app"),
+        UniqueConstraint("user_id", "job_key", name="uq_application_dispatch_user_job"),
         Index("ix_application_dispatch_status", "status", "created_at"),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     application_id: Mapped[int] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"))
+    job_key: Mapped[str] = mapped_column(String(64))
     idempotency_key: Mapped[str] = mapped_column(String(128))
     payload_hash: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(20), default="reserved")
