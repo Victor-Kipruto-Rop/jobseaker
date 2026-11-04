@@ -664,3 +664,10 @@ The implementation now normalizes employer data into reusable user-scoped Compan
 - Additional tests for metadata extraction, skill/work-mode parsing, timestamps, and employer-profile fetch failures.
 
 **Still not runtime-verified.** This environment has updated source files through the connected GitHub repository, but it has not run the Python suite, Ruff, mypy, Alembic against a real database, frontend lint/build, Docker services, or authenticated live-board tests. CI must be inspected on the latest commit. Keep PR #9 draft and unmerged until those checks pass.
+
+
+## Latest CI observation (2026-11-04)
+
+The latest observed head commit during final review was `8e449b42dff3c0b9e28948be47941c99283ae199`. GitHub Actions created CI run `41807300362` and Secret scan run `41807299768`; all four jobs are marked failed, but GitHub returned empty step lists and no job-log artifacts. The failed jobs were retried; the rerun did not produce inspectable step logs either. This is an infrastructure/runner-level unknown, not evidence that source checks passed or that a particular code change failed.
+
+No local test runner or checkout is connected to this session. Runtime verification remains outstanding and PR #9 remains draft and unmerged.
