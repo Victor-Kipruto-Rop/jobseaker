@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference
+from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference, AssistantEntity, AssistantRelation
 
 TOKEN_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9+#.]{1,40}")
 PII_PATTERNS = [
@@ -114,6 +114,54 @@ def extract_facts(text: str) -> list[tuple[str, str, float]]:
                 facts.append((key, value[:500], 0.68))
     return facts[:8]
 
+
+def extractive_summary(text: str, max_chars: int = 500) -> str:
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\\s+", text or "") if s.strip()]
+    if not sentences:
+        return (text or "")[:max_chars]
+    frequencies = Counter(tokens(text))
+    ranked = sorted(enumerate(sentences), key=lambda item: (
+        sum(frequencies[t] for t in set(tokens(item[1]))) / max(len(tokens(item[1])), 1),
+        -item[0]), reverse=True)
+    selected = sorted([sentence for _, sentence in ranked[:3]], key=lambda s: sentences.index(s))
+    return " ".join(selected)[:max_chars]
+
+def _upsert_graph_fact(db: Session, user_id: int, key: str, value: str, memory_id: int) -> None:
+    mapping = {
+        "career_goal": ("goal", "has_goal"),
+        "preferred_role": ("role", "targets_role"),
+        "technical_preference": ("technology", "uses_technology"),
+        "communication_preference": ("preference", "prefers_style"),
+    }
+    kind, relation = mapping.get(key, ("fact", "has_fact"))
+    normalized = re.sub(r"\\s+", " ", value.strip().lower())[:240]
+    if not normalized:
+        return
+    candidate = db.scalar(select(AssistantEntity).where(
+        AssistantEntity.user_id == user_id, AssistantEntity.entity_type == "candidate",
+        AssistantEntity.normalized_name == "candidate"))
+    if candidate is None:
+        candidate = AssistantEntity(user_id=user_id, entity_type="candidate",
+            name="Candidate", normalized_name="candidate", attributes={})
+        db.add(candidate)
+        db.flush()
+    entity = db.scalar(select(AssistantEntity).where(
+        AssistantEntity.user_id == user_id, AssistantEntity.entity_type == kind,
+        AssistantEntity.normalized_name == normalized))
+    if entity is None:
+        entity = AssistantEntity(user_id=user_id, entity_type=kind, name=value[:240],
+            normalized_name=normalized, attributes={}, source_memory_id=memory_id)
+        db.add(entity)
+        db.flush()
+    edge = db.scalar(select(AssistantRelation).where(
+        AssistantRelation.user_id == user_id,
+        AssistantRelation.source_entity_id == candidate.id,
+        AssistantRelation.target_entity_id == entity.id,
+        AssistantRelation.relation_type == relation))
+    if edge is None:
+        db.add(AssistantRelation(user_id=user_id, source_entity_id=candidate.id,
+            target_entity_id=entity.id, relation_type=relation, confidence=0.68))
+
 def remember(db: Session, user_id: int, content: str, conversation_id: int | None = None,
              source: str = "conversation") -> int | None:
     clean = sanitize(content)
@@ -122,7 +170,7 @@ def remember(db: Session, user_id: int, content: str, conversation_id: int | Non
     first_id = None
     for chunk in chunks[:12]:
         row = AssistantMemory(user_id=user_id, conversation_id=conversation_id,
-            memory_kind="episodic", content=chunk, summary=chunk[:500],
+            memory_kind="episodic", content=chunk, summary=extractive_summary(chunk),
             embedding=embedding(chunk), keywords=list(dict.fromkeys(tokens(chunk)))[:40],
             importance=0.55, source=source)
         db.add(row); db.flush()
@@ -135,6 +183,7 @@ def remember(db: Session, user_id: int, content: str, conversation_id: int | Non
                     confidence=confidence, source_memory_id=row.id))
             elif not fact.verified_by_user:
                 fact.fact_value = value; fact.confidence = confidence; fact.source_memory_id = row.id
+            _upsert_graph_fact(db, user_id, key, value, row.id)
     return first_id
 
 def retrieve(db: Session, user_id: int, query: str, limit: int = 8) -> list[dict[str, Any]]:
