@@ -1,5 +1,6 @@
 from functools import lru_cache
 import os
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -21,9 +22,9 @@ class Settings(BaseSettings):
     kafka_client_id: str = "jobseeker-api"
     kafka_consumer_group_id: str = "jobseeker-career-intelligence-v1"
     gmail_enabled: bool = False
-    credential_kek: str | None = None
-    credential_keyring: str | None = None
-    credential_active_key_id: str | None = None
+    credential_kek: str | None = Field(default=None, validation_alias="JOBSEEKER_CREDENTIAL_KEK")
+    credential_keyring: str | None = Field(default=None, validation_alias="JOBSEEKER_CREDENTIAL_KEYRING")
+    credential_active_key_id: str | None = Field(default=None, validation_alias="JOBSEEKER_CREDENTIAL_ACTIVE_KEY_ID")
     otel_exporter_otlp_endpoint: str | None = None
     otel_service_name: str = "jobseeker-api"
     job_discovery_enabled: bool = False
