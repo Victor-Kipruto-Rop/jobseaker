@@ -64,6 +64,7 @@ def resolve_entity(db: Session, user_id: int, entity_type: str, name: str,
     rows = db.scalars(select(AssistantEntity).where(
         AssistantEntity.user_id == user_id, AssistantEntity.entity_type == entity_type)).all()
     match = next((row for row in rows if row.normalized_name in equivalent
+                  or equivalent.intersection(row.aliases or [])
                   or equivalent.intersection((row.attributes or {}).get("aliases", []))), None)
     if match is None:
         ranked = sorted(((SequenceMatcher(None, normalized, row.normalized_name).ratio(), row)
@@ -77,10 +78,8 @@ def resolve_entity(db: Session, user_id: int, entity_type: str, name: str,
         db.add(match)
         db.flush()
     else:
-        attrs = dict(match.attributes or {})
-        attrs["aliases"] = sorted(set(attrs.get("aliases", [])) | aliases |
-                                  ({raw_normalized} if raw_normalized != match.normalized_name else set()))
-        match.attributes = attrs
+        match.aliases = sorted(set(match.aliases or []) | aliases |
+                               ({raw_normalized} if raw_normalized != match.normalized_name else set()))
         if memory_id:
             match.source_memory_id = memory_id
     return match
