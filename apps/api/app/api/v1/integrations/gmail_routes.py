@@ -33,7 +33,7 @@ def callback(state: str = Query(min_length=20), code: str = Query(min_length=5),
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Gmail authorization could not be completed.") from exc
-    return RedirectResponse(get_settings().web_app_url + "/inbox?gmail=connected")
+    return RedirectResponse(get_settings().web_app_url + "/settings?gmail=connected")
 
 @router.get("/account")
 def account(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
