@@ -3,6 +3,7 @@ import json
 import secrets
 from datetime import datetime, timedelta, timezone
 from cryptography.fernet import Fernet, InvalidToken
+from packages.security.credential_vault import encrypt_credential, decrypt_credential
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -22,13 +23,20 @@ def _fernet():
     return Fernet(key)
 
 def _encrypt(value: str) -> str:
-    return _fernet().encrypt(value.encode("utf-8")).decode("ascii")
+    return encrypt_credential(value, purpose="gmail-oauth")
 
 def _decrypt(value: str) -> str:
+    if value.startswith("v1:"):
+        try:
+            return decrypt_credential(value, purpose="gmail-oauth")
+        except Exception as exc:
+            raise RuntimeError("Stored Gmail credentials cannot be decrypted. Check the credential key.") from exc
+    # Read-only compatibility for existing Fernet ciphertexts. The next successful
+    # sync rewrites the token using the dedicated credential key.
     try:
         return _fernet().decrypt(value.encode("ascii")).decode("utf-8")
     except InvalidToken as exc:
-        raise RuntimeError("Stored Gmail credentials cannot be decrypted. Check APP_SECRET_KEY.") from exc
+        raise RuntimeError("Stored Gmail credentials cannot be decrypted. Check credential key configuration.") from exc
 
 def _flow(state: str | None = None):
     settings = get_settings()
@@ -116,6 +124,8 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
     if not account:
         raise LookupError("Connect a Gmail account before synchronizing.")
     raw = _decrypt(account.encrypted_credentials)
+    if not account.encrypted_credentials.startswith("v1:"):
+        account.encrypted_credentials = _encrypt(raw)
     credentials = Credentials.from_authorized_user_info(json.loads(raw), SCOPES)
     if credentials.expired and credentials.refresh_token:
         credentials.refresh(Request())
