@@ -137,7 +137,7 @@ async def cover_letter(body: CoverLetterRequest, user: User = Depends(get_curren
         CareerWorkspaceItem.user_id == user.id,
         CareerWorkspaceItem.item_type == "project",
     ).order_by(CareerWorkspaceItem.updated_at.desc()).limit(10)).all()
-    project_evidence = "\\n".join(
+    project_evidence = "\n".join(
         f"- {item.title}: {item.description[:1200]}" for item in projects
     ) or "No candidate project records are available."
     prompt = (
@@ -154,7 +154,8 @@ async def cover_letter(body: CoverLetterRequest, user: User = Depends(get_curren
     )
     system = "You are a precise professional writing assistant. Do not invent candidate or company facts."
     return await _generate(user, db, "cover_letter", "Cover letter: " + (body.role_title or "Target role"),
-                            prompt, system, body.provider, resume_id=resume.id)
+                            prompt, system, body.provider, resume_id=resume.id,
+                            opportunity_id=opportunity.id if opportunity else None)
 
 @router.post("/interview-prep")
 async def interview_prep(body: InterviewPrepRequest, user: User = Depends(get_current_user),
