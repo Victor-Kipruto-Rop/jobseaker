@@ -248,6 +248,12 @@ class EmailMessage(Base):
     classification: Mapped[str] = mapped_column(String(80), default="unclassified")
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     action_required: Mapped[bool] = mapped_column(default=False)
+    application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), nullable=True, index=True)
+    intent: Mapped[str] = mapped_column(String(80), default="unclassified")
+    suggested_status: Mapped[str] = mapped_column(String(40), default="")
+    intent_confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    interview_proposed_text: Mapped[str] = mapped_column(String(500), default="")
+    classification_evidence: Mapped[dict] = mapped_column(JSON, default=dict)
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
