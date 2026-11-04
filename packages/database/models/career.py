@@ -271,6 +271,12 @@ class AccountToken(Base):
 
 class GeneratedArtifact(Base):
     __tablename__ = "generated_artifacts"
+    __table_args__ = (Index(
+        "uq_tailored_resume_version", "user_id", "source_resume_id",
+        "job_description_sha256", "version_number", unique=True,
+        sqlite_where=text("artifact_type = 'tailored_resume'"),
+        postgresql_where=text("artifact_type = 'tailored_resume'"),
+    ),)
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     artifact_type: Mapped[str] = mapped_column(String(60), index=True)
