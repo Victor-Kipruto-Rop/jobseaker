@@ -156,6 +156,8 @@ class Interview(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), nullable=True)
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    calendar_event_id: Mapped[str] = mapped_column(String(255), default="")
     interview_type: Mapped[str] = mapped_column(String(60), default="unspecified")
     notes: Mapped[str] = mapped_column(Text, default="")
     feedback: Mapped[str] = mapped_column(Text, default="")
@@ -409,3 +411,24 @@ class CandidatePreferenceState(Base):
     preference_vector: Mapped[dict] = mapped_column(JSON, default=dict)
     interaction_count: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class CalendarAccount(Base):
+    __tablename__ = "calendar_accounts"
+    __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_user_calendar_provider"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(40), default="google")
+    email: Mapped[str] = mapped_column(String(320), default="")
+    encrypted_credentials: Mapped[str] = mapped_column(Text)
+    scopes: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CalendarOAuthState(Base):
+    __tablename__ = "calendar_oauth_states"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    state_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
