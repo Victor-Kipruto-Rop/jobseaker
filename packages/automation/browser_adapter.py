@@ -23,7 +23,7 @@ def action_digest(application_id: int, draft_hash: str, field_id: str,
 async def execute_approved_fill(page, *, application_id: int, draft_hash: str,
                                 field_id: str, label: str, value: str,
                                 approved_digest: str, approved_origin: str,
-                                action_store: ActionStore) -> dict:
+                                evidence_owner_scope: str, action_store: ActionStore) -> dict:
     """Fill one exact label only after matching the candidate-approved digest."""
     if not label.strip() or len(label) > 200 or not field_id.strip() or len(field_id) > 200:
         raise ValueError("A bounded, exact field label and identifier are required")
@@ -44,8 +44,14 @@ async def execute_approved_fill(page, *, application_id: int, draft_hash: str,
         if observed != value:
             raise RuntimeError("ATS field value did not match the approved value after fill")
         screenshot = await page.screenshot(full_page=False)
+        from packages.storage.objects import store_private_object
+        stored_screenshot = store_private_object(
+            screenshot, f"ats-action-{action_id}.png", "image/png",
+            owner_scope=evidence_owner_scope,
+        )
         evidence = {
             "action_id": action_id, "field_id": field_id, "label": label,
+            "screenshot_object_key": stored_screenshot["object_key"],
             "approved_digest": expected, "observed_value_sha256": hashlib.sha256(
                 observed.encode()).hexdigest(),
             "screenshot_sha256": hashlib.sha256(screenshot).hexdigest(),
