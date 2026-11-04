@@ -31,7 +31,7 @@ def _encrypt(value: str) -> str:
     return encrypt_credential(value, purpose="gmail-oauth")
 
 def _decrypt(value: str) -> str:
-    if value.startswith("v1:"):
+    if value.startswith(("v1:", "v2:")):
         try:
             return decrypt_credential(value, purpose="gmail-oauth")
         except Exception as exc:
@@ -149,7 +149,7 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
     if not account:
         raise LookupError("Connect a Gmail account before synchronizing.")
     raw = _decrypt(account.encrypted_credentials)
-    if not account.encrypted_credentials.startswith("v1:"):
+    if not account.encrypted_credentials.startswith(("v1:", "v2:")):
         account.encrypted_credentials = _encrypt(raw)
     credentials = Credentials.from_authorized_user_info(json.loads(raw), SCOPES)
     if credentials.expired and credentials.refresh_token:
