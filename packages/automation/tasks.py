@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from packages.database.sessions import SessionLocal
+from apps.api.app.core.config import get_settings
 from packages.database.models.entities import AIUsageReservation
 from packages.database.models.career import (
     CandidateOpportunity,
@@ -17,7 +17,6 @@ from packages.integrations.job_boards.connectors import (
     discover_lever,
     filter_jobs,
 )
-from apps.api.app.core.config import get_settings
 
 
 async def _fetch_saved_searches(searches, concurrency: int = 5):
