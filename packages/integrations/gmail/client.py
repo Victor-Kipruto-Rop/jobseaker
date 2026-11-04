@@ -216,6 +216,5 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
         if not page_token or not messages:
             break
     account.last_synced_at = datetime.now(timezone.utc)
-    db.commit()
     return {"mailbox": account.email, "listed": listed, "new_messages": inserted, "new_message_ids": new_message_ids,
             "query": JOB_QUERY, "read_only": True}
