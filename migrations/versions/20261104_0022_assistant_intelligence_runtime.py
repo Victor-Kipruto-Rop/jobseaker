@@ -25,9 +25,6 @@ def upgrade():
     op.add_column("assistant_entities", sa.Column("aliases", sa.JSON(), nullable=False, server_default="[]"))
     op.add_column("assistant_preferences", sa.Column("memory_retention_days", sa.Integer(), nullable=False, server_default="365"))
     op.add_column("assistant_preferences", sa.Column("preferences_encrypted", sa.Boolean(), nullable=False, server_default=sa.false()))
-    op.add_column("assistant_ingestion_jobs", sa.Column("dispatch_attempts", sa.Integer(), nullable=False, server_default="0"))
-    op.add_column("assistant_ingestion_jobs", sa.Column("dispatched_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("assistant_ingestion_jobs", sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()))
     op.create_table(
         "assistant_ingestion_jobs",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -44,6 +41,9 @@ def upgrade():
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
     )
+    op.add_column("assistant_ingestion_jobs", sa.Column("dispatch_attempts", sa.Integer(), nullable=False, server_default="0"))
+    op.add_column("assistant_ingestion_jobs", sa.Column("dispatched_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column("assistant_ingestion_jobs", sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()))
     op.create_index("ix_assistant_ingestion_jobs_job_id", "assistant_ingestion_jobs", ["job_id"])
     op.create_index("ix_assistant_ingestion_jobs_user_id", "assistant_ingestion_jobs", ["user_id"])
     op.create_index("ix_assistant_ingestion_user_created", "assistant_ingestion_jobs", ["user_id", "created_at"])
