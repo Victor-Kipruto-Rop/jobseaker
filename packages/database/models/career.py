@@ -40,13 +40,30 @@ class ResumeDocument(Base):
 
 class Company(Base):
     __tablename__ = "companies"
+    __table_args__ = (Index(
+        "uq_company_user_source_board", "user_id", "source_provider", "source_board", unique=True,
+        sqlite_where=text("source_provider <> ''"),
+        postgresql_where=text("source_provider <> ''"),
+    ),)
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(250), index=True)
     website: Mapped[str] = mapped_column(String(1000), default="")
+    domain: Mapped[str] = mapped_column(String(253), default="")
     careers_url: Mapped[str] = mapped_column(String(1000), default="")
     description: Mapped[str] = mapped_column(Text, default="")
+    industry: Mapped[str] = mapped_column(String(160), default="")
+    headquarters: Mapped[str] = mapped_column(String(250), default="")
+    logo_url: Mapped[str] = mapped_column(String(2000), default="")
+    favicon_url: Mapped[str] = mapped_column(String(2000), default="")
+    brand_color: Mapped[str] = mapped_column(String(7), default="")
+    source_provider: Mapped[str] = mapped_column(String(40), default="")
+    source_board: Mapped[str] = mapped_column(String(100), default="")
+    source_url: Mapped[str] = mapped_column(String(1000), default="")
+    social_links: Mapped[dict] = mapped_column(JSON, default=dict)
     evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 class Recruiter(Base):
     __tablename__ = "recruiters"
@@ -167,6 +184,7 @@ class CandidateOpportunity(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(250), index=True)
     company: Mapped[str] = mapped_column(String(250), default="")
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="SET NULL"), nullable=True, index=True)
     company_website: Mapped[str] = mapped_column(String(1000), default="")
     company_domain: Mapped[str] = mapped_column(String(253), default="")
     company_logo_url: Mapped[str] = mapped_column(String(2000), default="")
