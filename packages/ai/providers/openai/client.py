@@ -1,4 +1,4 @@
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from openai import AsyncOpenAI
 from openai.types.responses import EasyInputMessageParam
@@ -41,7 +41,9 @@ class OpenAIProvider(AIProvider):
         response = await self.client.responses.create(
             model=request.model or self.model,
             instructions=request.system or "",
-            input=messages,
+            # The SDK's generated input union is list-invariant; message shape is
+            # validated above, so isolate the typing mismatch at this SDK boundary.
+            input=cast(Any, messages),
             max_output_tokens=request.max_tokens,
         )
         usage = response.usage
