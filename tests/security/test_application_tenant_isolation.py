@@ -71,7 +71,7 @@ def test_user_cannot_update_another_users_application(db, two_users_and_applicat
 
 
 def test_user_cannot_read_another_users_application_events(db, two_users_and_applications):
-    owner, other, _, private = two_users_and_applications
+    owner, _other, _, private = two_users_and_applications
 
     with pytest.raises(HTTPException) as exc:
         routes.application_events(application_id=private.id, user=owner, db=db)
