@@ -1,4 +1,5 @@
 import re
+import hashlib
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -11,8 +12,11 @@ from docx import Document
 from packages.storage.objects import store_private_object, delete_private_object
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
-from packages.database.models.career import ResumeDocument, AuditLog
+from packages.database.models.career import ResumeDocument, AuditLog, GeneratedArtifact, CandidateOpportunity
 from apps.api.app.core.redis_limits import enforce_rate_limit
+from packages.resumes.tailoring import tailor_resume
+from packages.resumes.cover_letter import build_cover_letter
+from packages.resumes.ocr import ocr_image, ocr_pdf
 
 router = APIRouter()
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -25,14 +29,27 @@ ALLOWED = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".md": "text/markdown", ".markdown": "text/markdown", ".txt": "text/plain",
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".tif": "image/tiff", ".tiff": "image/tiff",
 }
 
 def extract_text(filename: str, data: bytes) -> tuple[str, str]:
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED:
-        raise HTTPException(status_code=415, detail="Supported formats are PDF, DOCX, Markdown and plain text")
+        raise HTTPException(status_code=415, detail="Supported formats are PDF, DOCX, Markdown, plain text and common images")
     if not data:
         raise HTTPException(status_code=400, detail="The uploaded document is empty")
+
+    if suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}:
+        try:
+            extracted = ocr_image(data)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail="Image OCR is not configured on this server") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
+        if not extracted.strip():
+            raise HTTPException(status_code=422, detail="No readable text was found in the image")
+        return extracted[:MAX_EXTRACTED_CHARS], ALLOWED[suffix]
 
     if suffix in {".md", ".markdown", ".txt"}:
         try:
@@ -59,7 +76,17 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
                 page_text = page.extract_text() or ""
                 parts.append(page_text[:remaining])
                 total += min(len(page_text), remaining)
-            return " ".join(parts), ALLOWED[suffix]
+            extracted = " ".join(parts)
+            if len(extracted.strip()) < 80:
+                try:
+                    scanned = ocr_pdf(data)
+                    if len(scanned.strip()) > len(extracted.strip()):
+                        extracted = scanned
+                except RuntimeError as exc:
+                    raise HTTPException(status_code=503, detail="Scanned PDF OCR is not configured on this server") from exc
+                except ValueError as exc:
+                    raise HTTPException(status_code=413, detail=str(exc)) from exc
+            return extracted[:MAX_EXTRACTED_CHARS], ALLOWED[suffix]
         except HTTPException:
             raise
         except Exception as exc:
@@ -164,6 +191,158 @@ def analyze_resume(resume_id: int, body: ATSRequest, user: User = Depends(get_cu
             "coverage_score": score, "matched_terms": matched[:100],
             "missing_terms": missing[:100],
             "warning": "Heuristic keyword coverage only. It is not a commercial ATS score and does not assess context or truthfulness."}
+
+
+class TailorRequest(BaseModel):
+    job_description: str = Field(min_length=20, max_length=30000)
+
+@router.post("/{resume_id}/tailor")
+def tailor_resume_for_role(resume_id: int, body: TailorRequest,
+                           user: User = Depends(get_current_user),
+                           db: Session = Depends(get_db)):
+    """Return a reviewable relevance ordering without altering the stored resume."""
+    enforce_rate_limit(f"resume-tailor:{user.id}", limit=20, window_seconds=3600)
+    row = db.scalar(select(ResumeDocument).where(
+        ResumeDocument.id == resume_id, ResumeDocument.user_id == user.id))
+    if not row:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    try:
+        proposal = tailor_resume(row.extracted_text, body.job_description)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    db.add(AuditLog(user_id=user.id, action="resume.tailoring_proposed",
+                    resource_type="resume", resource_id=str(row.id)))
+    db.commit()
+    return {"resume_id": row.id, "filename": row.filename, **proposal}
+
+
+class CoverLetterRequest(BaseModel):
+    job_description: str = Field(min_length=20, max_length=30000)
+    role_title: str = Field(min_length=2, max_length=250)
+    company_name: str = Field(default="", max_length=250)
+    opportunity_id: int | None = None
+
+@router.post("/{resume_id}/cover-letter", status_code=201)
+def create_cover_letter(resume_id: int, body: CoverLetterRequest,
+                        user: User = Depends(get_current_user),
+                        db: Session = Depends(get_db)):
+    """Save an evidence-grounded cover-letter draft for candidate editing."""
+    enforce_rate_limit(f"cover-letter:{user.id}", limit=10, window_seconds=3600)
+    resume = db.scalar(select(ResumeDocument).where(
+        ResumeDocument.id == resume_id, ResumeDocument.user_id == user.id).with_for_update())
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    opportunity = None
+    if body.opportunity_id is not None:
+        opportunity = db.scalar(select(CandidateOpportunity).where(
+            CandidateOpportunity.id == body.opportunity_id,
+            CandidateOpportunity.user_id == user.id))
+        if not opportunity:
+            raise HTTPException(status_code=404, detail="Opportunity not found")
+    try:
+        draft = build_cover_letter(resume.extracted_text, body.job_description,
+                                   body.role_title, body.company_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    artifact = GeneratedArtifact(
+        user_id=user.id, artifact_type="cover_letter", title=draft["title"],
+        content=draft["content"], source_resume_id=resume.id,
+        source_opportunity_id=opportunity.id if opportunity else None,
+        status="draft", provider="deterministic_evidence_builder",
+        model="resume-evidence-v1",
+    )
+    db.add(artifact)
+    db.flush()
+    db.add(AuditLog(user_id=user.id, action="resume.cover_letter_drafted",
+                    resource_type="generated_artifact", resource_id=str(artifact.id),
+                    metadata_json={"resume_id": resume.id,
+                                   "opportunity_id": opportunity.id if opportunity else None}))
+    db.commit()
+    db.refresh(artifact)
+    return {"id": artifact.id, "artifact_type": artifact.artifact_type,
+            "title": artifact.title, "content": artifact.content,
+            "status": artifact.status, "evidence_sentences": draft["evidence_sentences"],
+            "claims_invented": False, "requires_candidate_review": True}
+
+
+class TailoredArtifactRequest(BaseModel):
+    job_description: str = Field(min_length=20, max_length=30000)
+    role_title: str = Field(min_length=2, max_length=250)
+    opportunity_id: int | None = None
+    parent_artifact_id: int | None = None
+
+@router.post("/{resume_id}/tailored-artifacts", status_code=201)
+def create_tailored_artifact(resume_id: int, body: TailoredArtifactRequest,
+                             user: User = Depends(get_current_user),
+                             db: Session = Depends(get_db)):
+    """Create a versioned, reviewable resume variant without modifying its source."""
+    enforce_rate_limit(f"resume-version:{user.id}", limit=15, window_seconds=3600)
+    resume = db.scalar(select(ResumeDocument).where(
+        ResumeDocument.id == resume_id, ResumeDocument.user_id == user.id).with_for_update())
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    opportunity = None
+    if body.opportunity_id is not None:
+        opportunity = db.scalar(select(CandidateOpportunity).where(
+            CandidateOpportunity.id == body.opportunity_id,
+            CandidateOpportunity.user_id == user.id))
+        if not opportunity:
+            raise HTTPException(status_code=404, detail="Opportunity not found")
+    parent = None
+    if body.parent_artifact_id is not None:
+        parent = db.scalar(select(GeneratedArtifact).where(
+            GeneratedArtifact.id == body.parent_artifact_id,
+            GeneratedArtifact.user_id == user.id,
+            GeneratedArtifact.artifact_type == "tailored_resume"))
+        if not parent:
+            raise HTTPException(status_code=404, detail="Parent tailored artifact not found")
+    try:
+        proposal = tailor_resume(resume.extracted_text, body.job_description)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if not proposal["items"]:
+        raise HTTPException(status_code=422, detail="No source resume evidence matches this role")
+    source_hash = hashlib.sha256(resume.extracted_text.encode()).hexdigest()
+    job_hash = hashlib.sha256(body.job_description.encode()).hexdigest()
+    if parent and (parent.source_resume_id != resume.id
+                   or parent.job_description_sha256 != job_hash):
+        raise HTTPException(status_code=409, detail="Parent version belongs to a different resume or job description")
+    previous = db.scalar(select(GeneratedArtifact).where(
+        GeneratedArtifact.user_id == user.id,
+        GeneratedArtifact.artifact_type == "tailored_resume",
+        GeneratedArtifact.source_resume_id == resume.id,
+        GeneratedArtifact.job_description_sha256 == job_hash,
+    ).order_by(GeneratedArtifact.version_number.desc()).limit(1))
+    version = (previous.version_number + 1) if previous else 1
+    content = "\n\n".join(
+        [f"# {body.role_title} | Tailored resume draft",
+         "Candidate-reviewed relevance ordering of existing resume evidence.",
+         *[f"- {item['text']}" for item in proposal["items"]]]
+    )
+    artifact = GeneratedArtifact(
+        user_id=user.id, artifact_type="tailored_resume",
+        title=f"{body.role_title} resume v{version}", content=content,
+        source_resume_id=resume.id,
+        source_opportunity_id=opportunity.id if opportunity else None,
+        status="draft", provider="evidence_preserving_tailoring",
+        model="resume-ranker-v2", version_number=version,
+        source_sha256=source_hash, job_description_sha256=job_hash,
+        parent_artifact_id=parent.id if parent else None,
+    )
+    db.add(artifact)
+    db.flush()
+    db.add(AuditLog(user_id=user.id, action="resume.tailored_version_created",
+                    resource_type="generated_artifact", resource_id=str(artifact.id),
+                    metadata_json={"resume_id": resume.id, "version": version,
+                                   "source_sha256": source_hash, "job_sha256": job_hash}))
+    db.commit()
+    db.refresh(artifact)
+    return {"id": artifact.id, "title": artifact.title, "version": artifact.version_number,
+            "status": artifact.status, "content": artifact.content,
+            "matched_terms": proposal["matched_terms"],
+            "unmatched_job_terms": proposal["unmatched_job_terms"],
+            "source_sha256": source_hash, "job_description_sha256": job_hash,
+            "claims_invented": False, "requires_candidate_review": True}
 
 @router.delete("/{resume_id}", status_code=204)
 def delete_resume(resume_id: int, user: User = Depends(get_current_user),

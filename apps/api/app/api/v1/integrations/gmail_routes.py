@@ -1,4 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from datetime import datetime
 from pydantic import BaseModel, Field
 from fastapi.responses import RedirectResponse
 from sqlalchemy import delete, select
@@ -8,7 +9,7 @@ from apps.api.app.core.config import get_settings
 from apps.api.app.core.redis_limits import enforce_rate_limit
 from apps.api.app.dependencies import get_current_user, get_verified_user, get_db
 from packages.database.models.identity import User
-from packages.database.models.career import EmailAccount, EmailMessage, Application, ApplicationEvent
+from packages.database.models.career import EmailAccount, EmailMessage, Application, ApplicationEvent, Interview, AuditLog
 from packages.integrations.gmail.client import create_authorization, complete_authorization, sync_messages
 from packages.events.outbox import enqueue_event
 from packages.applications.fsm import can_transition
@@ -179,6 +180,83 @@ def confirm_email_status(
     db.commit()
     return {"status": "updated", "application_id": application.id,
             "from": before, "to": target, "evidence_email_id": message.id}
+
+
+class ConfirmEmailInterview(BaseModel):
+    confirm: bool = False
+    scheduled_at: datetime
+    duration_minutes: int = Field(default=30, ge=15, le=240)
+    interview_type: str = Field(default="unspecified", max_length=60)
+    candidate_note: str = Field(default="", max_length=1000)
+
+@router.post("/messages/{email_id}/confirm-interview", status_code=201)
+def confirm_email_interview(email_id: int, body: ConfirmEmailInterview,
+                            user: User = Depends(get_current_user),
+                            db: Session = Depends(get_db)):
+    """Create an interview only after candidate confirms an explicit timezone-aware time."""
+    enforce_rate_limit(f"gmail-confirm-interview:{user.id}", limit=20, window_seconds=3600)
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail="Candidate confirmation is required")
+    if body.scheduled_at.tzinfo is None or body.scheduled_at.utcoffset() is None:
+        raise HTTPException(status_code=422, detail="Interview time must include an explicit timezone")
+    message = db.scalar(select(EmailMessage).where(
+        EmailMessage.id == email_id, EmailMessage.user_id == user.id).with_for_update())
+    if not message:
+        raise HTTPException(status_code=404, detail="Email message not found")
+    evidence = message.classification_evidence or {}
+    matched = evidence.get("matched_phrases") or []
+    if (message.intent != "interview_invitation" or message.intent_confidence < 0.75
+            or "ambiguous_application_match" in matched
+            or not message.application_id
+            or not any(item in matched for item in (
+                "matched_application_role", "matched_application_company",
+            ))):
+        raise HTTPException(status_code=409, detail="Email does not contain sufficient evidence for an interview")
+    application = db.scalar(select(Application).where(
+        Application.id == message.application_id, Application.user_id == user.id).with_for_update())
+    if not application:
+        raise HTTPException(status_code=404, detail="Linked application not found")
+    existing = db.scalar(select(Interview).where(
+        Interview.user_id == user.id, Interview.application_id == application.id,
+        Interview.scheduled_at == body.scheduled_at))
+    if existing:
+        return {"status": "already_created", "interview_id": existing.id,
+                "calendar_sync_path": f"/api/v1/calendar/interviews/{existing.id}/sync"}
+    interview = Interview(
+        user_id=user.id, application_id=application.id,
+        scheduled_at=body.scheduled_at, duration_minutes=body.duration_minutes,
+        interview_type=body.interview_type,
+        notes=("Confirmed from Gmail message " + str(message.id) + ". " +
+               body.candidate_note).strip()[:4000],
+    )
+    db.add(interview)
+    db.flush()
+    before = application.status
+    if before != "interview" and can_transition(before, "interview"):
+        application.status = "interview"
+        db.add(ApplicationEvent(
+            user_id=user.id, application_id=application.id,
+            event_type="application.interview_confirmed_from_email",
+            details={"from": before, "to": "interview", "email_message_id": message.id,
+                     "interview_id": interview.id, "candidate_confirmed": True,
+                     "evidence": evidence},
+        ))
+        enqueue_event(db, "application.status_changed", {
+            "user_id": user.id, "application_id": application.id,
+            "from": before, "to": "interview", "source": "candidate_confirmed_email",
+            "email_message_id": message.id,
+        }, partition_key=str(user.id))
+    db.add(AuditLog(user_id=user.id, action="gmail.interview_confirmed",
+                    resource_type="email_message", resource_id=str(message.id),
+                    metadata_json={"interview_id": interview.id,
+                                   "application_id": application.id,
+                                   "candidate_confirmed": True}))
+    db.commit()
+    db.refresh(interview)
+    return {"status": "created", "interview_id": interview.id,
+            "application_id": application.id, "scheduled_at": interview.scheduled_at,
+            "calendar_sync_path": f"/api/v1/calendar/interviews/{interview.id}/sync",
+            "calendar_event_created": False}
 
 @router.delete("/account")
 def disconnect(user: User = Depends(get_current_user), db: Session = Depends(get_db)):

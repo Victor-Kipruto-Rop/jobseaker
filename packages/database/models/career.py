@@ -271,6 +271,12 @@ class AccountToken(Base):
 
 class GeneratedArtifact(Base):
     __tablename__ = "generated_artifacts"
+    __table_args__ = (Index(
+        "uq_tailored_resume_version", "user_id", "source_resume_id",
+        "job_description_sha256", "version_number", unique=True,
+        sqlite_where=text("artifact_type = 'tailored_resume'"),
+        postgresql_where=text("artifact_type = 'tailored_resume'"),
+    ),)
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     artifact_type: Mapped[str] = mapped_column(String(60), index=True)
@@ -281,6 +287,10 @@ class GeneratedArtifact(Base):
     status: Mapped[str] = mapped_column(String(30), default="draft", index=True)
     provider: Mapped[str] = mapped_column(String(40), default="")
     model: Mapped[str] = mapped_column(String(120), default="")
+    version_number: Mapped[int] = mapped_column(Integer, default=1)
+    source_sha256: Mapped[str] = mapped_column(String(64), default="")
+    job_description_sha256: Mapped[str] = mapped_column(String(64), default="")
+    parent_artifact_id: Mapped[int | None] = mapped_column(ForeignKey("generated_artifacts.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -432,3 +442,44 @@ class CalendarOAuthState(Base):
     state_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+class ATSApplicationDraft(Base):
+    """Persisted candidate-reviewed form mapping; no external form is submitted."""
+    __tablename__ = "ats_application_drafts"
+    __table_args__ = (
+        UniqueConstraint("user_id", "application_id", name="uq_ats_draft_user_application"),
+        Index("ix_ats_draft_user_status", "user_id", "status"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    application_id: Mapped[int] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    mappings: Mapped[list] = mapped_column(JSON, default=list)
+    mapping_sha256: Mapped[str] = mapped_column(String(64), default="")
+    status: Mapped[str] = mapped_column(String(24), default="needs_review")
+    candidate_confirmed: Mapped[bool] = mapped_column(default=False)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+
+
+class ATSActionApproval(Base):
+    """Candidate approval for one immutable ATS field action."""
+    __tablename__ = "ats_action_approvals"
+    __table_args__ = (
+        UniqueConstraint("user_id", "application_id", "field_id", name="uq_ats_action_user_app_field"),
+        Index("ix_ats_action_status_created", "status", "created_at"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    application_id: Mapped[int] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    draft_id: Mapped[int] = mapped_column(ForeignKey("ats_application_drafts.id", ondelete="CASCADE"), index=True)
+    field_id: Mapped[str] = mapped_column(String(200))
+    action_digest: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(24), default="approved")
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    last_error: Mapped[str] = mapped_column(String(500), default="")
+

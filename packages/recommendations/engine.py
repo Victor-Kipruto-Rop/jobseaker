@@ -330,6 +330,7 @@ def rank_opportunities(
     training_samples: list[dict[str, Any]] | None = None,
     model_override: Any = None,
     allow_ephemeral_training: bool = True,
+    allow_exploration: bool = True,
 ) -> list[dict[str, Any]]:
     """Score and explain a candidate's active job set using hybrid retrieval."""
     if not jobs:
@@ -508,7 +509,7 @@ def rank_opportunities(
                   if int(e.get("user_id") or 0) == user_id}
     fresh = [row for row in ranked if row["item_key"] not in interacted
              and recency_score(row) >= math.exp(-14.0 / 21.0)]
-    if len(ranked) >= 5 and fresh:
+    if allow_exploration and len(ranked) >= 5 and fresh:
         quota = min(len(fresh), max(1, math.ceil(len(ranked) * 0.18)))
         random.shuffle(fresh)
         selected = {row["item_key"] for row in fresh[:quota]}

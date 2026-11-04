@@ -35,3 +35,17 @@ CONSUMER_DLQ = Counter(
 
 def prometheus_payload() -> tuple[bytes, str]:
     return generate_latest(), CONTENT_TYPE_LATEST
+
+OUTBOX_OLDEST_AGE = Gauge(
+    "jobseeker_event_outbox_oldest_pending_age_seconds",
+    "Age of the oldest pending, retrying or processing event",
+)
+EVENT_DLQ_BACKLOG = Gauge(
+    "jobseeker_event_dead_letter_backlog",
+    "Number of events in dead-letter state",
+)
+OPERATIONAL_ALERTS = Counter(
+    "jobseeker_operational_alerts_total",
+    "Operational threshold alerts emitted",
+    ("alert_name", "severity"),
+)

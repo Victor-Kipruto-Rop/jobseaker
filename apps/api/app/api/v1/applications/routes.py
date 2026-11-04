@@ -6,10 +6,16 @@ from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
 from packages.database.models.career import (
-    Application, ApplicationEvent, CandidateOpportunity, RecommendationInteraction,
+    Application, ApplicationEvent, CandidateOpportunity, RecommendationInteraction, ATSApplicationDraft, ATSActionApproval, AuditLog,
 )
 from packages.integrations.url_validation import validate_http_url
 from packages.events.outbox import enqueue_event
+from packages.applications.email_intent import classify_email
+from packages.automation.ats_mapping import build_mapping
+from packages.automation.browser_adapter import action_digest
+from packages.security.credential_vault import encrypt_credential, decrypt_credential
+import hashlib
+import json
 from packages.applications.fsm import STATUSES, TRANSITIONS, can_transition
 from packages.automation.idempotency import (
     DispatchConflict, reserve_application_dispatch, complete_application_dispatch,
@@ -68,6 +74,191 @@ def _serialize(row, opportunity=None):
             "company_profile_snapshot": snapshot,
             "status": row.status, "job_url": row.job_url, "notes": row.notes,
             "applied_at": row.applied_at, "created_at": row.created_at}
+
+
+class EmailIntentPreview(BaseModel):
+    subject: str = Field(default="", max_length=1000)
+    body: str = Field(min_length=1, max_length=30000)
+    application_id: int | None = None
+
+@router.post("/email-intent-preview")
+def preview_email_intent(body: EmailIntentPreview,
+                         user: User = Depends(get_current_user),
+                         db: Session = Depends(get_db)):
+    """Classify candidate-supplied email text; never advances application state."""
+    if body.application_id is not None:
+        owned = db.scalar(select(Application).where(
+            Application.id == body.application_id, Application.user_id == user.id))
+        if not owned:
+            raise HTTPException(status_code=404, detail="Application not found")
+    result = classify_email(body.subject, body.body)
+    result["application_id"] = body.application_id
+    result["candidate_action_required"] = True
+    return result
+
+
+class ATSDraftRequest(BaseModel):
+    fields: list[dict] = Field(min_length=1, max_length=250)
+    candidate_values: dict[str, str] = Field(default_factory=dict)
+
+class ATSDraftApproval(BaseModel):
+    confirm: bool = False
+
+@router.post("/{application_id}/ats-draft")
+def create_ats_draft(application_id: int, body: ATSDraftRequest,
+                     user: User = Depends(get_current_user),
+                     db: Session = Depends(get_db)):
+    """Persist proposed ATS field mappings for candidate review; never submits forms."""
+    application = db.scalar(select(Application).where(
+        Application.id == application_id, Application.user_id == user.id).with_for_update())
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if application.status not in {"draft", "ready", "approved"}:
+        raise HTTPException(status_code=409, detail="ATS mapping is locked after submission")
+    mappings = build_mapping(body.fields, body.candidate_values)
+    rows = [row.__dict__.copy() for row in mappings]
+    stored_rows = []
+    for item in rows:
+        stored = item.copy()
+        if stored.get("value"):
+            stored["value_ciphertext"] = encrypt_credential(
+                stored["value"], purpose="ats-field-value")
+            stored["value"] = None
+        stored_rows.append(stored)
+    digest = hashlib.sha256(json.dumps(
+        [application.id, stored_rows], sort_keys=True, separators=(",", ":")
+    ).encode()).hexdigest()
+    draft = db.scalar(select(ATSApplicationDraft).where(
+        ATSApplicationDraft.application_id == application.id,
+        ATSApplicationDraft.user_id == user.id).with_for_update())
+    if draft is None:
+        draft = ATSApplicationDraft(user_id=user.id, application_id=application.id)
+        db.add(draft)
+    draft.mappings = stored_rows
+    draft.mapping_sha256 = digest
+    draft.status = "needs_review" if any(x.status != "proposed" for x in mappings) else "ready_for_review"
+    draft.candidate_confirmed = False
+    draft.approved_at = None
+    db.add(AuditLog(user_id=user.id, action="ats.mapping_proposed",
+                    resource_type="application", resource_id=str(application.id),
+                    metadata_json={"mapping_sha256": digest, "field_count": len(rows)}))
+    db.commit()
+    db.refresh(draft)
+    return {"id": draft.id, "application_id": application.id, "status": draft.status,
+            "mapping_sha256": digest, "mappings": rows,
+            "execution_policy": "candidate_review_required"}
+
+@router.get("/{application_id}/ats-draft")
+def get_ats_draft(application_id: int, user: User = Depends(get_current_user),
+                  db: Session = Depends(get_db)):
+    draft = db.scalar(select(ATSApplicationDraft).where(
+        ATSApplicationDraft.application_id == application_id,
+        ATSApplicationDraft.user_id == user.id))
+    if not draft:
+        raise HTTPException(status_code=404, detail="ATS draft not found")
+    mappings = []
+    for stored in draft.mappings or []:
+        item = dict(stored)
+        ciphertext = item.pop("value_ciphertext", None)
+        if ciphertext:
+            item["value"] = decrypt_credential(ciphertext, purpose="ats-field-value")
+        mappings.append(item)
+    return {"id": draft.id, "application_id": draft.application_id, "status": draft.status,
+            "mapping_sha256": draft.mapping_sha256, "mappings": mappings,
+            "candidate_confirmed": draft.candidate_confirmed,
+            "approved_at": draft.approved_at,
+            "execution_policy": "candidate_review_required"}
+
+@router.post("/{application_id}/ats-draft/approve")
+def approve_ats_draft(application_id: int, body: ATSDraftApproval,
+                      user: User = Depends(get_current_user),
+                      db: Session = Depends(get_db)):
+    draft = db.scalar(select(ATSApplicationDraft).where(
+        ATSApplicationDraft.application_id == application_id,
+        ATSApplicationDraft.user_id == user.id).with_for_update())
+    if not draft:
+        raise HTTPException(status_code=404, detail="ATS draft not found")
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail="Candidate confirmation is required")
+    application = db.scalar(select(Application).where(
+        Application.id == application_id, Application.user_id == user.id))
+    if not application or application.status not in {"draft", "ready", "approved"}:
+        raise HTTPException(status_code=409, detail="Application is no longer eligible for ATS review")
+    rows = draft.mappings or []
+    digest = hashlib.sha256(json.dumps(
+        [application_id, rows], sort_keys=True, separators=(",", ":")
+    ).encode()).hexdigest()
+    if digest != draft.mapping_sha256:
+        raise HTTPException(status_code=409, detail="ATS mapping changed; regenerate and review it")
+    if not rows or any(row.get("status") != "proposed" for row in rows):
+        raise HTTPException(status_code=409, detail="Resolve every unknown or missing field before approval")
+    from datetime import datetime, timezone
+    draft.status = "approved"
+    draft.candidate_confirmed = True
+    draft.approved_at = datetime.now(timezone.utc)
+    db.add(AuditLog(user_id=user.id, action="ats.mapping_approved",
+                    resource_type="application", resource_id=str(application_id),
+                    metadata_json={"mapping_sha256": digest, "candidate_confirmed": True}))
+    db.commit()
+    return {"status": "approved", "application_id": application_id,
+            "mapping_sha256": digest, "candidate_confirmed": True,
+            "external_submission_performed": False,
+            "next_step": "Review and manually enter the approved values in the external ATS"}
+
+
+class ATSActionApprovalRequest(BaseModel):
+    confirm: bool = False
+
+@router.post("/{application_id}/ats-draft/actions/{field_id}/approve")
+def approve_ats_field_action(application_id: int, field_id: str,
+                             body: ATSActionApprovalRequest,
+                             user: User = Depends(get_current_user),
+                             db: Session = Depends(get_db)):
+    """Approve exactly one immutable ATS field fill, not the whole external submission."""
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail="Explicit per-action confirmation is required")
+    draft = db.scalar(select(ATSApplicationDraft).where(
+        ATSApplicationDraft.application_id == application_id,
+        ATSApplicationDraft.user_id == user.id).with_for_update())
+    if not draft or draft.status != "approved" or not draft.candidate_confirmed:
+        raise HTTPException(status_code=409, detail="Approve the complete ATS mapping before approving field actions")
+    mapping = next((dict(item) for item in (draft.mappings or [])
+                    if str(item.get("field_id")) == field_id), None)
+    if not mapping or mapping.get("status") != "proposed":
+        raise HTTPException(status_code=404, detail="Approved field mapping not found")
+    ciphertext = mapping.get("value_ciphertext")
+    if not ciphertext:
+        raise HTTPException(status_code=409, detail="Field value is not available for secure execution")
+    value = decrypt_credential(ciphertext, purpose="ats-field-value")
+    digest = action_digest(application_id, draft.mapping_sha256, field_id,
+                           str(mapping.get("label") or ""), value)
+    existing = db.scalar(select(ATSActionApproval).where(
+        ATSActionApproval.user_id == user.id,
+        ATSActionApproval.application_id == application_id,
+        ATSActionApproval.field_id == field_id).with_for_update())
+    if existing:
+        if existing.action_digest != digest:
+            raise HTTPException(status_code=409, detail="Field value changed; regenerate and review the ATS draft")
+        return {"status": existing.status, "field_id": field_id,
+                "action_digest": digest, "idempotent": True}
+    approval = ATSActionApproval(
+        user_id=user.id, application_id=application_id, draft_id=draft.id,
+        field_id=field_id, action_digest=digest, status="approved",
+    )
+    db.add(approval)
+    enqueue_event(db, "ats.action.approved", {
+        "user_id": user.id, "application_id": application_id,
+        "draft_id": draft.id, "field_id": field_id,
+        "action_digest": digest,
+    }, partition_key=str(user.id), schema_version=2,
+       correlation_id=f"application:{application_id}")
+    db.add(AuditLog(user_id=user.id, action="ats.field_action_approved",
+                    resource_type="application", resource_id=str(application_id),
+                    metadata_json={"field_id": field_id, "action_digest": digest}))
+    db.commit()
+    return {"status": "approved", "field_id": field_id, "action_digest": digest,
+            "external_action_executed": False,
+            "execution_policy": "one_approved_fill_action_only"}
 
 @router.get("")
 def list_applications(user: User = Depends(get_current_user), db: Session = Depends(get_db)):

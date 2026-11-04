@@ -7,12 +7,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import desc, inspect, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from apps.api.app.core.redis_limits import enforce_rate_limit
+from apps.api.app.core.config import get_settings
 from packages.events.outbox import enqueue_event
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.ai.agents.job_matching.agent import JOB_SKILL_TAXONOMY
@@ -22,6 +23,7 @@ from packages.database.models.career import (
     Company, RecommendationInteraction, ResumeDocument, CandidatePreferenceState,
 )
 from packages.recommendations.training import load_active_ranker
+from packages.recommendations.bandit_experiments import assign_arm
 from packages.recommendations.engine import (
     document_text, item_key, rank_opportunities, semantic_embeddings,
 )
@@ -45,6 +47,9 @@ class InteractionInput(BaseModel):
     dwell_seconds: float | None = Field(default=None, ge=0, le=86400)
     scroll_depth: float | None = Field(default=None, ge=0, le=100)
     feature_snapshot: dict = Field(default_factory=dict)
+    experiment_id: str | None = Field(default=None, max_length=100)
+    experiment_arm: str | None = Field(default=None, max_length=40)
+    propensity: float | None = Field(default=None, gt=0, le=1)
 
     @field_validator("recommendation_source")
     @classmethod
@@ -52,6 +57,20 @@ class InteractionInput(BaseModel):
         if value and value not in SOURCES:
             raise ValueError("Unknown recommendation source")
         return value
+
+    @field_validator("experiment_arm")
+    @classmethod
+    def valid_experiment_arm(cls, value):
+        if value and value not in {"control", "explore"}:
+            raise ValueError("Unknown experiment arm")
+        return value
+
+    @model_validator(mode="after")
+    def experiment_fields_are_consistent(self):
+        supplied = [self.experiment_id, self.experiment_arm, self.propensity]
+        if any(value is not None for value in supplied) and not all(value is not None for value in supplied):
+            raise ValueError("experiment_id, experiment_arm and propensity must be supplied together")
+        return self
 
     @field_validator("feature_snapshot")
     @classmethod
@@ -145,15 +164,35 @@ def _pgvector_scores(db: Session, user_id: int, embedding: list[float]) -> dict[
         return {}
 
 
+
+@router.get("/experiments/{experiment_id}/assignment")
+def get_experiment_assignment(experiment_id: str,
+                              user: User = Depends(get_current_user)):
+    """Stable candidate-level assignment; clients must log the returned propensity."""
+    if not re.fullmatch(r"[a-zA-Z0-9._-]{1,100}", experiment_id):
+        raise HTTPException(status_code=422, detail="Invalid experiment identifier")
+    settings = get_settings()
+    return assign_arm(user.id, experiment_id, ["control", "explore"],
+                      settings.app_secret_key)
+
 @router.get("")
 def get_recommendations(
     request: Request,
     limit: int = Query(default=30, ge=1, le=100),
     refresh_embeddings: bool = Query(default=False),
+    experiment_id: str | None = Query(default=None, max_length=100),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     enforce_rate_limit(f"recommendations:{user.id}", limit=30, window_seconds=60)
+    experiment_assignment = None
+    if experiment_id:
+        if not re.fullmatch(r"[a-zA-Z0-9._-]{1,100}", experiment_id):
+            raise HTTPException(status_code=422, detail="Invalid experiment identifier")
+        experiment_assignment = assign_arm(
+            user.id, experiment_id, ["control", "explore"],
+            get_settings().app_secret_key,
+        )
     now = datetime.now(timezone.utc)
     profile_row = db.scalar(select(CandidateProfile).where(CandidateProfile.user_id == user.id))
     profile = _profile_payload(profile_row)
@@ -298,6 +337,8 @@ def get_recommendations(
     ranked = rank_opportunities(
         user.id, profile, skills, resume_text, jobs, events, training_samples,
         model_override=registered_ranker, allow_ephemeral_training=False,
+        allow_exploration=(experiment_assignment["arm"] == "explore")
+        if experiment_assignment else True,
     )
     # User-owned library IDs are returned only for this account. Cross-account
     # public roles have no local id until the candidate explicitly saves them.
@@ -322,6 +363,7 @@ def get_recommendations(
         db.commit()
     return {
         "items": items,
+        "experiment": experiment_assignment,
         "profile": {
             "headline": profile.get("headline"), "target_roles": target_roles,
             "skills": skills, "location": profile.get("location"),
@@ -371,7 +413,7 @@ def record_impressions(
         rows.append(RecommendationInteraction(
             user_id=user.id, item_key=event.item_key, event_type="impression",
             recommendation_source=event.recommendation_source, position=event.position,
-            feature_snapshot=event.feature_snapshot,
+            feature_snapshot={**event.feature_snapshot, **({"experiment_id": event.experiment_id, "experiment_arm": event.experiment_arm, "propensity": event.propensity} if event.experiment_id and event.experiment_arm and event.propensity else {})},
         ))
     db.add_all(rows)
     enqueue_event(db, "user.activity", {
@@ -466,7 +508,13 @@ def record_interaction(
             row = existing
             key = item_key({"source_url": row.source_url, "title": row.title,
                             "company": row.company, "location": row.location})
-    snapshot = body.feature_snapshot
+    snapshot = dict(body.feature_snapshot)
+    if body.experiment_id and body.experiment_arm and body.propensity:
+        if body.experiment_arm not in {"control", "explore"}:
+            raise HTTPException(status_code=422, detail="Unknown experiment arm")
+        snapshot.update({"experiment_id": body.experiment_id,
+                         "experiment_arm": body.experiment_arm,
+                         "propensity": body.propensity})
     if not snapshot and body.event_type in {"click", "save", "apply", "dismiss", "skip"}:
         previous = db.scalar(select(RecommendationInteraction).where(
             RecommendationInteraction.user_id == user.id,

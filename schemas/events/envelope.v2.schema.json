@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jobseeker.local/schemas/events/envelope.v2.schema.json",
+  "title": "JobSeeker Domain Event v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "schema_version",
+    "occurred_at",
+    "producer",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "job.raw",
+        "job.enriched",
+        "user.activity",
+        "application.dispatched",
+        "application.status_changed",
+        "email.classified",
+        "ats.action.approved"
+      ]
+    },
+    "schema_version": {
+      "const": 2
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producer": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "data": {
+      "type": "object"
+    },
+    "trace_context": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "correlation_id": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "causation_id": {
+      "type": "string",
+      "maxLength": 120
+    }
+  }
+}

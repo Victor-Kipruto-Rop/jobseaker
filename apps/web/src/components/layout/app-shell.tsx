@@ -7,7 +7,7 @@ import {
   Activity, Bell, BriefcaseBusiness, Building2, CalendarDays, CheckCheck, ChevronDown, Inbox,
   CircleHelp, Command, Compass, FileText, FolderKanban, GraduationCap, BookOpen,
   LayoutDashboard, LogOut, Menu, Plus, Search, Settings2, ShieldCheck,
-  Sparkles, StickyNote, Target, TrendingUp, UserRound, WandSparkles, X,
+  Sparkles, StickyNote, Target, TrendingUp, UserRound, WandSparkles, X, BrainCircuit,
   ListTodo, BarChart3, Bookmark, CalendarCheck, Users, ChartNoAxesCombined
 } from "lucide-react";
 import styles from "./app-shell.module.css";
@@ -69,7 +69,7 @@ const commandItems = [
   { label: "Prepare for interviews", description: "Schedule and manage interviews", href: "/interviews", icon: CalendarCheck },
   { label: "Edit career profile", description: "Experience, education and skills", href: "/profile", icon: UserRound },
   { label: "Open CV documents", description: "Your resumes and career documents", href: "/profile#resumes", icon: FileText },
-  { label: "Career analytics", description: "Performance from your own records", href: "/analytics", icon: BarChart3 },
+  { label: "Open AI Assistant", description: "Personalized career guidance and memory", href: "/assistant", icon: BrainCircuit },\n  { label: "Career analytics", description: "Performance from your own records", href: "/analytics", icon: BarChart3 },
   { label: "Create a task", description: "Add a career follow-up", href: "/tasks?new=1", icon: ListTodo },
   { label: "Write a note", description: "Capture career research", href: "/notes?new=1", icon: StickyNote },
   { label: "Open calendar", description: "Interviews and due dates", href: "/calendar", icon: CalendarDays },

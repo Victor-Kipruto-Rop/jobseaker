@@ -20,8 +20,6 @@ SCHEMA_ROOT = Path(__file__).resolve().parents[2] / "schemas" / "events"
 
 @lru_cache(maxsize=32)
 def load_envelope_schema(version: int) -> dict[str, Any]:
-    if version != 1:
-        raise ValueError(f"Unsupported event envelope schema version: {version}")
     path = SCHEMA_ROOT / f"envelope.v{version}.schema.json"
     if not path.is_file():
         raise ValueError(f"Event schema v{version} is not registered")

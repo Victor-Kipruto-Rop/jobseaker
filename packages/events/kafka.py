@@ -8,7 +8,7 @@ from uuid import uuid4
 from apps.api.app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
-ALLOWED_TOPICS = {"job.raw", "job.enriched", "user.activity", "application.dispatched", "application.status_changed", "email.classified"}
+ALLOWED_TOPICS = {"job.raw", "job.enriched", "user.activity", "application.dispatched", "application.status_changed", "email.classified", "ats.action.approved"}
 
 async def publish_event(topic: str, payload: dict[str, Any], *, key: str | None = None) -> bool:
     """Publish a versioned domain event; False means disabled or delivery failed."""
@@ -18,7 +18,7 @@ async def publish_event(topic: str, payload: dict[str, Any], *, key: str | None 
     if not settings.kafka_enabled:
         return False
     event = {
-        "event_id": str(uuid4()), "event_type": topic, "schema_version": 1,
+        "event_id": str(uuid4()), "event_type": topic, "schema_version": 2 if topic == "ats.action.approved" else 1,
         "occurred_at": datetime.now(timezone.utc).isoformat(),
         "producer": settings.kafka_client_id, "data": payload,
     }
