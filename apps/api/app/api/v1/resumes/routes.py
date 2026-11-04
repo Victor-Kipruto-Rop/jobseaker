@@ -304,6 +304,9 @@ def create_tailored_artifact(resume_id: int, body: TailoredArtifactRequest,
         raise HTTPException(status_code=422, detail="No source resume evidence matches this role")
     source_hash = hashlib.sha256(resume.extracted_text.encode()).hexdigest()
     job_hash = hashlib.sha256(body.job_description.encode()).hexdigest()
+    if parent and (parent.source_resume_id != resume.id
+                   or parent.job_description_sha256 != job_hash):
+        raise HTTPException(status_code=409, detail="Parent version belongs to a different resume or job description")
     previous = db.scalar(select(GeneratedArtifact).where(
         GeneratedArtifact.user_id == user.id,
         GeneratedArtifact.artifact_type == "tailored_resume",
