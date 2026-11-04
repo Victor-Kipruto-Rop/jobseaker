@@ -1,12 +1,39 @@
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
 from apps.api.app.main import app
+from apps.api.app import main as main_module
+from apps.api.app.dependencies import get_db
+from packages.database.models import Base
 
 
 @pytest.fixture
-def client():
-    yield TestClient(app)
+def client(monkeypatch):
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+
+    def test_session_factory():
+        return Session(bind=engine)
+
+    def override_db():
+        with Session(bind=engine) as session:
+            yield session
+
+    monkeypatch.setattr(main_module, "SessionLocal", test_session_factory)
+    app.dependency_overrides[get_db] = override_db
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        Base.metadata.drop_all(engine)
+        engine.dispose()
 
 
 def test_anonymous_mutation_rejects_missing_csrf_handshake(client):
