@@ -104,14 +104,18 @@ async def discover_company_profile(source: str, board: str) -> dict:
             parser.feed(response.text[:1_000_000])
 
         meta = parser.meta
-        title = meta.get("og:site_name") or meta.get("application-name") or (parser.title_parts[0] if parser.title_parts else "")
+        title = meta.get("og:site_name") or meta.get("application-name") or ""
+        if not title and parser.title_parts:
+            candidate_title = parser.title_parts[0].strip()
+            if candidate_title.casefold() not in {"careers", "jobs", "job openings", "open positions"}:
+                title = candidate_title
         if title:
-            cleaned = re.split(r"\\s+[|–—-]\\s+", title.strip())[0].strip()
+            cleaned = re.split(r"\s+[|–—-]\\s+", title.strip())[0].strip()
             if 1 < len(cleaned) <= 250:
                 profile["company"] = cleaned
 
         description = meta.get("og:description") or meta.get("description") or ""
-        profile["company_description"] = re.sub(r"\\s+", " ", description).strip()[:2000]
+        profile["company_description"] = re.sub(r"\s+", " ", description).strip()[:2000]
         logo = meta.get("og:image") or meta.get("twitter:image") or ""
         icon = parser.links.get("icon") or parser.links.get("shortcut icon") or ""
         logo_url = _safe_url(urljoin(page_url, logo)) if logo else ""
