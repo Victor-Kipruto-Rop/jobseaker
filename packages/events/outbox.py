@@ -87,7 +87,7 @@ async def relay_outbox_batch(
                 row.last_error = str(exc)[:2000]
                 row.locked_at = None
                 if row.attempts >= max_attempts:
-                    row.status = "dead_letter"
+                    # Do not mark terminal until the broker acknowledges the DLQ record.
                     try:
                         await producer.send_and_wait(
                             f"{topic}.dlq",
@@ -95,9 +95,16 @@ async def relay_outbox_batch(
                              "error": row.last_error, "attempts": row.attempts},
                             key=key.encode("utf-8") if key else None,
                         )
-                    except Exception:
-                        logger.exception("Could not publish event to DLQ", extra={"event_id": row.event_id})
-                    result["dead_lettered"] += 1
+                        row.status = "dead_letter"
+                        result["dead_lettered"] += 1
+                    except Exception as dlq_exc:
+                        row.status = "retry"
+                        row.available_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+                        row.last_error = (row.last_error + " | DLQ publish failed: " +
+                                          str(dlq_exc))[:2000]
+                        logger.exception("Could not publish event to DLQ; retaining outbox row",
+                                         extra={"event_id": row.event_id})
+                        result["retrying"] += 1
                 else:
                     delay = min(3600, 2 ** min(row.attempts, 11))
                     row.status = "retry"
