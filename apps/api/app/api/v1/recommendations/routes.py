@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Literal
@@ -20,11 +21,13 @@ from packages.database.models.career import (
     Application, CandidateOpportunity, CandidateProfile, CandidateSkill,
     Company, RecommendationInteraction, ResumeDocument,
 )
+from packages.recommendations.training import load_active_ranker
 from packages.recommendations.engine import (
     document_text, item_key, rank_opportunities, semantic_embeddings,
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 EVENT_TYPES = {"impression", "view", "click", "save", "dismiss", "skip", "apply", "interview", "offer"}
 SOURCES = {"content", "collaborative", "semantic", "graph", "fresh"}
 MAX_INTERACTION_BATCH = 50
@@ -280,8 +283,14 @@ def get_recommendations(
         if owner and owned_id and (owner, owned_id) in pg_scores:
             job["_pgvector_similarity"] = pg_scores[(owner, owned_id)]
 
+    try:
+        registered_ranker = load_active_ranker(db)
+    except Exception:
+        logger.exception("Active recommendation model could not be loaded; using transparent hybrid ranking")
+        registered_ranker = None
     ranked = rank_opportunities(
         user.id, profile, skills, resume_text, jobs, events, training_samples,
+        model_override=registered_ranker, allow_ephemeral_training=False,
     )
     # User-owned library IDs are returned only for this account. Cross-account
     # public roles have no local id until the candidate explicitly saves them.
