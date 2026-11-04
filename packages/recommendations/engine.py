@@ -343,8 +343,9 @@ def rank_opportunities(
     bandits = bandit_scores(events, ("content", "collaborative", "semantic", "graph", "fresh"))
     cached = [job.get("semantic_embedding") or [] for job in jobs]
     cached_dimension = len(cached[0]) if cached else 0
-    if cached_dimension and all(len(vector) == cached_dimension for vector in cached):
-        embeddings = [cached[0]] + cached
+    query_embedding = jobs[0].get("_profile_embedding") if jobs else None
+    if query_embedding and cached_dimension and all(len(vector) == cached_dimension for vector in cached):
+        embeddings = [query_embedding] + cached
         semantic_available = True
     else:
         embeddings = semantic_embeddings(documents)
