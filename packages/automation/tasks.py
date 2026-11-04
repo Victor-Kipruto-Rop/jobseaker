@@ -37,7 +37,7 @@ async def _fetch_saved_searches(searches, concurrency: int = 5):
                     else await discover_lever(board, 100)
                 )
                 return search_id, user_id, config, items, None
-            except (httpx.HTTPError, ValueError) as exc:
+            except Exception as exc:
                 return search_id, user_id, config, [], exc
 
     return await asyncio.gather(*(fetch(*item) for item in searches))
