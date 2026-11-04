@@ -38,7 +38,7 @@ from apps.api.app.api.v1.automations.routes import approvals, approval_decision,
 from packages.automation.approvals.service import create_approval
 from packages.database.models.entities import AIUsage
 from packages.integrations.gmail import client as gmail_client
-from packages.automation import tasks
+from packages.automation import tasks\nfrom apps.api.app.api.v1.workspace.routes import (\n    WorkspaceItemCreate, WorkspaceItemUpdate, list_items, create_item, update_item, delete_item,\n)
 
 
 @pytest.fixture
@@ -468,3 +468,53 @@ def test_gmail_authorization_does_not_persist_state_when_provider_config_is_inva
         gmail_client.create_authorization(db, owner.id)
 
     assert db.scalars(select(OAuthState).where(OAuthState.user_id == owner.id)).all() == []
+
+
+def test_career_workspace_items_are_private_and_mutations_are_owner_scoped(db, users):
+    owner, other = users
+    own_task = CareerWorkspaceItem(
+        user_id=owner.id, item_type="task", title="Follow up with recruiter",
+        description="Send a follow-up after the interview", status="open", priority="high",
+    )
+    private_note = CareerWorkspaceItem(
+        user_id=other.id, item_type="note", title="Private career note",
+        description="Other user's confidential notes", status="open",
+    )
+    db.add_all([own_task, private_note])
+    db.flush()
+
+    records = list_items(item_type=None, status=None, user=owner, db=db)
+    assert [item["title"] for item in records] == ["Follow up with recruiter"]
+
+    with pytest.raises(HTTPException) as error:
+        update_item(private_note.id, WorkspaceItemUpdate(title="Tampered"), owner, db)
+    assert error.value.status_code == 404
+    with pytest.raises(HTTPException) as error:
+        delete_item(private_note.id, owner, db)
+    assert error.value.status_code == 404
+    assert private_note.title == "Private career note"
+
+    updated = update_item(own_task.id, WorkspaceItemUpdate(status="in_progress"), owner, db)
+    assert updated["status"] == "in_progress"
+    assert private_note.status == "open"
+
+
+def test_career_workspace_validates_item_lifecycle_and_persists_metadata(db, users):
+    owner, _ = users
+    created = create_item(
+        WorkspaceItemCreate(
+            item_type="project", title="Build a portfolio pipeline",
+            description="Demonstrate ingestion, validation and analytics",
+            status="in_progress", priority="high",
+            metadata={"repository": "https://github.com/example/project"},
+        ),
+        owner, db,
+    )
+    assert created["item_type"] == "project"
+    assert created["metadata"]["repository"].startswith("https://")
+    with pytest.raises(HTTPException) as error:
+        update_item(created["id"], WorkspaceItemUpdate(status="cancelled"), owner, db)
+    assert error.value.status_code == 422
+    deleted = delete_item(created["id"], owner, db)
+    assert deleted is None
+    assert list_items(item_type="project", status=None, user=owner, db=db) == []
