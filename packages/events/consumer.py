@@ -7,6 +7,7 @@ from typing import Callable
 
 from packages.events.contracts import EventEnvelope
 from packages.events.inbox import consume_once
+from packages.ops.metrics import EVENT_DELIVERY, CONSUMER_RETRIES, CONSUMER_DLQ
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +53,12 @@ async def run_kafka_consumer(
                             handler,
                         )
                     await consumer.commit()
+                    EVENT_DELIVERY.labels("consumer", message.topic, "processed").inc()
                     failure = None
                     break
                 except Exception as exc:
                     failure = exc
+                    CONSUMER_RETRIES.labels(message.topic).inc()
                     logger.exception(
                         "Kafka event processing failed",
                         extra={"topic": message.topic, "offset": message.offset,
@@ -72,6 +75,8 @@ async def run_kafka_consumer(
                      "attempts": max_attempts},
                     key=message.key,
                 )
+                CONSUMER_DLQ.labels(message.topic).inc()
+                EVENT_DELIVERY.labels("consumer", message.topic, "dead_letter").inc()
                 await consumer.commit()
     finally:
         await consumer.stop()
