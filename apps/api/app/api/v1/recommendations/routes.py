@@ -336,9 +336,9 @@ def get_recommendations(
 @router.post("/impressions", status_code=201)
 def record_impressions(
     body: InteractionBatch,
-    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     """Batch-write recommendation exposures for unbiased bandit denominators."""
     enforce_rate_limit(f"recommendation-impressions:{user.id}", limit=30, window_seconds=60)
@@ -366,9 +366,9 @@ def record_impressions(
 def record_interaction(
     body: InteractionInput,
     request: Request,
-    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     enforce_rate_limit(f"recommendation-events:{user.id}", limit=180, window_seconds=60)
     row = None
