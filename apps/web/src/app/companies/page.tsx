@@ -1,6 +1,8 @@
 "use client";
 
 import AppShell from "../../components/layout/app-shell";
+
+
 import {useEffect,useState} from "react";
 const API=process.env.NEXT_PUBLIC_API_BASE_URL||"http://localhost:8000";
 function csrf(){return decodeURIComponent(document.cookie.split("; ").find(x=>x.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=")||"");}
