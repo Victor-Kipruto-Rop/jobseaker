@@ -242,3 +242,23 @@ class GeneratedArtifact(Base):
     provider: Mapped[str] = mapped_column(String(40), default="")
     model: Mapped[str] = mapped_column(String(120), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CareerWorkspaceItem(Base):
+    """User-owned tasks, notes, learning milestones, projects and contacts."""
+    __tablename__ = "career_workspace_items"
+    __table_args__ = (
+        Index("ix_career_workspace_user_type_status", "user_id", "item_type", "status"),
+        Index("ix_career_workspace_user_due", "user_id", "due_at"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    item_type: Mapped[str] = mapped_column(String(30), index=True)
+    title: Mapped[str] = mapped_column(String(250))
+    description: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(30), default="open")
+    priority: Mapped[str] = mapped_column(String(20), default="normal")
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    metadata_json: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
