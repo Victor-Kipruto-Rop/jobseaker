@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import styles from "./login.module.css";
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 function cookie(name: string) {
@@ -45,12 +46,12 @@ export default function LoginPage() {
     }
   }
 
-  return <main style={{minHeight:"100vh",display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(320px,520px)",background:"#07110c",color:"#edf5ef"}}>
-    <section style={{padding:"clamp(28px,7vw,90px)",display:"flex",flexDirection:"column",justifyContent:"space-between",background:"radial-gradient(circle at 15% 20%,#173b2b 0,transparent 48%),#09140e"}}>
+  return <main className={styles.loginLayout}>
+    <section className={styles.heroPanel}>
       <a href="/" style={{color:"#54d69a",fontWeight:800,fontSize:22,textDecoration:"none"}}>JobSeeker<span style={{color:"#edf5ef"}}>.</span></a>
       <div style={{maxWidth:620}}>
         <p style={{color:"#54d69a",letterSpacing:3,fontSize:12}}>CAREER OPERATIONS INTELLIGENCE</p>
-        <h1 style={{fontSize:"clamp(42px,6vw,76px)",lineHeight:1.02,letterSpacing:-2}}>Build a more intentional career.</h1>
+        <h1 className={styles.heroTitle}>Build a more intentional career.</h1>
         <p style={{color:"#a7b8ad",fontSize:18,lineHeight:1.8}}>Discover opportunities, understand your strengths and organize every application in one secure workspace.</p>
       </div>
       <small style={{color:"#708579"}}>Your data stays tied to your account. External actions remain approval-gated.</small>
@@ -69,7 +70,6 @@ export default function LoginPage() {
         <p style={{textAlign:"center",fontSize:13,color:"#a7b8ad",marginTop:22}}>{mode === "login" ? "New to JobSeeker?" : "Already have an account?"} <button type="button" onClick={()=>{setMode(mode==="login"?"register":"login");setError("");}} style={{background:"none",border:0,color:"#54d69a",cursor:"pointer",fontWeight:700}}>{mode==="login"?"Create account":"Sign in"}</button></p>
       </form>
     </section>
-    <style jsx>{`@media(max-width:760px){main{grid-template-columns:1fr!important}main section:first-child{min-height:260px;padding:28px!important}main section:first-child h1{font-size:42px}}`}</style>
   </main>;
 }
 
