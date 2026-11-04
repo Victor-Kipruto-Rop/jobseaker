@@ -126,6 +126,7 @@ def memory_overview(user: User = Depends(get_current_user), db: Session = Depend
     count = db.scalar(select(func.count(AssistantMemory.id)).where(AssistantMemory.user_id==user.id)) or 0
     pref = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id==user.id))
     return {"enabled":pref.memory_enabled if pref else False,"episodic_count":int(count),
+        "retention_days":pref.memory_retention_days if pref else 365,
         "facts":[{"id":f.id,"key":f.fact_key,"value":decrypt_credential(f.fact_value, purpose=f"assistant-fact:{user.id}") if f.fact_value_encrypted else f.fact_value,"confidence":f.confidence,"verified":f.verified_by_user} for f in facts]}
 
 @router.put("/assistant/preferences")
@@ -178,6 +179,11 @@ def delete_memory(user:User=Depends(get_current_user),db:Session=Depends(get_db)
     db.query(AssistantEntity).filter(AssistantEntity.user_id==user.id).delete(synchronize_session=False)
     db.query(AssistantMemory).filter(AssistantMemory.user_id==user.id).delete(synchronize_session=False)
     db.query(AssistantFact).filter(AssistantFact.user_id==user.id).delete(synchronize_session=False)
+    db.query(AssistantFeedback).filter(AssistantFeedback.user_id==user.id).delete(synchronize_session=False)
+    if preference:
+        preference.preferences = {}
+        preference.preference_vector = []
+        preference.feedback_count = 0
     db.commit()
     return {"deleted":True}
 
@@ -212,7 +218,9 @@ async def ingest_knowledge_file(
 @router.get("/assistant/memory/export")
 def export_assistant_memory(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(AssistantMemory).where(
-        AssistantMemory.user_id == user.id).order_by(AssistantMemory.created_at.asc())).all()
+        AssistantMemory.user_id == user.id,
+        (AssistantMemory.expires_at.is_(None) | (AssistantMemory.expires_at > datetime.now(timezone.utc)))
+    ).order_by(AssistantMemory.created_at.asc())).all()
     facts = db.scalars(select(AssistantFact).where(
         AssistantFact.user_id == user.id, AssistantFact.active.is_(True))).all()
     memories = []
@@ -233,6 +241,12 @@ def set_memory_retention(days: int, user: User = Depends(get_current_user),
         raise HTTPException(status_code=422, detail="Retention must be between 30 and 730 days.")
     from datetime import timedelta
     expiry = datetime.now(timezone.utc) + timedelta(days=days)
+    preference = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user.id))
+    if preference is None:
+        preference = AssistantPreference(user_id=user.id, memory_retention_days=days)
+        db.add(preference)
+    else:
+        preference.memory_retention_days = days
     db.query(AssistantMemory).filter(AssistantMemory.user_id == user.id).update(
         {"expires_at": expiry}, synchronize_session=False)
     db.commit()
