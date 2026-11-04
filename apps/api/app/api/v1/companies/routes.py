@@ -34,6 +34,20 @@ class CompanyInput(BaseModel):
             raise ValueError("Company websites and brand assets must use HTTPS")
         return safe
 
+    @field_validator("social_links")
+    @classmethod
+    def validate_social_links(cls, value):
+        if len(value) > 12:
+            raise ValueError("Too many social profile links")
+        cleaned = {}
+        for key, url in value.items():
+            if key not in {"linkedin", "x", "github", "facebook", "youtube", "instagram"}:
+                continue
+            safe = validate_http_url(str(url))
+            if safe and safe.lower().startswith("https://"):
+                cleaned[key] = safe
+        return cleaned
+
 
 def serialize_company(company: Company, opportunity_count: int = 0):
     return {
