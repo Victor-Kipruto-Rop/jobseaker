@@ -23,6 +23,9 @@ def upgrade():
     op.add_column("assistant_memories", sa.Column("content_encrypted", sa.Boolean(), nullable=False, server_default=sa.false()))
     op.add_column("assistant_facts", sa.Column("fact_value_encrypted", sa.Boolean(), nullable=False, server_default=sa.false()))
     op.add_column("assistant_entities", sa.Column("aliases", sa.JSON(), nullable=False, server_default="[]"))
+    op.add_column("assistant_ingestion_jobs", sa.Column("dispatch_attempts", sa.Integer(), nullable=False, server_default="0"))
+    op.add_column("assistant_ingestion_jobs", sa.Column("dispatched_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column("assistant_ingestion_jobs", sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()))
     op.create_table(
         "assistant_ingestion_jobs",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -49,6 +52,9 @@ def downgrade():
     op.drop_index("ix_assistant_ingestion_user_created", table_name="assistant_ingestion_jobs")
     op.drop_index("ix_assistant_ingestion_jobs_user_id", table_name="assistant_ingestion_jobs")
     op.drop_index("ix_assistant_ingestion_jobs_job_id", table_name="assistant_ingestion_jobs")
+    op.drop_column("assistant_ingestion_jobs", "updated_at")
+    op.drop_column("assistant_ingestion_jobs", "dispatched_at")
+    op.drop_column("assistant_ingestion_jobs", "dispatch_attempts")
     op.drop_table("assistant_ingestion_jobs")
     op.drop_column("assistant_entities", "aliases")
     op.drop_column("assistant_facts", "fact_value_encrypted")
