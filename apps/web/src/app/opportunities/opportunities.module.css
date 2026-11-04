@@ -12,3 +12,8 @@
 .viewActive{background:#fff;color:#315b40;box-shadow:0 1px 3px #263a2d12}
 .rolesSection{scroll-margin-top:85px}
 @media(max-width:680px){.headingActions{width:100%;justify-content:space-between;gap:8px}.viewButton,.viewActive{padding:0 8px}}
+
+.companyMark{overflow:hidden;background:#fff;border:1px solid #e8ede7}
+.companyMark img{display:block;width:100%;height:100%;object-fit:contain;padding:3px}
+.roleMeta a{display:inline-flex;align-items:center;gap:4px;color:inherit;text-decoration:none}
+.roleMeta a:hover{color:#426b4a}
