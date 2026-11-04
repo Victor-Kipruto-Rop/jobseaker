@@ -15,13 +15,13 @@ ALIASES = {
 SKILLS = sorted(set(ALIASES) | {"sql","java","go","rust","elixir","airflow","dbt","spark",
     "pandas","docker","kubernetes","fastapi","flask","react","next.js","redis",
     "snowflake","databricks","terraform","git","linux","excel","tableau"}, key=len, reverse=True)
-ALIAS_TO_CANONICAL = {normalize_alias: canonical for canonical, aliases in ALIASES.items()
-                      for normalize_alias in {canonical, *aliases}}
-
 def normalize(value: str) -> str:
     value = (value or "").casefold().strip()
     value = re.sub(r"\b(incorporated|limited|ltd|inc|llc|plc)\b", "", value)
     return re.sub(r"[^a-z0-9+#.]+", " ", value).strip()[:240]
+
+ALIAS_TO_CANONICAL = {normalize(alias): canonical for canonical, aliases in ALIASES.items()
+                      for alias in {canonical, *aliases}}
 
 def canonicalize(value: str) -> str:
     normalized = normalize(value)
