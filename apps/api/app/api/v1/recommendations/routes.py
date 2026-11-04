@@ -180,10 +180,19 @@ def get_recommendations(
     request: Request,
     limit: int = Query(default=30, ge=1, le=100),
     refresh_embeddings: bool = Query(default=False),
+    experiment_id: str | None = Query(default=None, max_length=100),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     enforce_rate_limit(f"recommendations:{user.id}", limit=30, window_seconds=60)
+    experiment_assignment = None
+    if experiment_id:
+        if not re.fullmatch(r"[a-zA-Z0-9._-]{1,100}", experiment_id):
+            raise HTTPException(status_code=422, detail="Invalid experiment identifier")
+        experiment_assignment = assign_arm(
+            user.id, experiment_id, ["control", "explore"],
+            get_settings().app_secret_key,
+        )
     now = datetime.now(timezone.utc)
     profile_row = db.scalar(select(CandidateProfile).where(CandidateProfile.user_id == user.id))
     profile = _profile_payload(profile_row)
@@ -328,6 +337,8 @@ def get_recommendations(
     ranked = rank_opportunities(
         user.id, profile, skills, resume_text, jobs, events, training_samples,
         model_override=registered_ranker, allow_ephemeral_training=False,
+        allow_exploration=(experiment_assignment["arm"] == "explore")
+        if experiment_assignment else True,
     )
     # User-owned library IDs are returned only for this account. Cross-account
     # public roles have no local id until the candidate explicitly saves them.
@@ -352,6 +363,7 @@ def get_recommendations(
         db.commit()
     return {
         "items": items,
+        "experiment": experiment_assignment,
         "profile": {
             "headline": profile.get("headline"), "target_roles": target_roles,
             "skills": skills, "location": profile.get("location"),
