@@ -13,6 +13,7 @@ from packages.ai.providers.router import generate_with_fallback
 from packages.database.models.identity import User
 from packages.database.models.career import (
     ResumeDocument, CandidateSkill, CandidateProfile, GeneratedArtifact, AuditLog,
+    CandidateOpportunity, Company, CareerWorkspaceItem,
 )
 
 router = APIRouter()
@@ -31,6 +32,7 @@ class CVTailorRequest(BaseModel):
 class CoverLetterRequest(CVTailorRequest):
     company_name: str = Field(default="", max_length=250)
     role_title: str = Field(default="", max_length=250)
+    opportunity_id: int | None = None
 
 class InterviewPrepRequest(BaseModel):
     role_title: str = Field(min_length=2, max_length=250)
@@ -104,7 +106,8 @@ async def tailor_cv(body: CVTailorRequest, user: User = Depends(get_current_user
     system = ("You are a careful CV editor. Source CV content is the only evidence for candidate facts. "
               "Never fabricate facts or claim a keyword is supported when it is not. Keep the result a draft.")
     return await _generate(user, db, "cv_tailoring", "Tailored CV: " + resume.filename,
-                            prompt, system, body.provider, resume_id=resume.id)
+                            prompt, system, body.provider, resume_id=resume.id,
+                            opportunity_id=opportunity.id if opportunity else None)
 
 @router.post("/cover-letter")
 async def cover_letter(body: CoverLetterRequest, user: User = Depends(get_current_user),
@@ -113,12 +116,41 @@ async def cover_letter(body: CoverLetterRequest, user: User = Depends(get_curren
         ResumeDocument.id == body.resume_id, ResumeDocument.user_id == user.id))
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
+    opportunity = None
+    company_description = ""
+    company_name = body.company_name
+    if body.opportunity_id is not None:
+        opportunity = db.scalar(select(CandidateOpportunity).where(
+            CandidateOpportunity.id == body.opportunity_id,
+            CandidateOpportunity.user_id == user.id,
+        ))
+        if not opportunity:
+            raise HTTPException(status_code=404, detail="Opportunity not found")
+        company_name = opportunity.company or company_name
+        if opportunity.company_id:
+            company = db.scalar(select(Company).where(
+                Company.id == opportunity.company_id, Company.user_id == user.id,
+            ))
+            company_description = company.description if company else ""
+        company_description = company_description or opportunity.company_description or ""
+    projects = db.scalars(select(CareerWorkspaceItem).where(
+        CareerWorkspaceItem.user_id == user.id,
+        CareerWorkspaceItem.item_type == "project",
+    ).order_by(CareerWorkspaceItem.updated_at.desc()).limit(10)).all()
+    project_evidence = "\\n".join(
+        f"- {item.title}: {item.description[:1200]}" for item in projects
+    ) or "No candidate project records are available."
     prompt = (
-        "Write a concise, specific cover letter draft for this role. Use only evidence in the source CV. "
-        "Do not invent company research, achievements, qualifications, or experience. Mark missing facts "
-        "with [CANDIDATE INPUT REQUIRED].\nCompany: " + body.company_name +
-        "\nRole: " + body.role_title + "\nJob description:\n" + body.job_description +
-        "\nSource CV:\n" + resume.extracted_text[:16000]
+        "Write a concise, specific cover letter draft for this role. Cross-reference the source CV, "
+        "candidate-recorded projects, and the employer description supplied below. Do not invent a company "
+        "mission, company research, achievements, qualifications, metrics, or experience. If employer "
+        "mission information is unavailable, do not imply you researched it. Mark missing candidate facts "
+        "with [CANDIDATE INPUT REQUIRED].\nCompany: " + company_name +
+        "\nPublished company description: " + (company_description or "[PUBLIC COMPANY DESCRIPTION UNAVAILABLE]") +
+        "\nRole: " + (body.role_title or (opportunity.title if opportunity else "")) +
+        "\nJob description:\\n" + body.job_description +
+        "\nCandidate project history:\\n" + project_evidence +
+        "\nSource CV:\\n" + resume.extracted_text[:16000]
     )
     system = "You are a precise professional writing assistant. Do not invent candidate or company facts."
     return await _generate(user, db, "cover_letter", "Cover letter: " + (body.role_title or "Target role"),
