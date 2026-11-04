@@ -19,6 +19,10 @@ class AgentPlan:
     goal: str
     steps: list[AgentStep] = field(default_factory=list)
 
+    @property
+    def tool_names(self) -> list[str]:
+        return [step.name for step in self.steps]
+
 def plan_agent_steps(query: str) -> AgentPlan:
     q = (query or "").casefold()
     selected: list[str] = []
@@ -41,7 +45,7 @@ def execute_plan(plan: AgentPlan, tools: dict[str, Callable[[], Any]]) -> AgentP
         for attempt in range(2):
             step.attempts += 1
             try:
-                step.result = tools[step.name]
+                step.result = tools[step.name]()
                 step.status = "completed"
                 break
             except (TimeoutError, ConnectionError) as exc:
