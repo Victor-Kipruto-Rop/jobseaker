@@ -35,6 +35,13 @@ def process_ingestion_job(job_id: str) -> dict:
         clean = sanitize(extracted)
         if len(clean.strip()) < 20:
             raise ValueError("No usable text could be extracted.")
+        db.refresh(job)
+        preference = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == job.user_id))
+        if not preference or not preference.memory_enabled or job.status == "cancelled":
+            job.status = "cancelled"
+            job.payload_ciphertext = ""
+            db.commit()
+            return {"status": "cancelled"}
         job.memory_id = remember(db, job.user_id, clean, source="document")
         job.characters_indexed = len(clean)
         job.status = "completed"
