@@ -626,3 +626,6 @@ Added source-derived company metadata to the Greenhouse/Lever opportunity import
 The company metadata contract also includes a validated public theme color and an HTML image-element logo fallback when Open Graph/Twitter images are absent. Company domain and description are returned to the opportunity and application views. Greenhouse board API names take precedence over generic page-title metadata. Re-discovery backfills missing company fields on previously imported records. Extracted company URLs are HTTPS-only and bounded to their database column sizes.
 
 Current PR head at this documentation update: `8ff103fcc5f55310dbb0682b070e18ba941931fa`. No commit-associated workflow runs were returned for this exact head. The latest observed earlier runs (`41803320382` CI and `41803320060` Secret scan) failed with null step summaries and no retrievable logs. No test/build/migration/browser result is available for this implementation.
+
+
+Final company-enrichment hardening commit: `c00154fb6c6d52d82cc54f7fef6d42d4823d8d40`. The commit-associated workflow lookup returned no runs for this exact head. No tests or builds have been executed by this environment.
