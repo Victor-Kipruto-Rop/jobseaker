@@ -45,9 +45,16 @@ def _assistant_dispatch_loop(redis_url: str) -> None:
                     age = max(0.0, time.time() - pending.created_at.timestamp()) if pending else 0.0
                 OUTBOX_OLDEST_AGE.set(age)
                 EVENT_DLQ_BACKLOG.set(dead)
+                redis_state = "ok"
+                try:
+                    probe = Redis.from_url(redis_url, socket_connect_timeout=1, socket_timeout=1)
+                    probe.ping()
+                    probe.close()
+                except Exception:
+                    redis_state = "error"
                 report = summarize_operational_health({
                     "outbox_backlog": backlog, "oldest_pending_seconds": age,
-                    "dead_letter_count": dead, "dependencies": {"redis": "ok"},
+                    "dead_letter_count": dead, "dependencies": {"redis": redis_state},
                 })
                 if report["alerts"]:
                     for alert in report["alerts"]:
