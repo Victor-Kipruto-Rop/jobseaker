@@ -119,7 +119,13 @@ def update_application(application_id: int, body: ApplicationUpdate,
                                 event_type="application.details_updated",
                                 details={"fields": changed_fields}))
     db.commit()
-    return _serialize(row)
+    opportunity = None
+    if row.opportunity_id is not None:
+        opportunity = db.scalar(select(CandidateOpportunity).where(
+            CandidateOpportunity.id == row.opportunity_id,
+            CandidateOpportunity.user_id == user.id,
+        ))
+    return _serialize(row, opportunity)
 
 @router.get("/{application_id}/events")
 def application_events(application_id: int, user: User = Depends(get_current_user),
