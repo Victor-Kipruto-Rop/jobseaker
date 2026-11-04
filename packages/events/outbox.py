@@ -21,9 +21,11 @@ def enqueue_event(
     db: Session, topic: str, payload: dict[str, Any], *,
     partition_key: str = "", event_id: str | None = None,
     producer: str = "jobseeker-api", schema_version: int = 1,
+    correlation_id: str | None = None, causation_id: str | None = None,
 ) -> str:
     """Add an event to the caller's transaction. The caller owns commit/rollback."""
     from packages.events.kafka import ALLOWED_TOPICS
+    from packages.events.schema_registry import validate_envelope
     if topic not in ALLOWED_TOPICS:
         raise ValueError(f"Unsupported JobSeeker event topic: {topic}")
     identifier = event_id or str(uuid4())
@@ -33,6 +35,11 @@ def enqueue_event(
         "occurred_at": now.isoformat(), "producer": producer, "data": payload,
         "trace_context": inject_trace_context(),
     }
+    if correlation_id:
+        envelope["correlation_id"] = correlation_id
+    if causation_id:
+        envelope["causation_id"] = causation_id
+    validate_envelope(envelope)
     db.add(EventOutbox(
         event_id=identifier, topic=topic, partition_key=partition_key,
         envelope=envelope, status="pending", attempts=0,
