@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
-from apps.api.app.dependencies import get_db, get_current_user
+from apps.api.app.dependencies import get_db, get_current_user, require_roles
 from apps.api.app.core.config import get_settings
 from apps.api.app.core.redis_limits import enforce_rate_limit
 from apps.api.app.core.security import create_session, hash_password, resolve_session, revoke_session, verify_password
@@ -148,7 +148,7 @@ def _consume_account_token(db: Session, raw_token: str, purpose: str):
     return record
 
 @router.post("/verification/request")
-def request_verification(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def request_verification(user: User = Depends(require_roles("candidate")), db: Session = Depends(get_db)):
     if user.is_verified:
         return {"status": "already_verified"}
     enforce_rate_limit(f"verify-email:{user.id}", 3, 3600)
