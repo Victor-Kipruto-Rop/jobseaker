@@ -164,6 +164,20 @@ async def enqueue_assistant_ingestion(file: UploadFile = File(...),
     return {"job_id": job_id, "status": "queued", "filename": filename}
 
 
+@router.get("/assistant/ingestions")
+def list_assistant_ingestions(user: User = Depends(get_current_user),
+                              db: Session = Depends(get_db)):
+    rows = db.scalars(select(AssistantIngestionJob).where(
+        AssistantIngestionJob.user_id == user.id
+    ).order_by(AssistantIngestionJob.created_at.desc()).limit(20)).all()
+    return {"jobs": [{
+        "job_id": row.job_id, "filename": row.filename, "status": row.status,
+        "attempts": row.attempts, "characters_indexed": row.characters_indexed,
+        "last_error": row.last_error,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+    } for row in rows]}
+
 @router.get("/assistant/ingestion/{job_id}")
 def assistant_ingestion_status(job_id: str, user: User = Depends(get_current_user),
                                db: Session = Depends(get_db)):
