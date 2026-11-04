@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
   Activity, Bell, BriefcaseBusiness, ChevronDown, FileText, LayoutDashboard,
-  LogOut, Menu, Search, Settings2, ShieldCheck, Target, X, CheckCheck, WandSparkles
+  LogOut, Menu, Search, Settings2, ShieldCheck, Target, X, CheckCheck
 } from "lucide-react";
 import styles from "./app-shell.module.css";
 
@@ -36,7 +36,6 @@ const navGroups = [
     heading: "CAREER DEVELOPMENT",
     items: [
       { label: "Career profile", href: "/profile", icon: FileText },
-      { label: "Career studio", href: "/career-studio", icon: WandSparkles },
     ],
   },
   {
