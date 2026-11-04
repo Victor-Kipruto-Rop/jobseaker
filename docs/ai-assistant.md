@@ -1,107 +1,71 @@
 # JobSeeker Personal AI Assistant
 
-The assistant is exposed under `/api/v1/ai/assistant` and the dashboard route `/assistant`.
-It reuses the existing AI provider registry, token reservations, usage ledger, authenticated
-candidate session and conversation/message tables.
+The assistant is a first-class capability inside the existing JobSeeker dashboard and API. It reuses the authenticated candidate session, provider registry, quota reservations, AI usage ledger, conversation/message persistence, PostgreSQL database, and Redis/RQ worker. It is not a separate chatbot application.
 
-## Features
+## Dashboard and API
 
-- User-scoped episodic memories, extracted facts, semantic entity nodes and typed relationships.
-- Explicit opt-in for persistent memory. Pausing memory stops new writes and retrieval.
-- Hybrid retrieval: dense cosine similarity plus lexical BM25-style scoring, with optional
-  SentenceTransformer embeddings and optional CrossEncoder reranking.
-- Bounded working context: recent conversation window, retrieved memory shortlist and a
-  character budget.
-- Extractive summaries for compact memory records.
-- Candidate-scoped read-only tools for applications, interviews, profile/CV and opportunities.
-- Feedback records and preference adaptation signals.
-- PDF, DOCX, text, Markdown, image OCR (optional) and Python AST ingestion.
-- PII-like token, email, phone and long-number redaction before memory persistence and model context.
-- Memory overview, pause/resume and full memory/graph deletion endpoints.
+The light-mode assistant workspace is available at `/assistant`, linked from the existing application navigation. The authenticated API is mounted under `/api/v1/ai/assistant`.
 
-## API
+- `POST /assistant/chat`
+- `GET /assistant/memory`
+- `PATCH /assistant/memory?enabled=true|false`
+- `DELETE /assistant/memory`
+- `GET /assistant/memory/export`
+- `PATCH /assistant/memory/retention?days=365` (30 to 730 days)
+- `PUT /assistant/preferences`
+- `POST /assistant/feedback`
+- `POST /assistant/ingest-async`
+- `GET /assistant/ingestion/{job_id}`
+- `DELETE /assistant/ingestion/{job_id}`
 
-- `POST /api/v1/ai/assistant/chat`
-- `GET /api/v1/ai/assistant/memory`
-- `PATCH /api/v1/ai/assistant/memory?enabled=true|false`
-- `DELETE /api/v1/ai/assistant/memory`
-- `PUT /api/v1/ai/assistant/preferences`
-- `POST /api/v1/ai/assistant/feedback`
-- `POST /api/v1/ai/assistant/ingest` (multipart field: `file`)
+## Memory, retrieval and knowledge graph
 
-## Database
+- Persistent episodic memory is opt-in. Pausing it prevents new writes and retrieval.
+- Episodic content, summaries, and extracted fact values are encrypted using the existing versioned AES-256-GCM credential keyring with purpose-specific associated data.
+- New PostgreSQL memory records use 384-dimensional pgvector embeddings and an HNSW cosine index. Hybrid ranking combines dense similarity and lexical BM25-style scoring, with optional cross-encoder reranking.
+- SQLite and non-PostgreSQL test environments retain the JSON embedding fallback.
+- Existing legacy JSON vectors are not cast to a different dimension. Re-embedding/backfill is required before those records can participate in the pgvector index.
+- Entity resolution is scoped to the authenticated user and entity type. It canonicalizes common technology aliases and extracts selected skills, employers, projects and roles. Fuzzy merges require a high confidence margin; ambiguous candidates are not merged.
+- Working context is bounded and includes recent messages, relevant memory, facts, preferences and graph relationships.
 
-Apply the migration after the Phase 4 head:
+## Background ingestion
+
+Document uploads are stored as durable ingestion-job records and dispatched to the existing Redis/RQ worker on the dedicated `assistant` queue. The file payload is encrypted before persistence; Redis receives only the job identifier. The worker rechecks memory consent before parsing and indexing. Job status and cancellation are owner-scoped. Payload ciphertext is cleared after success, cancellation or terminal failure.
+
+Supported input includes PDF, DOCX, text, Markdown, images with optional OCR, and Python source AST extraction. OCR requires Pillow, pytesseract and the Tesseract system binary.
+
+## Agent orchestration and safety
+
+The orchestration layer creates bounded multi-step plans and executes sequentially through a strict read-only capability registry for candidate profile, applications, interviews and job opportunities. Each step records status and attempts; transient read failures can be retried. This is deterministic bounded orchestration, not yet a model-directed ReAct loop or dynamic third-party tool system.
+
+The assistant cannot submit applications, send email, change application lifecycle state, or perform external writes. Those remain within existing explicit approval workflows. Retrieved documents and memories are treated as untrusted data, and candidate records are always filtered by the authenticated user.
+
+## Privacy and operations
+
+- Memory starts disabled. Enabling it requires a configured encryption keyring.
+- Configure `JOBSEEKER_CREDENTIAL_KEYRING` and `JOBSEEKER_CREDENTIAL_ACTIVE_KEY_ID`, or the supported legacy `JOBSEEKER_CREDENTIAL_KEK`, in the deployment secret manager. Do not commit key material.
+- Retain old key IDs during key rotation until stored ciphertext has been rewrapped.
+- New episodic memories receive a 365-day expiry by default; the owner can change retention from 30 to 730 days.
+- Users can export their memory and facts, pause memory, cancel queued ingestion, or delete memories, facts and graph relations. Deletion disables memory and clears pending encrypted ingestion payloads.
+- Graph entity labels and selected operational metadata remain structured database fields. Protect the database with TLS, encrypted storage, restricted service credentials and managed backups.
+
+## Remaining engineering boundaries
+
+- Full model-directed ReAct planning, browser automation and dynamic third-party tools are not implemented.
+- Entity extraction covers selected patterns and does not yet create a universal graph over every project, person, qualification or connected data source.
+- A dedicated toxicity classifier and independent post-generation moderation service are not implemented.
+- Implicit dwell-time and scroll telemetry are not implemented.
+- Repository-wide GitHub crawler/AST ingestion is not connected; Python source can be uploaded for local AST indexing.
+- Hierarchical LLM summarization and a fact-verification UI remain future work.
+
+## Migration and verification
+
+Apply schema changes with:
 
 ```bash
 alembic upgrade head
 ```
 
-Migration `20261104_0021` adds memory, fact, preference, feedback, entity and relation tables.
-All records are owned by `user_id`; foreign keys cascade on account deletion.
+The new migration is `20261104_0022`, following `20261104_0021`. Install the standard project dependencies to include pgvector.
 
-## Optional ML and OCR
-
-Install optional extras:
-
-```bash
-pip install -e ".[ml,document-ocr]"
-```
-
-Configure `JOBSEEKER_MEMORY_EMBEDDING_MODEL` to a locally available SentenceTransformer
-model and `JOBSEEKER_CROSS_ENCODER_MODEL` to a locally available CrossEncoder model.
-The default offline path uses deterministic feature-hash vectors and lexical retrieval.
-For OCR, install the Tesseract system binary in addition to the Python extra.
-
-## Safety boundaries and limitations
-
-- Memory is opt-in and can be paused or deleted independently of chat history.
-- Extracted facts are unverified until a user-facing verification flow is implemented.
-- The assistant only executes read-only internal context tools automatically. External actions
-  such as sending email or submitting applications remain behind existing approval workflows.
-- The baseline vector representation is stored in PostgreSQL JSON and ranked in application
-  memory. It is suitable for an initial bounded deployment, not a substitute for pgvector or a
-  dedicated vector database at high scale.
-- The built-in ranking fallback is lexical plus feature-hash cosine. Transformer and
-  cross-encoder quality depends on locally installed model artifacts.
-- Image OCR is optional and requires Tesseract. Scanned PDFs need OCR conversion before ingestion.
-- Repository-wide AST indexing is not wired to a GitHub connector yet; Python source files
-  can be uploaded and indexed through the document ingestion endpoint.
-- Tool planning currently uses a deterministic allowlisted intent router rather than an
-  unconstrained autonomous agent. No browser or external write tool is auto-executed.
-
-## Explicit implementation boundaries
-
-This is the first integrated assistant release, not a claim that every advanced subsystem
-in the long-term architecture is production-complete.
-
-Not yet implemented:
-- Durable background ingestion/fact extraction workers; document parsing and memory writes
-  currently run synchronously in the authenticated API request.
-- Dedicated vector database or pgvector-backed assistant memory index. JSON embeddings are
-  persisted in PostgreSQL and the application retrieves a bounded recent set.
-- Full entity resolution across every project, employer, skill and person. The graph currently
-  captures explicitly extracted career goals, target roles, technology preferences and style facts.
-- Autonomous multi-step ReAct tool execution, external browser tools or dynamic third-party API
-  routing. The assistant uses a deterministic allowlist of read-only internal data tools.
-- Implicit dwell-time and scroll telemetry. Feedback ratings and explicit corrections are captured.
-- A dedicated toxicity classifier or independent post-generation moderation service. Safety
-  currently relies on input redaction, bounded tool permissions and model instructions.
-- Application-level encryption of episodic memory fields. Use encrypted database volumes,
-  TLS, strict database access controls and managed backups; credential secrets continue to use
-  the existing credential vault.
-- Automated fact verification UI. Extracted facts are labelled unverified and must not be
-  treated as confirmed candidate declarations.
-- GitHub-wide repository crawler/AST indexer. Uploaded Python source files are parsed locally.
-- Hierarchical LLM summarization of entire old conversations. Current memory summaries are
-  bounded extractive summaries.
-
-These boundaries are intentionally explicit so operators do not mistake optional fallbacks or
-initial integrations for completed infrastructure guarantees.
-
-
-## Operational requirements and privacy controls
-
-Persistent memory is opt-in and requires the existing AES-256-GCM credential keyring. The assistant refuses to enable encrypted memory when the keyring is missing. Keep key material in the deployment secret manager, retain old key IDs during rotation, and do not place key material in source control. Uploaded file bytes are encrypted before durable database persistence and cleared from the job record when processing finishes or reaches terminal failure. The worker rechecks memory consent before processing.
-
-The assistant ingestion queue is separate from general AI, email and discovery queues. The job table is the durable source of job status; Redis carries only the opaque job identifier. The API never returns stored ciphertext. Users can cancel their own queued jobs, and clearing memory disables further ingestion and clears pending payloads.
+Before merge, run the focused assistant tests, the complete Python lint/type/test suite, Alembic upgrade and downgrade checks, frontend typecheck/build, and Docker Compose integration. GitHub Actions has reported failures on this branch; the available job-log endpoint currently returns BlobNotFound, so those failures have not been diagnosed. Do not merge or deploy until checks are passing.
