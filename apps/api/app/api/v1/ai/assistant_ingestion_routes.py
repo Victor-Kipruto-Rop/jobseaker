@@ -14,6 +14,7 @@ from packages.database.models.assistant import AssistantPreference
 from packages.database.models.assistant_jobs import AssistantIngestionJob
 from packages.assistant.ingestion import MAX_BYTES
 from packages.assistant.jobs import encrypt_ingestion_payload
+from packages.assistant.engine import sanitize
 
 router = APIRouter()
 
@@ -30,7 +31,7 @@ async def enqueue_ingestion(file: UploadFile = File(...), user: User = Depends(g
     if len(payload) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="The uploaded file exceeds the 12 MB limit.")
     job_id = str(uuid.uuid4())
-    filename = (file.filename or "upload")[:255]
+    filename = sanitize((file.filename or "upload").replace("\\", "/").split("/")[-1])[:255]
     content_type = (file.content_type or "application/octet-stream")[:160]
     try:
         ciphertext = encrypt_ingestion_payload(user.id, job_id, payload)
