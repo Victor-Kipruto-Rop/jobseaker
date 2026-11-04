@@ -1,7 +1,6 @@
 import re
 from urllib.parse import urljoin, urlsplit
 from html.parser import HTMLParser
-from html import unescape
 import httpx
 from packages.integrations.url_validation import validate_http_url
 
