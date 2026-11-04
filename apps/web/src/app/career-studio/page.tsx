@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function LegacyWorkspaceRoute() {
+export default function LegacyCareerStudioRoute() {
   redirect("/profile");
 }
