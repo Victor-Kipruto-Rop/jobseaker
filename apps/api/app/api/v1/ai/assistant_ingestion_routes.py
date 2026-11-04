@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from redis import Redis
-from rq import Queue
+from rq import Queue, Retry
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.core.config import get_settings
@@ -42,7 +42,8 @@ async def enqueue_ingestion(file: UploadFile = File(...), user: User = Depends(g
     try:
         queue = Queue("assistant", connection=Redis.from_url(get_settings().redis_url))
         queue.enqueue("packages.assistant.jobs.process_ingestion_job", job_id,
-            job_id=f"assistant-ingest-{job_id}", job_timeout=900, result_ttl=86400, failure_ttl=604800)
+            job_id=f"assistant-ingest-{job_id}", job_timeout=900, result_ttl=86400, failure_ttl=604800,
+            retry=Retry(max=2, interval=[60, 300]))
     except Exception as exc:
         db.delete(job)
         db.commit()
