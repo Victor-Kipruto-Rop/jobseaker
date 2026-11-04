@@ -53,7 +53,7 @@ class EventEnvelope(BaseModel):
             user_id = value.get("user_id")
             if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id <= 0:
                 raise ValueError(f"{topic} requires a positive integer user_id")
-        if topic in {"application.status_changed", "application.dispatched"}:
+        if topic in {"application.status_changed", "application.dispatched", "ats.action.approved"}:
             app_id = value.get("application_id")
             if isinstance(app_id, bool) or not isinstance(app_id, int) or app_id <= 0:
                 raise ValueError(f"{topic} requires a positive integer application_id")
