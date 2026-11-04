@@ -47,7 +47,8 @@ def _tool_context(db: Session, user_id: int, tools: list[str]) -> str:
         resume = db.scalar(select(ResumeDocument).where(ResumeDocument.user_id == user_id).order_by(ResumeDocument.created_at.desc()).limit(1))
         parts.append("PROFILE: " + str({"headline":p.headline if p else "","summary":p.summary[:2500] if p else "",
             "location":p.location if p else "","target_roles":p.target_roles if p else [],
-            "skills":[s.skill_name for s in skills],"resume_available":bool(resume),\n            "resume_excerpt":sanitize(resume.extracted_text[:5000]) if resume else ""}))
+            "skills":[s.skill_name for s in skills],"resume_available":bool(resume),
+            "resume_excerpt":sanitize(resume.extracted_text[:5000]) if resume else ""}))
     if "job_recommendations" in tools:
         jobs = db.scalars(select(CandidateOpportunity).where(CandidateOpportunity.availability_status=="active").order_by(CandidateOpportunity.posted_at.desc().nullslast()).limit(12)).all()
         parts.append("ACTIVE OPPORTUNITIES (not a personalized rank): " + str([{"title":j.title,"company":j.company,"location":j.location,"remote_type":j.remote_type,"url":j.source_url} for j in jobs]))
