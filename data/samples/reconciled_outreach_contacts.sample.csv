@@ -1,0 +1,3 @@
+organization,sector,email,contact_type,website,source_url,contact_verification,contact_notes,outreach_status,cv_attached,date_contacted,follow_up_date,response,next_action
+Example Analytics Cooperative,Technology,careers@example.invalid,careers,https://example.invalid,https://example.invalid/jobs,unverified,Synthetic fixture only,draft,false,,,,"Review sample record"
+Sample Fintech Works,Financial technology,talent@example.invalid,talent,https://example.invalid,https://example.invalid/careers,unverified,Synthetic fixture only,not_contacted,false,,,,"Validate parser mapping"
