@@ -1,4 +1,6 @@
 from collections.abc import Generator
+from typing import Any, cast
+
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
@@ -42,6 +44,7 @@ def require_roles(*allowed_roles: str):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return user
 
-    setattr(role_guard, "required_roles", normalized)
+    # FastAPI dependencies carry this metadata for route-policy inspection.
+    setattr(cast(Any, role_guard), "required_roles", normalized)
     role_guard.__name__ = "role_guard_" + "_".join(sorted(normalized))
     return role_guard
