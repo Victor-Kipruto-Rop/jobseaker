@@ -22,7 +22,7 @@ The light-mode assistant workspace is available at `/assistant`, linked from the
 
 - Persistent episodic memory is opt-in. Pausing it prevents new writes and retrieval.
 - Episodic content, summaries, extracted fact values, saved preferences, feedback corrections and queued document payloads are encrypted using the existing versioned AES-256-GCM credential keyring with purpose-specific associated data.
-- New PostgreSQL memory records use 384-dimensional pgvector embeddings and an HNSW cosine index. Hybrid ranking combines dense similarity and lexical BM25-style scoring, with optional cross-encoder reranking.
+- New PostgreSQL memory records use 384-dimensional pgvector embeddings and an HNSW cosine index. Hybrid ranking combines dense similarity and lexical BM25-style scoring, with optional cross-encoder reranking. For semantic embeddings install the optional ml extra and configure JOBSEEKER_MEMORY_EMBEDDING_MODEL (for example, sentence-transformers/all-MiniLM-L6-v2); without it, the deterministic feature-hash fallback is used.
 - SQLite and non-PostgreSQL test environments retain the JSON embedding fallback.
 - Existing legacy JSON vectors are never cast to a different dimension. Retrieval incrementally re-embeds up to 50 legacy records per request and persists them into the 384-dimensional pgvector column.
 - Entity resolution is scoped to the authenticated user and entity type. It canonicalizes common technology aliases and extracts selected skills, employers, projects and roles. Fuzzy merges require a high confidence margin; ambiguous candidates are not merged.
@@ -68,6 +68,6 @@ Apply schema changes with:
 alembic upgrade head
 ```
 
-The new migration is `20261104_0022`, following `20261104_0021`. Install the standard project dependencies to include pgvector.
+The new migration is `20261104_0022`, following `20261104_0021`. Install the standard project dependencies to include pgvector. Install the optional ml extra and configure JOBSEEKER_MEMORY_EMBEDDING_MODEL to enable transformer-based dense semantic vectors; otherwise the deterministic feature-hash fallback remains active.
 
 Before merge, run the focused assistant tests, the complete Python lint/type/test suite, Alembic upgrade and downgrade checks, frontend typecheck/build, and Docker Compose integration. GitHub Actions has reported failures on this branch; the available job-log endpoint currently returns BlobNotFound, so those failures have not been diagnosed. Do not merge or deploy until checks are passing.
