@@ -13,6 +13,7 @@ from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
 from packages.database.models.career import ResumeDocument, AuditLog
 from apps.api.app.core.redis_limits import enforce_rate_limit
+from packages.resumes.tailoring import tailor_resume
 
 router = APIRouter()
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -164,6 +165,29 @@ def analyze_resume(resume_id: int, body: ATSRequest, user: User = Depends(get_cu
             "coverage_score": score, "matched_terms": matched[:100],
             "missing_terms": missing[:100],
             "warning": "Heuristic keyword coverage only. It is not a commercial ATS score and does not assess context or truthfulness."}
+
+
+class TailorRequest(BaseModel):
+    job_description: str = Field(min_length=20, max_length=30000)
+
+@router.post("/{resume_id}/tailor")
+def tailor_resume_for_role(resume_id: int, body: TailorRequest,
+                           user: User = Depends(get_current_user),
+                           db: Session = Depends(get_db)):
+    """Return a reviewable relevance ordering without altering the stored resume."""
+    enforce_rate_limit(f"resume-tailor:{user.id}", limit=20, window_seconds=3600)
+    row = db.scalar(select(ResumeDocument).where(
+        ResumeDocument.id == resume_id, ResumeDocument.user_id == user.id))
+    if not row:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    try:
+        proposal = tailor_resume(row.extracted_text, body.job_description)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    db.add(AuditLog(user_id=user.id, action="resume.tailoring_proposed",
+                    resource_type="resume", resource_id=str(row.id)))
+    db.commit()
+    return {"resume_id": row.id, "filename": row.filename, **proposal}
 
 @router.delete("/{resume_id}", status_code=204)
 def delete_resume(resume_id: int, user: User = Depends(get_current_user),
