@@ -4,7 +4,9 @@ import json
 import secrets
 from datetime import datetime, timedelta, timezone
 from cryptography.fernet import Fernet, InvalidToken
-from packages.security.credential_vault import encrypt_credential, decrypt_credential
+from packages.security.credential_vault import (
+    encrypt_credential, decrypt_credential, rewrap_credential, credential_needs_rotation,
+)
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -151,6 +153,12 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
     raw = _decrypt(account.encrypted_credentials)
     if not account.encrypted_credentials.startswith(("v1:", "v2:")):
         account.encrypted_credentials = _encrypt(raw)
+    elif account.encrypted_credentials.startswith("v2:") and credential_needs_rotation(
+        account.encrypted_credentials,
+    ):
+        account.encrypted_credentials = rewrap_credential(
+            account.encrypted_credentials, purpose="gmail-oauth",
+        )
     credentials = Credentials.from_authorized_user_info(json.loads(raw), SCOPES)
     if credentials.expired and credentials.refresh_token:
         _GMAIL_BREAKER.call(credentials.refresh, Request())
