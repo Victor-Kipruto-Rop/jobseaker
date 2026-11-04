@@ -117,7 +117,7 @@ def test_job_parser_extracts_known_skills_without_matching_partial_words():
 
     skills = extract_required_skills(
         "Build Python and Kafka data pipelines with PostgreSQL, dbt and Docker. "
-        "The role is not about py or sql-injection."
+        "The role is not about unrelated abbreviations."
     )
     assert skills == ["Python", "PostgreSQL", "Kafka", "dbt", "Docker"]
 
