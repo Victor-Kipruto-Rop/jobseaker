@@ -189,3 +189,16 @@ def test_dispatch_key_prevents_same_job_across_draft_records(db, owner):
             db, user_id=owner.id, application_id=second.id,
             idempotency_key="second", payload={"job_key": "https://jobs.example/role/1"},
         )
+
+
+
+def test_async_circuit_breaker_tracks_provider_failures():
+    import asyncio
+    breaker = CircuitBreaker(failure_threshold=1, recovery_seconds=0.01)
+    async def failing():
+        raise RuntimeError("upstream down")
+    with pytest.raises(RuntimeError):
+        asyncio.run(breaker.call_async(failing))
+    assert breaker.state == CircuitState.OPEN
+    with pytest.raises(CircuitOpen):
+        asyncio.run(breaker.call_async(failing))
