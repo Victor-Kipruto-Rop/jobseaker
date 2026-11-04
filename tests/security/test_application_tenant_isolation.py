@@ -46,7 +46,7 @@ def two_users_and_applications(db):
 
 
 def test_application_list_is_scoped_to_authenticated_user(db, two_users_and_applications):
-    owner, other, owned, private = two_users_and_applications
+    owner, _, owned, private = two_users_and_applications
 
     result = routes.list_applications(user=owner, db=db)
 
@@ -55,7 +55,7 @@ def test_application_list_is_scoped_to_authenticated_user(db, two_users_and_appl
 
 
 def test_user_cannot_update_another_users_application(db, two_users_and_applications):
-    owner, other, owned, private = two_users_and_applications
+    owner, other, _, private = two_users_and_applications
 
     with pytest.raises(HTTPException) as exc:
         routes.update_application(
@@ -71,7 +71,7 @@ def test_user_cannot_update_another_users_application(db, two_users_and_applicat
 
 
 def test_user_cannot_read_another_users_application_events(db, two_users_and_applications):
-    owner, other, owned, private = two_users_and_applications
+    owner, other, _, private = two_users_and_applications
 
     with pytest.raises(HTTPException) as exc:
         routes.application_events(application_id=private.id, user=owner, db=db)
@@ -80,7 +80,7 @@ def test_user_cannot_read_another_users_application_events(db, two_users_and_app
 
 
 def test_user_can_read_own_application_events(db, two_users_and_applications):
-    owner, other, owned, private = two_users_and_applications
+    owner, _, owned, _ = two_users_and_applications
     db.add(ApplicationEvent(
         user_id=owner.id,
         application_id=owned.id,
