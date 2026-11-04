@@ -190,3 +190,40 @@ The API exposes Prometheus metrics at /metrics. HTTP request totals and latency 
 
 ### Verification caveat
 All changes above are source-level implementation. They have not been executed against a local Docker environment or a live Google/ATS account in this session. CI, migration execution, unit tests, frontend builds and integration smoke tests must pass on the latest branch head before PR #9 is merged.
+## Phase 4 master specification: operational contract and release criteria
+
+This section supersedes earlier draft notes in this document that describe event delivery as best-effort or describe Gmail credentials as single-key Fernet-only storage.
+
+### Event backbone
+- Domain writes enqueue versioned events in the same SQL transaction using the transactional outbox.
+- The relay uses stable event IDs, per-candidate partition keys, bounded exponential retries, stale-lease recovery and DLQ delivery. If DLQ publication itself fails, the original outbox record remains retryable and is not marked terminal.
+- Consumers validate the registered JSON Schema and Pydantic topic contract, then execute database-only handlers with per-consumer inbox deduplication. Kafka offset commit follows successful processing or acknowledged DLQ delivery.
+- Delivery semantics are at-least-once. Every handler must be replay-safe; external side effects must be represented by an outbox event.
+- packages/events/schema_registry.py is the repository-local schema registry and compatibility checker. It is not a hosted registry; production still needs managed registry deployment, topic ACLs, retention, replication and compatibility policy enforcement.
+
+### Recommendation intelligence
+- Retrieval combines lexical/TF-IDF, semantic embeddings/pgvector when configured, collaborative signals, skill graph evidence, role/location/salary/recency features and exploration.
+- Candidate interaction updates are online preference heuristics, not a trained personalization model.
+- The optional LightGBM LambdaRank trainer groups candidate/job interactions and uses candidate-level holdout evaluation. A trained artifact remains a candidate until it passes AUC and NDCG promotion gates. Active artifacts are checksum-verified before loading.
+- Do not describe the ranker as trained or production-effective until the dataset is sufficiently large and representative and offline plus online evaluation, cohort fairness, drift and rollback are reviewed.
+
+### Candidate-controlled application automation and lifecycle
+- Structured form mappings may only copy candidate-provided facts and published select options. Low-confidence or unresolved required fields remain for human completion.
+- Candidate approval is required before browser field filling. CAPTCHA/challenge pages pause the workflow. The browser helper does not submit forms; the candidate submits on the ATS website.
+- Failure screenshots and DOM evidence are private. DOM evidence redacts scripts, input values and textarea contents; screenshots mask form-control text. Validate redaction on target ATS pages before storing real candidate evidence.
+- Application status transitions use packages/applications/fsm.py. The ready-to-approved action and approved-to-submitted confirmation are explicit candidate actions. The latter records candidate confirmation, not verified acceptance by an external ATS.
+- Gmail remains read-only. Intent extraction links an email only when the application match is unambiguous; it records phrase evidence and proposed status/interview-time text. State changes and calendar creation require candidate review/confirmation. Calendar OAuth is separately opted-in and uses candidate-owned interview records.
+
+### Resume intelligence
+- PDF, DOCX, Markdown and UTF-8 plain text extraction is bounded by upload size, page/entry count and extracted-text limits.
+- Tailored CVs and cover letters are saved as drafts. Generation is grounded in the candidate's own resume, saved projects and source-published employer/opportunity data; missing facts must be marked for candidate input rather than invented.
+- Private source documents and generated artifacts remain owner-scoped. Production still needs malware scanning, retention/deletion controls and managed private object storage.
+
+### Enterprise security and operations
+- OAuth credentials use versioned AES-256-GCM envelopes with key IDs and an active/previous keyring. Use python -m apps.worker.rotate_credentials --dry-run before rotation, then run without --dry-run after validating backup/restore and retaining old keys until all records are rewrapped.
+- API, SQLAlchemy, relay and consumer telemetry expose request/event metrics and optional OTLP traces. Relay/consumer scrape endpoints are separate from API metrics.
+- Redis sliding-window rate limits and provider circuit-breaker primitives are present. Production must verify coverage for each external provider, configure alerting/SLOs, restrict metrics endpoints to trusted networks and provision managed KMS/secret storage.
+- Local Compose credentials and local MinIO are development-only.
+
+### Release verification
+Source commits and unit tests are not evidence of a passing runtime. Before merging, run the full test suite, Ruff, mypy, Alembic upgrade from both the current release head and a clean database, frontend lint/build, Compose validation/build/startup, and authenticated end-to-end tests for outbox relay/replay/DLQ, recommendation tracking/ranking fallback, browser approval/recovery, Gmail review, Calendar sync, resume upload/extraction and credential rotation. Inspect actual CI logs on the final PR head. Keep PR #9 draft and unmerged until those checks pass.
