@@ -198,91 +198,6 @@ def remember(db: Session, user_id: int, content: str, conversation_id: int | Non
     return first_id
 
 def retrieve(db: Session, user_id: int, query: str, limit: int = 8) -> list[dict[str, Any]]:
-    qvec = embedding(query)
-    rows = db.scalars(select(AssistantMemory).where(
-        AssistantMemory.user_id == user_id, (AssistantMemory.expires_at.is_(None) | (AssistantMemory.expires_at > datetime.now(timezone.utc)))).order_by(AssistantMemory.created_at.desc()).limit(600)).all()
-    ranked = []
-    for row in rows:
-        dense = cosine(qvec, row.embedding or [])
-        sparse = bm25_score(query, row.content)
-        score = 0.58 * dense + 0.42 * min(sparse, 1.0)
-        ranked.append((score, row))
-    ranked.sort(key=lambda x: (x[0], x[1].importance), reverse=True)
-    shortlist = ranked[:max(limit * 3, 12)]
-    cross = _cross_encoder()
-    if cross is not None and shortlist:
-        try:
-            pairs = [(query, row.content[:1800]) for _, row in shortlist]
-            scores = cross.predict(pairs)
-            shortlist = sorted(zip(scores, [row for _, row in shortlist]),
-                               key=lambda item: float(item[0]), reverse=True)
-            return [{"id": row.id, "content": row.summary or row.content,
-                     "score": round(float(score), 4), "kind": row.memory_kind}
-                    for score, row in shortlist[:limit]]
-        except Exception:
-            pass
-    return [{"id": row.id, "content": row.summary or row.content,
-             "score": round(score, 4), "kind": row.memory_kind}
-            for score, row in shortlist[:limit] if score > 0.015]
-
-def preference_snapshot(db: Session, user_id: int) -> dict:
-    row = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user_id))
-    return row.preferences if row else {}
-
-def build_context(db: Session, user_id: int, query: str, history: list[dict],
-                  budget_chars: int = 12000) -> str:
-    facts = db.scalars(select(AssistantFact).where(
-        AssistantFact.user_id == user_id, AssistantFact.active.is_(True)).limit(40)).all()
-    memories = retrieve(db, user_id, query, limit=8)
-    prefs = preference_snapshot(db, user_id)
-    graph_rows = db.scalars(select(AssistantRelation).where(
-        AssistantRelation.user_id == user_id).order_by(AssistantRelation.updated_at.desc()).limit(80)).all()
-    graph = []
-    for edge in graph_rows:
-        source = db.get(AssistantEntity, edge.source_entity_id)
-        target = db.get(AssistantEntity, edge.target_entity_id)
-        if source and target:
-            graph.append(f"{source.name} --{edge.relation_type}--> {target.name}")
-    sections = ["USER FACTS (unverified unless explicitly marked):"]
-    for fact in facts:
-        fact_value = decrypt_credential(fact.fact_value, purpose=f"assistant-fact:{user_id}") if fact.fact_value_encrypted else fact.fact_value
-        sections.append(f"- {fact.fact_key}: {fact_value} (confidence {fact.confidence:.2f}; verified={fact.verified_by_user})")
-    sections.append("RELEVANT EPISODIC MEMORY:")
-    sections.extend(f"- {m['content']}" for m in memories)
-    sections.append("SEMANTIC KNOWLEDGE GRAPH:")
-    sections.extend("- " + edge for edge in graph[:40])
-    sections.append("PREFERENCES:")
-    sections.append(str(prefs)[:2000])
-    style = str(prefs.get("response_style", "")).lower()
-    depth = str(prefs.get("technical_depth", "")).lower()
-    if style or depth:
-        sections.append("ADAPTIVE RESPONSE GUIDANCE: " + "; ".join(
-            x for x in (f"style={style}" if style else "", f"technical_depth={depth}" if depth else "") if x))
-    sections.append("RECENT CONVERSATION:")
-    sections.extend(f"{m.get('role','user')}: {sanitize(m.get('content',''))[:1800]}" for m in history[-8:])
-    return "\n".join(sections)[:budget_chars]
-
-def plan_tools(query: str) -> list[str]:
-    """Only read-only internal tools are eligible for automatic invocation."""
-    q = query.lower()
-    tools = []
-    if any(x in q for x in ("my applications", "application status", "applications")): tools.append("application_summary")
-    if any(x in q for x in ("my interviews", "upcoming interview", "interview schedule")): tools.append("interview_summary")
-    if any(x in q for x in ("my skills", "my profile", "my resume", "my cv")): tools.append("candidate_profile")
-    if any(x in q for x in ("recommend jobs", "job recommendations", "jobs for me")): tools.append("job_recommendations")
-    return tools
-
-def adapt_preferences(current: dict, rating: int, correction: str) -> dict:
-    result = dict(current)
-    result["feedback_events"] = int(result.get("feedback_events", 0)) + 1
-    if rating <= 2 and correction.strip():
-        result["correction_patterns"] = (result.get("correction_patterns", []) + [sanitize(correction)[:300]])[-20:]
-    elif rating >= 4:
-        result["successful_response_count"] = int(result.get("successful_response_count", 0)) + 1
-    return result
-
-
-def retrieve(db: Session, user_id: int, query: str, limit: int = 8) -> list[dict[str, Any]]:
     """Tenant-filtered pgvector ANN retrieval with lexical fusion and safe fallback."""
     qvec = embedding(query)
     if db.get_bind().dialect.name == "postgresql":
@@ -302,13 +217,16 @@ def retrieve(db: Session, user_id: int, query: str, limit: int = 8) -> list[dict
             AssistantMemory.user_id == user_id,
             AssistantMemory.embedding_vector.is_(None),
             (AssistantMemory.expires_at.is_(None) | (AssistantMemory.expires_at > datetime.now(timezone.utc)))
-        ).order_by(AssistantMemory.created_at.desc()).limit(300)).all()
+        ).order_by(AssistantMemory.created_at.desc()).limit(50)).all()
         for row in legacy_rows:
             content = decrypt_credential(row.content, purpose=f"assistant-memory:{user_id}") if row.content_encrypted else row.content
             summary = decrypt_credential(row.summary, purpose=f"assistant-memory:{user_id}") if row.content_encrypted and row.summary else row.summary
+            row.embedding_vector = embedding(content)
             lexical = min(bm25_score(query, content), 1.0)
             if lexical > 0:
                 ranked.append((0.38 * lexical, row, content, summary))
+        if legacy_rows:
+            db.flush()
         ranked.sort(key=lambda item: (item[0], item[1].importance), reverse=True)
         shortlist = ranked[:max(limit * 3, 12)]
         cross = _cross_encoder()
@@ -323,7 +241,9 @@ def retrieve(db: Session, user_id: int, query: str, limit: int = 8) -> list[dict
         return [{"id": row.id, "content": summary or content, "score": round(score, 4),
                  "kind": row.memory_kind} for score, row, content, summary in shortlist[:limit]]
     rows = db.scalars(select(AssistantMemory).where(
-        AssistantMemory.user_id == user_id).order_by(AssistantMemory.created_at.desc()).limit(600)).all()
+        AssistantMemory.user_id == user_id,
+        (AssistantMemory.expires_at.is_(None) | (AssistantMemory.expires_at > datetime.now(timezone.utc)))
+    ).order_by(AssistantMemory.created_at.desc()).limit(600)).all()
     ranked = []
     for row in rows:
         content = decrypt_credential(row.content, purpose=f"assistant-memory:{user_id}") if row.content_encrypted else row.content
