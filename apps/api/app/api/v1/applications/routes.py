@@ -9,6 +9,7 @@ from packages.database.models.career import (
     Application, ApplicationEvent, CandidateOpportunity, RecommendationInteraction,
 )
 from packages.integrations.url_validation import validate_http_url
+from packages.events.kafka import publish_event
 
 router = APIRouter()
 STATUSES = {"draft", "ready", "approved", "submitted", "screening", "interview",
@@ -80,7 +81,7 @@ def list_applications(user: User = Depends(get_current_user), db: Session = Depe
     return [_serialize(row, opportunities.get(row.opportunity_id)) for row in rows]
 
 @router.post("", status_code=201)
-def create_application(body: ApplicationCreate, user: User = Depends(get_current_user),
+async def create_application(body: ApplicationCreate, user: User = Depends(get_current_user),
                        db: Session = Depends(get_db)):
     if body.opportunity_id is not None:
         owned = db.scalar(select(CandidateOpportunity).where(
@@ -110,10 +111,13 @@ def create_application(body: ApplicationCreate, user: User = Depends(get_current
                             event_type="application.created", details={"status": "draft"}))
     db.commit()
     db.refresh(row)
+    await publish_event("application.status_changed", {
+        "user_id": user.id, "application_id": row.id, "from": None, "to": "draft",
+    }, key=str(row.id))
     return _serialize(row, owned if body.opportunity_id is not None else None)
 
 @router.patch("/{application_id}")
-def update_application(application_id: int, body: ApplicationUpdate,
+async def update_application(application_id: int, body: ApplicationUpdate,
                        user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     row = db.scalar(select(Application).where(
         Application.id == application_id, Application.user_id == user.id))
@@ -148,6 +152,12 @@ def update_application(application_id: int, body: ApplicationUpdate,
                                 event_type="application.details_updated",
                                 details={"fields": changed_fields}))
     db.commit()
+    if status and status != before:
+        await publish_event(
+            "application.dispatched" if status == "submitted" else "application.status_changed",
+            {"user_id": user.id, "application_id": row.id, "from": before, "to": status},
+            key=str(row.id),
+        )
     opportunity = None
     if row.opportunity_id is not None:
         opportunity = db.scalar(select(CandidateOpportunity).where(
