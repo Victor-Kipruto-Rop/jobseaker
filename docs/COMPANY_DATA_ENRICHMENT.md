@@ -1,42 +1,79 @@
-# Company identity and brand enrichment
+# Company identity, job ingestion and application history
 
-## Purpose
+## Product behavior
 
-Opportunity discovery must preserve the identity of the employer that published a role. The dashboard must not invent company names, fabricate logos, or display the ATS provider's generic brand as the employer's logo.
+JobSeeker imports public vacancies from supported Greenhouse and Lever boards. It resolves the employer from the board's published identity, stores that employer as a reusable company record, and links imported opportunities and application history to it.
 
-## Current ingestion sources
+The data flow is:
 
-- Greenhouse public Job Board API supplies the official public board name and published job records. The integration reads the public board metadata endpoint and the public board page.
-- Lever public postings feed supplies job records. The integration inspects the public employer board page for its published site identity and brand metadata.
+`Public ATS board → vacancy + employer metadata → normalized Company → Opportunity → Application snapshot → Dashboard`
 
-The implementation extracts available Open Graph / Twitter metadata, the page title when it is not a generic careers title, canonical URL, logo image and favicon. It only accepts HTTPS URLs for displayed company assets and website links. It does not submit applications to ATS providers.
+The company profile is reused by multiple vacancies from the same board for the same account. Company records and linked opportunities are scoped to the owning candidate; the same public employer may have separate private records for different users.
 
-## Persisted opportunity company fields
+## Supported public sources
 
-- `company`: resolved board name, unless the user explicitly overrides the display name in the discovery form.
-- `company_website` and `company_domain`: populated only when the public board exposes a non-ATS canonical company URL.
-- `company_logo_url`: published Open Graph / Twitter image when available.
-- `company_favicon_url`: published page icon when available.
-- `company_description`: public board description metadata when available.
-- `company_brand_color`: a validated public theme-color value when the board publishes one.
-- `company_brand_source`: source board page used to obtain the metadata.
+- **Greenhouse:** public Job Board API for official board names and vacancy records; public board page for published company metadata.
+- **Lever:** public postings feed for vacancy records; public employer board page for published company metadata.
 
-Migration: `20261104_0009_company_branding.py`.
+The integration is intentionally source-specific. It does not claim to be a universal company crawler or a connector for every ATS provider.
 
-## Dashboard behavior
+## Company metadata imported when published
 
-- Opportunity and saved-role cards display the imported logo or favicon when available.
-- Application records inherit company branding from their linked, user-owned opportunity.
-- Discovery shows the resolved employer identity, website/domain evidence and whether a published brand asset was found.
-- Re-running a board search backfills missing company metadata on previously imported roles without overwriting non-empty user/company fields.
-- Missing company assets use a neutral visual fallback. No generated or guessed logo is substituted.
+- Official board/employer name where exposed by the Greenhouse API or page metadata.
+- Canonical company website and domain when the canonical URL points to a non-ATS host.
+- Open Graph/Twitter image or an HTML image fallback for a company logo.
+- Published favicon as a secondary icon.
+- Public description, industry, headquarters/locality and theme color when exposed.
+- Public LinkedIn, X, GitHub, Facebook, YouTube and Instagram links found on the board page.
+- Source provider, board slug, source URL, last enrichment time and a record of which fields were actually published.
 
-## Data quality and limitations
+Only HTTPS URLs are accepted for displayed company assets, websites and social links. Metadata values are bounded and validated. A page favicon may be ATS-branded; it is treated as an icon fallback, not proof of an official company logo. A canonical URL is provenance evidence, not legal verification of the company.
 
-Company pages do not publish every field consistently. A missing logo, official website or description remains missing rather than being fabricated. A canonical URL is evidence of the page's canonical location, not a guarantee of legal corporate identity. The ATS favicon may be provider-branded; treat it as a fallback icon, not proof of an official company logo.
+Missing data remains missing. The interface uses a neutral monogram/icon fallback rather than fabricating company assets or substituting a different employer's brand.
 
-The current discovery providers remain Greenhouse and Lever. Other ATS providers and broad web-wide company discovery require separate connectors and source-specific validation. This feature imports only public data exposed by the selected board and does not crawl private pages, bypass access controls, or collect personal recruiter data.
+## Reusable company data model
 
-## Verification required
+Migration `20261104_0010_company_entities.py` adds the company relationship and source identity fields. Existing saved opportunities are backfilled into user-owned legacy company records during migration, so older imported roles are not left orphaned.
 
-Run `pytest -q tests/unit/test_job_discovery_filters.py`, the full Python test suite, Ruff, mypy, Alembic upgrade from the previous head, frontend lint/build, and authenticated end-to-end discovery against real public Greenhouse and Lever boards. Confirm that missing assets render the neutral fallback and that application records only expose branding from the current user's linked opportunity.
+A Company stores the reusable employer identity and published brand metadata. Each CandidateOpportunity references a Company. The opportunity retains a copy of key company fields for stable listing and application rendering.
+
+Company profile routes expose a user's own company records and linked roles only. Discovery cards and application records link to the company profile. The profile displays published website, source page, brand assets, description, industry, headquarters, social links, provenance and related roles.
+
+## Vacancy refresh and availability
+
+Every discovery run:
+1. Fetches the source board's current vacancy feed.
+2. Resolves company metadata independently; company-page failure does not discard a successful job feed.
+3. Updates already imported vacancies from the source without replacing user-owned application history.
+4. Re-activates roles that have reappeared.
+5. Inserts newly discovered roles and skips duplicate source URLs.
+6. Marks previously imported roles as no longer listed only after a successful response that is smaller than the configured source limit. A full-limit response is not treated as a complete snapshot.
+7. Records the latest sighting time and sends an in-app notification when new roles are added.
+
+Migration `20261104_0011_opportunity_availability.py` adds availability state and last-seen timestamps. A removed listing is retained in the user's records; it is not deleted.
+
+## Application history snapshots
+
+When a candidate creates an application from a linked opportunity, JobSeeker stores the original job description and a company profile snapshot. The application therefore retains the employer branding and vacancy details that were available when the application was created, even if the source later edits or removes the listing.
+
+Migration `20261104_0012_application_snapshots.py` adds these fields. Application creation and linked-opportunity lookup enforce owner boundaries. Application history can show the saved original description without relying on the live source record.
+
+## Automation behavior
+
+Saved-search discovery refreshes employer identity and vacancy state for each saved Greenhouse or Lever board. External requests are bounded and performed outside database sessions. A failure on one board is isolated from other saved searches. Employer profile enrichment is best-effort; a valid vacancy feed can still be imported when the employer page is unavailable.
+
+## Limits and responsible use
+
+- Only Greenhouse and Lever are currently supported for automated discovery.
+- Only public board data and public page metadata are read.
+- The system does not submit applications, contact recruiters, or bypass authentication or access controls.
+- Some employers publish little or no structured metadata. The dashboard must show neutral fallbacks and disclose missing evidence.
+- Skill extraction is a deterministic mention-based aid, not proof that every mentioned tool is mandatory.
+- Work mode is inferred only from explicit source text or published workplace type; otherwise it remains unspecified.
+- Industry, headquarters and social links may remain empty when the source does not publish reliable evidence.
+
+## Verification gate
+
+Run the focused connector tests, the full Python suite, Ruff, mypy, migration upgrade from both the previous Phase 3 head and a clean database, frontend lint/build, and the Docker Compose configuration/build. Then test authenticated Greenhouse and Lever imports, repeated discovery, removed/reappearing roles, company profile ownership, application snapshot persistence, and mobile/reduced-motion UI behavior.
+
+No source review should be described as a passing runtime test. Keep the pull request unmerged until CI and local integration checks have actual passing results.
