@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
-import {Bot,BrainCircuit,Send,Plus,ShieldCheck,History,Settings2,ThumbsUp,ThumbsDown,Trash2,Sparkles} from "lucide-react";
+import {Bot,BrainCircuit,Send,Plus,ShieldCheck,History,ThumbsUp,ThumbsDown,Trash2,Sparkles} from "lucide-react";
 const API=process.env.NEXT_PUBLIC_API_BASE_URL||"http://localhost:8000";
 function csrf(){return decodeURIComponent(document.cookie.split("; ").find(x=>x.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=")||"");}
 async function api(path:string,init:RequestInit={}){const h=new Headers(init.headers);if(init.method)h.set("X-CSRF-Token",csrf());const r=await fetch(API+path,{...init,headers:h,credentials:"include",cache:"no-store"});if(r.status===401)window.location.assign("/login");return r;}
