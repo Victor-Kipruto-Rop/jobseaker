@@ -48,8 +48,10 @@ def upgrade():
     op.create_index("ix_assistant_ingestion_jobs_user_id", "assistant_ingestion_jobs", ["user_id"])
     op.create_index("ix_assistant_ingestion_user_created", "assistant_ingestion_jobs", ["user_id", "created_at"])
     op.create_index("ix_assistant_ingestion_status_created", "assistant_ingestion_jobs", ["status", "created_at"])
+    op.create_index("ix_assistant_ingestion_dispatch", "assistant_ingestion_jobs", ["status", "dispatched_at"])
 
 def downgrade():
+    op.drop_index("ix_assistant_ingestion_dispatch", table_name="assistant_ingestion_jobs")
     op.drop_index("ix_assistant_ingestion_status_created", table_name="assistant_ingestion_jobs")
     op.drop_index("ix_assistant_ingestion_user_created", table_name="assistant_ingestion_jobs")
     op.drop_index("ix_assistant_ingestion_jobs_user_id", table_name="assistant_ingestion_jobs")
