@@ -339,6 +339,7 @@ def record_impressions(
     db: Session = Depends(get_db),
 ):
     """Batch-write recommendation exposures for unbiased bandit denominators."""
+    enforce_rate_limit(f"recommendation-impressions:{user.id}", limit=30, window_seconds=60)
     rows = []
     for event in body.events:
         if event.event_type != "impression":
