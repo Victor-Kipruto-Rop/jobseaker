@@ -172,6 +172,7 @@ class CandidateOpportunity(Base):
     company_logo_url: Mapped[str] = mapped_column(String(2000), default="")
     company_favicon_url: Mapped[str] = mapped_column(String(2000), default="")
     company_description: Mapped[str] = mapped_column(Text, default="")
+    company_brand_color: Mapped[str] = mapped_column(String(7), default="")
     company_brand_source: Mapped[str] = mapped_column(String(1000), default="")
     description: Mapped[str] = mapped_column(Text, default="")
     source_name: Mapped[str] = mapped_column(String(100), default="manual")
