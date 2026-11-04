@@ -233,6 +233,8 @@ def export_assistant_memory(user: User = Depends(get_current_user), db: Session 
     relation_rows = db.scalars(select(AssistantRelation).where(AssistantRelation.user_id == user.id)).all()
     relations = [edge for edge in relation_rows if edge.source_entity_id in entity_ids and edge.target_entity_id in entity_ids]
     preference = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user.id))
+    feedback_rows = db.scalars(select(AssistantFeedback).where(
+        AssistantFeedback.user_id == user.id).order_by(AssistantFeedback.created_at.asc())).all()
     memories = []
     for row in rows:
         content = decrypt_credential(row.content, purpose=f"assistant-memory:{user.id}") if row.content_encrypted else row.content
@@ -252,7 +254,11 @@ def export_assistant_memory(user: User = Depends(get_current_user), db: Session 
                               for edge in relations]},
             "facts": [{"key": item.fact_key, "value": decrypt_credential(item.fact_value, purpose=f"assistant-fact:{user.id}") if item.fact_value_encrypted else item.fact_value,
                        "confidence": item.confidence, "verified": item.verified_by_user}
-                      for item in facts]}
+                      for item in facts],
+            "feedback": [{"rating": item.rating,
+                          "correction": decrypt_credential(item.correction, purpose=f"assistant-feedback:{user.id}") if item.correction else "",
+                          "created_at": item.created_at.isoformat() if item.created_at else None}
+                         for item in feedback_rows]}
 
 @router.patch("/assistant/memory/retention")
 def set_memory_retention(days: int, user: User = Depends(get_current_user),
