@@ -8,7 +8,7 @@ type Message={id?:number;role:"user"|"assistant";content:string};
 export default function AssistantPage(){
  const [messages,setMessages]=useState<Message[]>([]),[input,setInput]=useState(""),[conversation,setConversation]=useState<number|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(""),[memory,setMemory]=useState<any>(null),[showMemory,setShowMemory]=useState(false),[uploadStatus,setUploadStatus]=useState(""),[retentionDays,setRetentionDays]=useState(365),[isMobile,setIsMobile]=useState(false);
  const bottom=useRef<HTMLDivElement>(null),uploadRef=useRef<HTMLInputElement>(null);
- async function loadMemory(){const r=await api("/api/v1/ai/assistant/memory");if(r.ok)setMemory(await r.json());}
+ async function loadMemory(){const r=await api("/api/v1/ai/assistant/memory");if(r.ok){const data=await r.json();setMemory(data);setRetentionDays(data.retention_days||365);}}
  useEffect(()=>{void loadMemory();},[]);
  useEffect(()=>{const query=window.matchMedia("(max-width: 900px)");const update=()=>setIsMobile(query.matches);update();query.addEventListener("change",update);return()=>query.removeEventListener("change",update);},[]);
  useEffect(()=>{bottom.current?.scrollIntoView({behavior:"smooth"});},[messages]);
