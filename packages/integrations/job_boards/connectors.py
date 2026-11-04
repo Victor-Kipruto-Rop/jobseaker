@@ -69,7 +69,7 @@ async def discover_company_profile(source: str, board: str) -> dict:
     """Read public branding metadata from the ATS-hosted company board."""
     board = _validate_slug(board)
     if source == "greenhouse":
-        page_url = f"https://boards.greenhouse.io/{board}"
+        page_url = f"https://job-boards.greenhouse.io/{board}"
     elif source == "lever":
         page_url = f"https://jobs.lever.co/{board}"
     else:
