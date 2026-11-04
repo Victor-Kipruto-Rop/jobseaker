@@ -81,7 +81,7 @@ def resolve_entity(db: Session, user_id: int, entity_type: str, name: str,
         attrs["aliases"] = sorted(set(attrs.get("aliases", [])) | aliases |
                                   ({raw_normalized} if raw_normalized != match.normalized_name else set()))
         match.attributes = attrs
-        if memory_id and not match.source_memory_id:
+        if memory_id:
             match.source_memory_id = memory_id
     return match
 
