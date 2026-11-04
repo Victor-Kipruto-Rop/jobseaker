@@ -37,6 +37,60 @@ def upgrade():
         postgresql_where=sa.text("source_provider <> ''"),
     )
 
+    # Backfill legacy imported opportunities into reusable, user-owned company
+    # records. This keeps existing saved roles connected after the schema change.
+    bind = op.get_bind()
+    companies = sa.Table("companies", sa.MetaData(), autoload_with=bind)
+    opportunities = sa.Table("candidate_opportunities", sa.MetaData(), autoload_with=bind)
+    rows = bind.execute(sa.select(
+        opportunities.c.id, opportunities.c.user_id, opportunities.c.company,
+        opportunities.c.company_website, opportunities.c.company_domain,
+        opportunities.c.company_brand_source, opportunities.c.company_description,
+        opportunities.c.company_logo_url, opportunities.c.company_favicon_url,
+        opportunities.c.company_brand_color,
+    ).where(opportunities.c.company != "")).mappings().all()
+
+    grouped = {}
+    for row in rows:
+        key = (row["user_id"], row["company"].strip().casefold())
+        grouped.setdefault(key, []).append(row)
+
+    import hashlib
+    for (user_id, normalized_name), records in grouped.items():
+        first = records[0]
+        existing = bind.execute(sa.select(companies.c.id).where(
+            companies.c.user_id == user_id,
+            sa.func.lower(companies.c.name) == normalized_name,
+        ).limit(1)).first()
+        if existing:
+            company_id = existing[0]
+        else:
+            board_key = "legacy-" + hashlib.sha256(normalized_name.encode("utf-8")).hexdigest()[:16]
+            inserted = bind.execute(companies.insert().values(
+                user_id=user_id,
+                name=first["company"].strip()[:250],
+                website=first["company_website"] or "",
+                domain=first["company_domain"] or "",
+                careers_url=first["company_brand_source"] or "",
+                description=first["company_description"] or "",
+                industry="",
+                headquarters="",
+                logo_url=first["company_logo_url"] or "",
+                favicon_url=first["company_favicon_url"] or "",
+                brand_color=first["company_brand_color"] or "",
+                source_provider="legacy",
+                source_board=board_key,
+                source_url=first["company_brand_source"] or "",
+                social_links={},
+                evidence={"migration": "20261104_0010", "source": "previously imported opportunities"},
+                verified_at=None,
+                last_enriched_at=None,
+            ))
+            company_id = inserted.inserted_primary_key[0]
+        bind.execute(opportunities.update().where(
+            opportunities.c.id.in_([row["id"] for row in records])
+        ).values(company_id=company_id))
+
 
 def downgrade():
     op.drop_index("uq_company_user_source_board", table_name="companies")
