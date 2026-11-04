@@ -158,3 +158,13 @@ These results are owner-reported local execution evidence, not GitHub Actions ev
 - Added frontend/Python build-artifact exclusions to Git and Docker build contexts.
 
 **Execution status:** These database changes and tests have been committed to the Phase 2 branch but have not yet been run in a local environment or by GitHub Actions. They are implementation changes, not passing verification evidence. The repository owner must run the targeted test, Ruff, mypy, migrations, full pytest suite, Compose validation, and Docker builds after pulling.
+
+
+### Latest Phase 2 follow-up workflow attempt
+
+The Phase 2 follow-up PR triggered:
+
+- [CI run 41785435566](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41785435566): Python, web, and Docker jobs were marked failed. GitHub returned zero recorded steps for all three jobs.
+- [Secret scan run 41785435571](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41785435571): failed with zero recorded steps.
+
+No workflow command executed according to the available job metadata. These failures do not provide test, build, migration, audit, or secret-scan results. The repository owner must verify locally until the GitHub runner issue is resolved.
