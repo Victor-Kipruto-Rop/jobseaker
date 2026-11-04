@@ -341,8 +341,14 @@ def rank_opportunities(
     user_cf, item_cf = collaborative_scores(user_id, events, keys)
     graph = graph_scores(user_id, jobs, events)
     bandits = bandit_scores(events, ("content", "collaborative", "semantic", "graph", "fresh"))
-    embeddings = semantic_embeddings(documents)
-    semantic_available = len(embeddings) == len(documents)
+    cached = [job.get("semantic_embedding") or [] for job in jobs]
+    cached_dimension = len(cached[0]) if cached else 0
+    if cached_dimension and all(len(vector) == cached_dimension for vector in cached):
+        embeddings = [cached[0]] + cached
+        semantic_available = True
+    else:
+        embeddings = semantic_embeddings(documents)
+        semantic_available = len(embeddings) == len(documents)
     model = train_ltr_model(training_samples or [])
     results = []
     for index, job in enumerate(jobs):
@@ -372,7 +378,9 @@ def rank_opportunities(
         }
         company_affinity = 1.0 if company and company in liked_companies else 0.0
         recency = recency_score(job)
-        semantic = cosine(embeddings[0], embeddings[index + 1]) if semantic_available else 0.0
+        semantic = float(job.get("_pgvector_similarity", 0.0)) or (
+            cosine(embeddings[0], embeddings[index + 1]) if semantic_available else 0.0
+        )
         features = {
             "tfidf": content_scores[index], "semantic": semantic,
             "skill_overlap": overlap, "role_match": role,
@@ -413,9 +421,22 @@ def rank_opportunities(
             missing_fields.append("salary")
         if not job.get("posted_at"):
             missing_fields.append("posting date")
+        source_candidates = {
+            "content": max(features["tfidf"], features["skill_overlap"], features["role_match"]),
+            "collaborative": max(features["user_cf"], features["item_cf"]),
+            "semantic": features["semantic"],
+            "graph": features["graph"],
+            "fresh": features["recency"],
+        }
+        source_candidates = {
+            name: value * (0.5 + 0.5 * bandits.get(name, 0.5))
+            for name, value in source_candidates.items()
+        }
+        recommendation_source = max(source_candidates, key=source_candidates.get)
         results.append({
             **job,
             "item_key": key,
+            "recommendation_source": recommendation_source,
             "recommendation_score": round(max(0.0, min(score, 1.0)) * 100, 1),
             "recommendation_method": "lightgbm_ltr" if learned is not None else "hybrid_personalized",
             "features": {k: round(float(v), 4) for k, v in features.items()},
