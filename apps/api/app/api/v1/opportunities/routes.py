@@ -154,5 +154,12 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="A concurrent import saved one or more of these opportunities. Retry discovery to import remaining roles.") from exc
-    return {"source": body.source, "board": body.board, "fetched": len(discovered), "matched_filters": len(filtered),
+    return {"source": body.source, "board": body.board, "company_profile": {
+                "name": profile["company"], "website": profile["company_website"],
+                "domain": profile["company_domain"], "logo_url": profile["company_logo_url"],
+                "favicon_url": profile["company_favicon_url"],
+                "description": profile["company_description"],
+                "source_url": profile["company_brand_source"],
+                "brand_assets_verified": bool(profile["company_logo_url"] or profile["company_favicon_url"]),
+            }, "fetched": len(discovered), "matched_filters": len(filtered),
             "saved": saved, "duplicates_or_invalid": skipped, "items": results}
