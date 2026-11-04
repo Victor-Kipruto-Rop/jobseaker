@@ -27,7 +27,7 @@ export default function Opportunities(){
  const [error,setError]=useState("");
  const [notice,setNotice]=useState("");
  const [discoverySummary,setDiscoverySummary]=useState<{fetched:number;matched_filters:number;saved:number;duplicates_or_invalid:number}|null>(null);
- const [applicationBusy,setApplicationBusy]=useState<number|null>(null);
+ const [applicationBusy,setApplicationBusy]=useState<number|null>(null);\n const [viewMode,setViewMode]=useState<"all"|"saved">("all");
 
  const load=useCallback(async()=>{
   setLoading(true);setError("");
@@ -37,7 +37,7 @@ export default function Opportunities(){
   }catch(e){setError(e instanceof Error?e.message:"Unable to load opportunities.");}
   finally{setLoading(false);}
  },[]);
- useEffect(()=>{void load();},[load]);
+ useEffect(()=>{void load();if(typeof window!=="undefined"&&new URLSearchParams(window.location.search).get("view")==="saved")setViewMode("saved");},[load]);
 
  const visible=useMemo(()=>{
   const term=query.trim().toLowerCase();
@@ -78,8 +78,8 @@ export default function Opportunities(){
  }
 
  return <AppShell><div className={styles.page}>
-  <header className={styles.heading}><div><div className={styles.kicker}>YOUR WORKSPACE <span>/</span> OPPORTUNITIES</div><h1>Opportunity library</h1><p>Find relevant roles, compare skill evidence and turn a good match into a trackable application.</p></div><div className={styles.headingMeta}><strong>{roles.length.toLocaleString()}</strong><span>saved roles</span></div></header>
-  <section className={styles.searchLayout}>
+  <header className={styles.heading}><div><div className={styles.kicker}>YOUR WORKSPACE <span>/</span> OPPORTUNITIES</div><h1>Opportunity library</h1><p>Find relevant roles, compare skill evidence and turn a good match into a trackable application.</p></div><div className={styles.headingActions}><div className={styles.viewSwitch}><button className={viewMode==="all"?styles.viewActive:styles.viewButton} onClick={()=>setViewMode("all")}>Discover</button><button className={viewMode==="saved"?styles.viewActive:styles.viewButton} onClick={()=>setViewMode("saved")}>Saved roles</button></div><div className={styles.headingMeta}><strong>{roles.length.toLocaleString()}</strong><span>saved roles</span></div></div></header>
+  {viewMode==="all"&&  <section className={styles.searchLayout}>
    <div className={styles.searchPanel}>
     <div className={styles.panelTop}><div><span className={styles.sectionLabel}>DISCOVERY ENGINE</span><h2>Search company job boards</h2><p>Connect a public Greenhouse or Lever board. Results are imported into your private opportunity library.</p></div><span className={styles.panelIcon}><Search size={18}/></span></div>
     <form onSubmit={e=>void discover(e)} className={styles.form}>
@@ -98,9 +98,9 @@ export default function Opportunities(){
    <aside className={styles.savedSearchPanel}><div className={styles.panelTop}><div><span className={styles.sectionLabel}>YOUR SEARCHES</span><h2>Saved searches</h2><p>Keep your preferred company feeds ready to run.</p></div><span className={styles.count}>{searches.length}</span></div>
     {searches.length===0?<div className={styles.savedEmpty}><Bookmark size={18}/><strong>No saved searches</strong><small>Save a board and its filters to reuse it later.</small></div>:<div className={styles.savedSearchList}>{searches.map(item=><div className={styles.savedSearch} key={item.id}><div><strong>{item.name}</strong><small>{item.query.source} · {item.query.board}</small><small>{[item.query.location,...(item.query.keywords||[])].filter(Boolean).join(" · ")||"No additional filters"}</small></div><div className={styles.savedActions}><button title="Run search" aria-label={"Run "+item.name} onClick={()=>void discover(undefined,item)} disabled={searching}><RefreshCw size={14}/></button><button title="Delete search" aria-label={"Delete "+item.name} onClick={()=>void removeSearch(item.id)}><Trash2 size={14}/></button></div></div>)}</div>}
    </aside>
-  </section>
+  </section>}
 
-  <section className={styles.rolesSection}>
+  <section className={styles.rolesSection} id="saved-opportunities">
    <div className={styles.rolesHeading}><div><span className={styles.sectionLabel}>PRIVATE OPPORTUNITY LIBRARY</span><h2>Saved opportunities <span>{roles.length}</span></h2><p>Each role is scored against the skills and evidence in your career profile.</p></div><div className={styles.listControls}><label><Search size={14}/><input aria-label="Filter saved opportunities" placeholder="Filter roles…" value={query} onChange={e=>setQuery(e.target.value)}/></label><div><ArrowDownUp size={13}/><select aria-label="Sort opportunities" value={sort} onChange={e=>setSort(e.target.value)}><option value="fit">Best skill fit</option><option value="newest">Recently saved</option><option value="title">Role title</option></select></div></div></div>
    {loading?<div className={styles.loading}>Loading saved opportunities…</div>:visible.length===0?<div className={styles.emptyLibrary}><span><BriefcaseBusiness size={22}/></span><strong>{roles.length===0?"Your opportunity library is ready.":"No roles match this filter."}</strong><p>{roles.length===0?"Run a company board search above. Matching roles will be saved here with their source links and skill-fit evidence.":"Try another keyword or clear your search."}</p>{query&&<button onClick={()=>setQuery("")}>Clear filter</button>}</div>:<div className={styles.roleList}>{visible.map(item=><article className={styles.roleRow} key={item.id}>
     <div className={styles.companyMark}>{(item.company||item.title||"J").trim().slice(0,1).toUpperCase()}</div>
