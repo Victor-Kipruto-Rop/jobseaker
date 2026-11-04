@@ -36,10 +36,10 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
 
     if suffix in {".md", ".markdown", ".txt"}:
         try:
-            text = data.decode("utf-8-sig", errors="strict").replace("\\x00", "")
+            text = data.decode("utf-8-sig", errors="strict").replace("\x00", "")
         except UnicodeDecodeError as exc:
             raise HTTPException(status_code=400, detail="Text documents must use UTF-8 encoding") from exc
-        normalized = re.sub(r"\\r\\n?", "\\n", text)
+        normalized = re.sub(r"\r\n?", "\n", text)
         return normalized[:MAX_EXTRACTED_CHARS], ALLOWED[suffix]
 
     if suffix == ".pdf":
