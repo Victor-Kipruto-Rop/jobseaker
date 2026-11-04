@@ -23,7 +23,9 @@ class Store:
     def fail(self, action_id, reason): self.done[action_id] = {"error": reason}
 
 @pytest.mark.asyncio
-async def test_adapter_requires_digest_and_records_evidence():
+async def test_adapter_requires_digest_and_records_evidence(monkeypatch):
+    monkeypatch.setattr("packages.storage.objects.store_private_object",
+                        lambda *args, **kwargs: {"object_key": "private/test.png"})
     digest = action_digest(1, "draft-hash", "email", "Email", "a@example.com")
     store = Store()
     result = await execute_approved_fill(Page(), application_id=1, draft_hash="draft-hash",
