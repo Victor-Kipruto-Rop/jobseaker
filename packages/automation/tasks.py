@@ -113,6 +113,8 @@ def run_saved_search_discovery():
                 company.domain = profile.get("company_domain") or company.domain
                 company.careers_url = profile.get("company_brand_source") or company.careers_url
                 company.description = profile.get("company_description") or company.description
+                company.industry = profile.get("company_industry") or company.industry
+                company.headquarters = profile.get("company_headquarters") or company.headquarters
                 company.logo_url = profile.get("company_logo_url") or company.logo_url
                 company.favicon_url = profile.get("company_favicon_url") or company.favicon_url
                 company.brand_color = profile.get("company_brand_color") or company.brand_color
