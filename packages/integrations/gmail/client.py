@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import json
 import secrets
@@ -11,7 +12,8 @@ from google.auth.transport.requests import Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from apps.api.app.core.config import get_settings
-from packages.database.models.career import OAuthState, EmailAccount, EmailMessage
+from packages.database.models.career import OAuthState, EmailAccount, EmailMessage, Application
+from packages.integrations.gmail.intelligence import analyze_recruiter_email
 from packages.database.models.identity import User
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
@@ -133,6 +135,9 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
     if not credentials.valid:
         raise RuntimeError("Gmail authorization expired. Reconnect the account.")
     service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
+    applications = db.scalars(select(Application).where(
+        Application.user_id == user_id,
+    ).order_by(Application.created_at.desc()).limit(100)).all()
     listed, inserted, page_token = 0, 0, None
     while listed < limit:
         result = service.users().messages().list(
@@ -147,19 +152,29 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
             if exists:
                 continue
             metadata = service.users().messages().get(
-                userId="me", id=message_id, format="metadata",
+                userId="me", id=message_id, format="full",
                 metadataHeaders=["From", "To", "Subject"]).execute()
             headers = {h.get("name", "").lower(): h.get("value", "")
                        for h in metadata.get("payload", {}).get("headers", [])}
             subject, snippet = headers.get("subject", ""), metadata.get("snippet", "")
-            classification, confidence, action = classify(subject, snippet)
+            body_text = _plain_text_from_payload(metadata.get("payload", {}))
+            intelligence = analyze_recruiter_email(subject, body_text or snippet, applications)
+            classification, confidence, action = (
+                intelligence["intent"], intelligence["confidence"], intelligence["action_required"],
+            )
             internal_date = metadata.get("internalDate")
             received = datetime.fromtimestamp(int(internal_date)/1000, tz=timezone.utc) if internal_date else None
             db.add(EmailMessage(user_id=user_id, account_id=account.id,
                 gmail_message_id=message_id, gmail_thread_id=metadata.get("threadId", ""),
                 sender=headers.get("from", "")[:320], recipient=headers.get("to", "")[:320],
                 subject=subject[:1000], snippet=snippet[:5000], classification=classification,
-                confidence=confidence, action_required=action, received_at=received))
+                confidence=confidence, action_required=action,
+                application_id=intelligence["application_id"],
+                intent=intelligence["intent"], suggested_status=intelligence["suggested_status"],
+                intent_confidence=intelligence["confidence"],
+                interview_proposed_text=intelligence["interview_proposed_text"],
+                classification_evidence=intelligence["evidence"],
+                received_at=received))
             inserted += 1
         listed += len(messages)
         page_token = result.get("nextPageToken")
