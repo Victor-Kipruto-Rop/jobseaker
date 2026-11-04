@@ -141,8 +141,11 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
       if (Array.isArray(apps)) apps.forEach((app: {id:number;role_title?:string;company_name?:string;status?:string}) => {
         if ((app.role_title + " " + app.company_name).toLowerCase().includes(term)) records.push({id:app.id,title:app.role_title||"Untitled application",subtitle:(app.company_name||"Application")+" · "+(app.status||"draft"),href:"/applications",kind:"APPLICATION"});
       });
-      if (Array.isArray(notes)) notes.forEach((note: {id:number;title?:string;description?:string}) => {
-        if ((note.title + " " + note.description).toLowerCase().includes(term)) records.push({id:note.id,title:note.title||"Untitled note",subtitle:"Career note",href:"/notes",kind:"NOTE"});
+      if (Array.isArray(items)) items.forEach((item: {id:number;item_type:string;title?:string;description?:string}) => {
+        if ((item.title + " " + item.description).toLowerCase().includes(term)) {
+          const routes:Record<string,string>={task:"/tasks",note:"/notes",learning:"/learning",project:"/projects",contact:"/contacts"};
+          records.push({id:item.id,title:item.title||"Untitled record",subtitle:item.item_type.replaceAll("_"," "),href:routes[item.item_type]||"/dashboard",kind:item.item_type.toUpperCase()});
+        }
       });
       setSearchRecords(records.slice(0,12));
     } catch (error) { setSearchRecords([]); setSearchError(error instanceof Error?error.message:"Search failed."); }
