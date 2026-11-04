@@ -22,7 +22,9 @@ from packages.database.models.identity import User
 from packages.database.models.career import (
     CalendarAccount, CalendarOAuthState, Interview, Application, AuditLog,
 )
-from packages.security.credential_vault import encrypt_credential, decrypt_credential
+from packages.security.credential_vault import (
+    encrypt_credential, decrypt_credential, rewrap_credential, credential_needs_rotation,
+)
 from packages.ops.circuit_breaker import CircuitBreaker
 
 router = APIRouter(prefix="/calendar")
@@ -156,6 +158,10 @@ def sync_interview_to_calendar(
         raise HTTPException(status_code=409, detail="Connect Google Calendar before syncing interviews")
     try:
         raw = decrypt_credential(account_row.encrypted_credentials, purpose="google-calendar")
+        if credential_needs_rotation(account_row.encrypted_credentials):
+            account_row.encrypted_credentials = rewrap_credential(
+                account_row.encrypted_credentials, purpose="google-calendar",
+            )
         credentials = Credentials.from_authorized_user_info(__import__("json").loads(raw), SCOPES)
         if credentials.expired and credentials.refresh_token:
             _CALENDAR_BREAKER.call(credentials.refresh, Request())
