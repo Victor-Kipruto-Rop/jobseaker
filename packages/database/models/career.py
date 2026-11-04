@@ -85,6 +85,8 @@ class Application(Base):
     status: Mapped[str] = mapped_column(String(40), default="draft", index=True)
     job_url: Mapped[str] = mapped_column(String(2000), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
+    job_description_snapshot: Mapped[str] = mapped_column(Text, default="")
+    company_profile_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
