@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import desc, inspect, select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -334,8 +334,9 @@ def get_recommendations(
 
 
 @router.post("/impressions", status_code=201)
-async def record_impressions(
+def record_impressions(
     body: InteractionBatch,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -354,7 +355,7 @@ async def record_impressions(
         ))
     db.add_all(rows)
     db.commit()
-    await publish_event("user.activity", {
+    background_tasks.add_task(publish_event, "user.activity", {
         "user_id": user.id, "event_type": "impression_batch",
         "count": len(rows), "item_keys": [row.item_key for row in rows],
     }, key=str(user.id))
@@ -362,9 +363,10 @@ async def record_impressions(
 
 
 @router.post("/interactions", status_code=201)
-async def record_interaction(
+def record_interaction(
     body: InteractionInput,
     request: Request,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -461,7 +463,7 @@ async def record_interaction(
     )
     db.add(event)
     db.commit()
-    await publish_event("user.activity", {
+    background_tasks.add_task(publish_event, "user.activity", {
         "user_id": user.id, "event_id": event.id, "item_key": key,
         "event_type": body.event_type, "recommendation_source": body.recommendation_source,
         "position": body.position,
