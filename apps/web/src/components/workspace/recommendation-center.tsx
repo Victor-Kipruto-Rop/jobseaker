@@ -17,7 +17,8 @@ type Recommendation = {
 };
 type Feed={items:Recommendation[];profile:{headline?:string;target_roles:string[];skills:string[];location?:string;work_mode?:string;resume_available?:boolean;profile_skill_count?:number};algorithms:Record<string,string>;data_quality:Record<string,any>;disclaimer?:string};
 type Filter="all"|"remote"|"content"|"collaborative"|"graph"|"fresh";
-async function api(path:string,init?:RequestInit){return fetch(API+path,{credentials:"include",cache:"no-store",...init,headers:{"Content-Type":"application/json",...(init?.headers||{})}});}
+function csrfToken(){return decodeURIComponent(document.cookie.split("; ").find(item=>item.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=")||"");}
+async function api(path:string,init?:RequestInit){const headers=new Headers(init?.headers);headers.set("Content-Type","application/json");if(init?.method)headers.set("X-CSRF-Token",csrfToken());return fetch(API+path,{credentials:"include",cache:"no-store",...init,headers});}
 function display(value?:string){return (value||"").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());}
 function salary(job:Recommendation){const low=job.salary_min,high=job.salary_max;const fmt=(v:number)=>new Intl.NumberFormat("en",{maximumFractionDigits:0}).format(v);if(low==null&&high==null)return "Salary not published";if(low!=null&&high!=null)return fmt(low)+" – "+fmt(high);return low!=null?"From "+fmt(low):"Up to "+fmt(high as number);}
 function CompanyMark({job}:{job:Recommendation}){const [failed,setFailed]=useState(false);const logo=job.company_logo_url||job.company_favicon_url;if(logo&&!failed)return <img className={styles.logo} src={logo} alt="" loading="lazy" referrerPolicy="no-referrer" onError={()=>setFailed(true)}/>;return <span className={styles.monogram}>{(job.company||"C").trim().slice(0,1).toUpperCase()}</span>;}
