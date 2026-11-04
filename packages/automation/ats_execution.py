@@ -1,6 +1,7 @@
 """Database-backed executor for candidate-approved ATS field actions."""
 from __future__ import annotations
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from packages.database.models.career import ATSActionApproval, ATSApplicationDraft, Application
@@ -59,6 +60,11 @@ async def execute_ats_field(db: Session, page, *, user_id: int,
         Application.id == application_id, Application.user_id == user_id))
     if not draft or not application or not draft.candidate_confirmed:
         raise PermissionError("ATS draft or application ownership could not be verified")
+    job_origin = urlsplit(application.job_url or "")
+    approved = urlsplit(approved_origin or "")
+    if (job_origin.scheme != "https" or approved.scheme != "https"
+            or job_origin.hostname != approved.hostname or job_origin.port != approved.port):
+        raise PermissionError("Browser origin must match the candidate's application URL")
     mapping = next((dict(item) for item in (draft.mappings or [])
                     if str(item.get("field_id")) == field_id), None)
     if not mapping or mapping.get("status") != "proposed":
