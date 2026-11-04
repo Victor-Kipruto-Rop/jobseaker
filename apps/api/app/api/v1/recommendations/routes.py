@@ -161,11 +161,7 @@ def get_recommendations(
         CandidatePreferenceState.user_id == user.id,
     ))
     behavioral_vector = preference_state.preference_vector if preference_state else {}
-    behavioral_terms = [
-        name for name, weight in sorted(
-            behavioral_vector.items(), key=lambda item: float(item[1] or 0), reverse=True,
-        ) if float(weight or 0) >= 0.05
-    ][:20]
+    profile["behavioral_preferences"] = behavioral_vector
     skills_rows = db.scalars(select(CandidateSkill).where(CandidateSkill.user_id == user.id)).all()
     skills = [row.skill_name for row in skills_rows]
     resume = db.scalar(select(ResumeDocument).where(
@@ -250,7 +246,7 @@ def get_recommendations(
     # optional ML extra is installed; otherwise use the deterministic TF-IDF path.
     texts = [(" ".join(target_roles) + " " + profile.get("headline", "") + " " +
               profile.get("summary", "") + " " + " ".join(skills) + " " +
-              " ".join(behavioral_terms) + " " + resume_text[:12000))]
+              resume_text[:12000])]
     texts.extend(document_text(job) for job in jobs)
     embeddings = semantic_embeddings(texts)
     semantic_ready = len(embeddings) == len(texts)
