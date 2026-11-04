@@ -2,7 +2,9 @@
 from __future__ import annotations
 import asyncio, logging
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from pathlib import PurePath
+from uuid import uuid4
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session
@@ -13,6 +15,7 @@ from packages.database.models.career import AIConversation, AIMessage, Applicati
 from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference, AssistantFeedback, AssistantEntity, AssistantRelation
 from packages.database.models.assistant_jobs import AssistantIngestionJob
 from packages.assistant.orchestration import plan_agent_steps, execute_plan, plan_trace
+from packages.assistant.jobs import encrypt_ingestion_payload
 from packages.security.credential_vault import encrypt_credential, decrypt_credential
 from packages.assistant.engine import sanitize, remember, retrieve, build_context, adapt_preferences, preference_snapshot, store_preferences, source_memory_is_active
 from packages.ai.providers.base import GenerationRequest
@@ -126,6 +129,73 @@ async def assistant_chat(body: AssistantChat, user: User = Depends(get_current_u
         "retrieved_memories":len(memory_hits),
         "tools_considered":safe_tools,"agent_trace":plan_trace(agent_plan),"tool_actions_executed":"read_only_context_only",
         "usage":generated.usage}
+
+@router.post("/assistant/ingest-async", status_code=202)
+async def enqueue_assistant_ingestion(file: UploadFile = File(...),
+                                     user: User = Depends(get_current_user),
+                                     db: Session = Depends(get_db)):
+    """Persist an encrypted upload before acknowledging it to the client."""
+    pref = db.scalar(select(AssistantPreference).where(
+        AssistantPreference.user_id == user.id).with_for_update())
+    if not pref or not pref.memory_enabled:
+        raise HTTPException(status_code=409, detail="Enable assistant memory before uploading documents.")
+    filename = PurePath(file.filename or "upload").name[:255]
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    allowed = {"pdf", "docx", "txt", "md", "markdown", "py", "jpg", "jpeg", "png"}
+    if extension not in allowed:
+        raise HTTPException(status_code=415, detail="Supported files: PDF, DOCX, TXT, Markdown, Python, JPG and PNG.")
+    payload = await file.read(12 * 1024 * 1024 + 1)
+    if not payload or len(payload) > 12 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Upload must be between 1 byte and 12 MB.")
+    content_type = (file.content_type or "application/octet-stream")[:160]
+    job_id = str(uuid4())
+    try:
+        ciphertext = encrypt_ingestion_payload(user.id, job_id, payload)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="Secure document storage is unavailable.") from exc
+    job = AssistantIngestionJob(user_id=user.id, job_id=job_id, filename=filename,
+        content_type=content_type, payload_ciphertext=ciphertext, status="queued")
+    db.add(job)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {"job_id": job_id, "status": "queued", "filename": filename}
+
+
+@router.get("/assistant/ingestion/{job_id}")
+def assistant_ingestion_status(job_id: str, user: User = Depends(get_current_user),
+                               db: Session = Depends(get_db)):
+    job = db.scalar(select(AssistantIngestionJob).where(
+        AssistantIngestionJob.job_id == job_id, AssistantIngestionJob.user_id == user.id))
+    if not job:
+        raise HTTPException(status_code=404, detail="Ingestion job not found.")
+    return {"job_id": job.job_id, "status": job.status, "filename": job.filename,
+            "attempts": job.attempts, "characters_indexed": job.characters_indexed,
+            "last_error": job.last_error, "created_at": job.created_at.isoformat() if job.created_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None}
+
+
+@router.delete("/assistant/ingestion/{job_id}")
+def cancel_assistant_ingestion(job_id: str, user: User = Depends(get_current_user),
+                               db: Session = Depends(get_db)):
+    # Match the worker's consent -> job lock order to avoid lock inversion.
+    db.scalar(select(AssistantPreference).where(
+        AssistantPreference.user_id == user.id).with_for_update())
+    job = db.scalar(select(AssistantIngestionJob).where(
+        AssistantIngestionJob.job_id == job_id,
+        AssistantIngestionJob.user_id == user.id).with_for_update())
+    if not job:
+        raise HTTPException(status_code=404, detail="Ingestion job not found.")
+    if job.status == "completed":
+        raise HTTPException(status_code=409, detail="Completed ingestion cannot be cancelled.")
+    job.status = "cancelled"
+    job.payload_ciphertext = ""
+    job.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"job_id": job.job_id, "status": "cancelled", "payload_cleared": True}
+
 
 @router.get("/assistant/memory")
 def memory_overview(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
