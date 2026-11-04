@@ -87,3 +87,22 @@ Configure OpenAI or Anthropic credentials only in the private API environment. N
 ## Current release status
 
 This is an actively developed feature branch, not a production-ready release. Authentication, user-scoped workflows, persistent AI conversations and drafts, provider routing, job-board connectors, Gmail read-only integration, local CV processing, approval-gated application tracking, and recurring discovery have implementation code. However, this turn has not run Python tests, frontend lint/build, Docker Compose, database migrations, or live third-party integrations. Production object storage, backup/restore drills, full account deletion/export, richer job-source coverage, production OAuth review, and comprehensive end-to-end security verification remain outstanding. Do not merge or deploy based on code presence alone.
+
+
+### Install local verification dependencies
+
+From the repository root, install the Python development extras and frontend packages
+before running the release gate:
+
+```powershell
+python -m pip install -e ".[dev]"
+cd apps/web
+pnpm install
+cd ../..
+python scripts/verify_local_security.py
+```
+
+Use the Python version required by `pyproject.toml` (Python 3.12 or newer). Docker
+builds the API, worker, scheduler, and web containers from their dedicated Dockerfiles.
+The local release gate uses the host Python and pnpm installations for tests, linting,
+and frontend type-check/build verification.
