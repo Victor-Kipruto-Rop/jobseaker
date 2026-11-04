@@ -112,6 +112,8 @@ def get_company(company_id: int, user: User = Depends(get_current_user), db: Ses
             "source_name": item.source_name,
             "source_url": item.source_url,
             "status": item.status,
+            "availability_status": item.availability_status,
+            "last_seen_at": item.last_seen_at,
             "created_at": item.created_at,
         } for item in opportunities],
     }
