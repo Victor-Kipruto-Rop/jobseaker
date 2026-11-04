@@ -26,7 +26,7 @@ def main():
     dispatcher.start()
     queues = [Queue(name, connection=conn)
               for name in ("default", "ai", "assistant", "email", "discovery")]
-    Worker(queues, connection=conn).work()
+    Worker(queues, connection=conn).work(with_scheduler=True)
 
 if __name__ == "__main__":
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
