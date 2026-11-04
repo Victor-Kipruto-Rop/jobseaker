@@ -11,7 +11,8 @@ from packages.database.models.career import (
 from packages.integrations.url_validation import validate_http_url
 from packages.events.outbox import enqueue_event
 from packages.applications.email_intent import classify_email
-from packages.automation.ats_mapping import build_mapping, FieldMapping, approval_manifest
+from packages.automation.ats_mapping import build_mapping
+from packages.security.credential_vault import encrypt_credential, decrypt_credential
 import hashlib
 import json
 from packages.applications.fsm import STATUSES, TRANSITIONS, can_transition
@@ -114,9 +115,17 @@ def create_ats_draft(application_id: int, body: ATSDraftRequest,
     if application.status not in {"draft", "ready", "approved"}:
         raise HTTPException(status_code=409, detail="ATS mapping is locked after submission")
     mappings = build_mapping(body.fields, body.candidate_values)
-    rows = [row.__dict__ for row in mappings]
+    rows = [row.__dict__.copy() for row in mappings]
+    stored_rows = []
+    for item in rows:
+        stored = item.copy()
+        if stored.get("value"):
+            stored["value_ciphertext"] = encrypt_credential(
+                stored["value"], purpose="ats-field-value")
+            stored["value"] = None
+        stored_rows.append(stored)
     digest = hashlib.sha256(json.dumps(
-        [application.id, rows], sort_keys=True, separators=(",", ":")
+        [application.id, stored_rows], sort_keys=True, separators=(",", ":")
     ).encode()).hexdigest()
     draft = db.scalar(select(ATSApplicationDraft).where(
         ATSApplicationDraft.application_id == application.id,
@@ -124,7 +133,7 @@ def create_ats_draft(application_id: int, body: ATSDraftRequest,
     if draft is None:
         draft = ATSApplicationDraft(user_id=user.id, application_id=application.id)
         db.add(draft)
-    draft.mappings = rows
+    draft.mappings = stored_rows
     draft.mapping_sha256 = digest
     draft.status = "needs_review" if any(x.status != "proposed" for x in mappings) else "ready_for_review"
     draft.candidate_confirmed = False
@@ -146,8 +155,15 @@ def get_ats_draft(application_id: int, user: User = Depends(get_current_user),
         ATSApplicationDraft.user_id == user.id))
     if not draft:
         raise HTTPException(status_code=404, detail="ATS draft not found")
+    mappings = []
+    for stored in draft.mappings or []:
+        item = dict(stored)
+        ciphertext = item.pop("value_ciphertext", None)
+        if ciphertext:
+            item["value"] = decrypt_credential(ciphertext, purpose="ats-field-value")
+        mappings.append(item)
     return {"id": draft.id, "application_id": draft.application_id, "status": draft.status,
-            "mapping_sha256": draft.mapping_sha256, "mappings": draft.mappings,
+            "mapping_sha256": draft.mapping_sha256, "mappings": mappings,
             "candidate_confirmed": draft.candidate_confirmed,
             "approved_at": draft.approved_at,
             "execution_policy": "candidate_review_required"}
