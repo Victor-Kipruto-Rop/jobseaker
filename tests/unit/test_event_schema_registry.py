@@ -6,7 +6,7 @@ import pytest
 
 from packages.events.contracts import EventEnvelope
 from packages.events.schema_registry import (
-    assert_backward_compatible, load_envelope_schema, validate_schema_registration,
+    assert_backward_compatible, validate_schema_registration,
 )
 
 
