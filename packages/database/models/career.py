@@ -432,3 +432,23 @@ class CalendarOAuthState(Base):
     state_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+class ATSApplicationDraft(Base):
+    """Persisted candidate-reviewed form mapping; no external form is submitted."""
+    __tablename__ = "ats_application_drafts"
+    __table_args__ = (
+        UniqueConstraint("user_id", "application_id", name="uq_ats_draft_user_application"),
+        Index("ix_ats_draft_user_status", "user_id", "status"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    application_id: Mapped[int] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    mappings: Mapped[list] = mapped_column(JSON, default=list)
+    mapping_sha256: Mapped[str] = mapped_column(String(64), default="")
+    status: Mapped[str] = mapped_column(String(24), default="needs_review")
+    candidate_confirmed: Mapped[bool] = mapped_column(default=False)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
