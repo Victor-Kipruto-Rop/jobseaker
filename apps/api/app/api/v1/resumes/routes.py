@@ -21,15 +21,26 @@ MAX_PDF_PAGES = 100
 MAX_DOCX_ENTRIES = 1_000
 MAX_DOCX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
 MAX_DOCX_COMPRESSION_RATIO = 100
-ALLOWED = {".pdf": "application/pdf",
-           ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+ALLOWED = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".md": "text/markdown", ".markdown": "text/markdown", ".txt": "text/plain",
+}
 
 def extract_text(filename: str, data: bytes) -> tuple[str, str]:
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED:
-        raise HTTPException(status_code=415, detail="Only PDF and DOCX files are supported")
+        raise HTTPException(status_code=415, detail="Supported formats are PDF, DOCX, Markdown and plain text")
     if not data:
         raise HTTPException(status_code=400, detail="The uploaded document is empty")
+
+    if suffix in {".md", ".markdown", ".txt"}:
+        try:
+            text = data.decode("utf-8-sig", errors="strict").replace("\\x00", "")
+        except UnicodeDecodeError as exc:
+            raise HTTPException(status_code=400, detail="Text documents must use UTF-8 encoding") from exc
+        normalized = re.sub(r"\\r\\n?", "\\n", text)
+        return normalized[:MAX_EXTRACTED_CHARS], ALLOWED[suffix]
 
     if suffix == ".pdf":
         if not data.startswith(b"%PDF-"):
