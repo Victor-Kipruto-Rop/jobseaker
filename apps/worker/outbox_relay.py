@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+from prometheus_client import start_http_server
 
 from aiokafka import AIOKafkaProducer
 from apps.api.app.core.config import get_settings
@@ -17,6 +18,7 @@ async def main() -> None:
     if not settings.kafka_enabled:
         raise RuntimeError("KAFKA_ENABLED must be true for the outbox relay")
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+    start_http_server(int(os.getenv("METRICS_PORT", "9101")), addr="0.0.0.0")
     await run_outbox_relay(
         SessionLocal,
         lambda: AIOKafkaProducer(
