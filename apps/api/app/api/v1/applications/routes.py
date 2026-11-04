@@ -138,7 +138,7 @@ def approve_application(
         raise HTTPException(status_code=400, detail="Candidate approval is required")
     if row.status == "approved":
         return {"status": "already_approved", "application_id": row.id}
-    if row.status != "ready" or not TRANSITIONS.get(row.status, set()).issuperset({"archived"}):
+    if row.status != "ready":
         raise HTTPException(status_code=409, detail="Only a ready application can be approved")
     row.status = "approved"
     db.add(ApplicationEvent(
