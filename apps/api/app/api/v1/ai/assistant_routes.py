@@ -14,7 +14,7 @@ from packages.database.models.assistant import AssistantMemory, AssistantFact, A
 from packages.database.models.assistant_jobs import AssistantIngestionJob
 from packages.assistant.orchestration import plan_agent_steps, execute_plan, plan_trace
 from packages.security.credential_vault import encrypt_credential, decrypt_credential
-from packages.assistant.engine import sanitize, remember, retrieve, build_context, adapt_preferences, preference_snapshot, store_preferences
+from packages.assistant.engine import sanitize, remember, retrieve, build_context, adapt_preferences, preference_snapshot, store_preferences, source_memory_is_active
 from packages.ai.providers.base import GenerationRequest
 from packages.ai.providers.router import generate_with_fallback
 from packages.ai.budget import AIQuotaExceeded, reserve_ai_tokens, finish_ai_reservation, record_ai_usage
@@ -129,7 +129,8 @@ async def assistant_chat(body: AssistantChat, user: User = Depends(get_current_u
 
 @router.get("/assistant/memory")
 def memory_overview(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    facts = db.scalars(select(AssistantFact).where(AssistantFact.user_id==user.id,AssistantFact.active.is_(True)).order_by(AssistantFact.updated_at.desc()).limit(100)).all()
+    fact_rows = db.scalars(select(AssistantFact).where(AssistantFact.user_id==user.id,AssistantFact.active.is_(True)).order_by(AssistantFact.updated_at.desc()).limit(200)).all()
+    facts = [fact for fact in fact_rows if source_memory_is_active(db, fact.source_memory_id)]
     count = db.scalar(select(func.count(AssistantMemory.id)).where(
         AssistantMemory.user_id == user.id,
         (AssistantMemory.expires_at.is_(None) | (AssistantMemory.expires_at > datetime.now(timezone.utc)))
@@ -217,10 +218,14 @@ def export_assistant_memory(user: User = Depends(get_current_user), db: Session 
         AssistantMemory.user_id == user.id,
         (AssistantMemory.expires_at.is_(None) | (AssistantMemory.expires_at > datetime.now(timezone.utc)))
     ).order_by(AssistantMemory.created_at.asc())).all()
-    facts = db.scalars(select(AssistantFact).where(
+    fact_rows = db.scalars(select(AssistantFact).where(
         AssistantFact.user_id == user.id, AssistantFact.active.is_(True))).all()
-    entities = db.scalars(select(AssistantEntity).where(AssistantEntity.user_id == user.id)).all()
-    relations = db.scalars(select(AssistantRelation).where(AssistantRelation.user_id == user.id)).all()
+    facts = [fact for fact in fact_rows if source_memory_is_active(db, fact.source_memory_id)]
+    entity_rows = db.scalars(select(AssistantEntity).where(AssistantEntity.user_id == user.id)).all()
+    entities = [entity for entity in entity_rows if source_memory_is_active(db, entity.source_memory_id)]
+    entity_ids = {entity.id for entity in entities}
+    relation_rows = db.scalars(select(AssistantRelation).where(AssistantRelation.user_id == user.id)).all()
+    relations = [edge for edge in relation_rows if edge.source_entity_id in entity_ids and edge.target_entity_id in entity_ids]
     preference = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user.id))
     memories = []
     for row in rows:
