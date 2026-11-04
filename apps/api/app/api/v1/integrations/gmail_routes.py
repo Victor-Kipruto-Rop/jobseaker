@@ -28,7 +28,7 @@ def authorize(user: User = Depends(get_verified_user), db: Session = Depends(get
 def callback(state: str = Query(min_length=20), code: str = Query(min_length=5),
              db: Session = Depends(get_db)):
     try:
-        account = complete_authorization(db, state, code)
+        complete_authorization(db, state, code)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
