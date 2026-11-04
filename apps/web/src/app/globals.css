@@ -1,9 +1,9 @@
-:root{color-scheme:dark;--app-bg:#090f0c;--surface:#101813;--surface-raised:#142019;--line:#24352b;--text:#edf5ef;--muted:#91a197;--accent:#69d49a;--accent-strong:#8ce4ae}
+:root{color-scheme:light;--app-bg:#f5f6f2;--surface:#ffffff;--surface-soft:#fbfcfa;--line:#e6eae4;--text:#26362c;--muted:#7c887e;--accent:#315b40;--accent-soft:#edf4ee;--brass:#b8894c}
 *{box-sizing:border-box}
 html{min-height:100%;background:var(--app-bg);scroll-behavior:smooth}
-body{margin:0;min-height:100vh;background:var(--app-bg);color:var(--text);font-family:'DM Sans',Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased}
+body{margin:0;min-height:100vh;background:var(--app-bg);color:var(--text);font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit}
 button,a{-webkit-tap-highlight-color:transparent}
 a{color:inherit}
-button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent-strong);outline-offset:3px}
-::selection{background:#347d50;color:#fff}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #527c5a;outline-offset:3px}
+::selection{background:#dce9dc;color:#213a2b}
