@@ -75,5 +75,5 @@ async def execute_ats_field(db: Session, page, *, user_id: int,
         page, application_id=application_id, draft_hash=draft.mapping_sha256,
         field_id=field_id, label=str(mapping.get("label") or ""), value=value,
         approved_digest=approval.action_digest, approved_origin=approved_origin,
-        action_store=DatabaseActionStore(db, approval),
+        evidence_owner_scope=str(user_id), action_store=DatabaseActionStore(db, approval),
     )
