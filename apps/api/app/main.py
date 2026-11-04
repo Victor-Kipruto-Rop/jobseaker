@@ -1,18 +1,20 @@
 import re
 import time
 from uuid import uuid4
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import structlog
+
+from apps.api.app.api.v1.router import router
 from apps.api.app.core.config import get_settings
-from apps.api.app.core.security import resolve_session
 from apps.api.app.core.csrf import double_submit_matches, token_is_bound_to_session
 from apps.api.app.core.origin import is_allowed_origin, origin_from_referer
-from apps.api.app.lifespan import lifespan
-from apps.api.app.api.v1.router import router
+from apps.api.app.core.security import resolve_session
 from apps.api.app.health.routes import router as health_router
+from apps.api.app.lifespan import lifespan
 from packages.database.sessions import SessionLocal
-import structlog
 
 s = get_settings()
 app = FastAPI(title="JobSeeker Intelligence", version="0.3.0", lifespan=lifespan)
