@@ -1,5 +1,7 @@
 "use client";
 
+import AppShell from "../../components/layout/app-shell";
+
 import { useEffect, useState } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -119,7 +121,7 @@ export default function Discovery() {
   }
 
   return (
-    <main style={{ maxWidth: 1040, margin: "0 auto", padding: 32, color: "#edf5ef" }}>
+    <AppShell><main style={{ maxWidth: 1040, margin: "0 auto", padding: 32, color: "#edf5ef" }}>
       <a href="/dashboard" style={{ color: "#54d69a" }}>← Workspace</a>
       <header style={{ margin: "26px 0" }}>
         <p style={{ color: "#54d69a", letterSpacing: 2, fontSize: 11, fontWeight: 700 }}>CAREER INTELLIGENCE</p>
@@ -193,7 +195,7 @@ export default function Discovery() {
         ))}
         {saved.length === 0 && <p style={{ color: "#9aaba2" }}>No recurring searches configured.</p>}
       </section>
-    </main>
+    </main></AppShell>
   );
 }
 
