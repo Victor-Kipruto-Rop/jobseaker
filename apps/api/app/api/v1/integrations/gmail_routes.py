@@ -8,7 +8,7 @@ from apps.api.app.dependencies import get_current_user, get_verified_user, get_d
 from packages.database.models.identity import User
 from packages.database.models.career import EmailAccount, EmailMessage
 from packages.integrations.gmail.client import create_authorization, complete_authorization, sync_messages
-from packages.events.kafka import publish_event
+from packages.events.outbox import enqueue_event
 
 router = APIRouter(prefix="/gmail")
 oauth_callback_router = APIRouter(prefix="/gmail")
@@ -61,16 +61,17 @@ def sync(user: User = Depends(get_current_user), db: Session = Depends(get_db),
                 min(int(result["new_messages"]), 200)
             )).all() if account_row else []
             for message in rows:
-                background_tasks.add_task(
-                    publish_event, "email.classified",
+                enqueue_event(
+                    db, "email.classified",
                     {
                         "user_id": user.id, "email_message_id": message.id,
                         "classification": message.classification,
                         "confidence": message.confidence,
                         "action_required": message.action_required,
                     },
-                    key=str(user.id),
+                    partition_key=str(user.id),
                 )
+            db.commit()
         return result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
