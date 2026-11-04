@@ -374,18 +374,47 @@ def test_saved_search_worker_persists_each_result_to_its_search_owner(db, users,
     ])
     db.commit()
 
-    async def fake_discover(board, limit):
-        return [{
-            "title": f"Role from {board}",
+    live_jobs = {
+        "owner-board": [{
+            "title": "Data Engineer",
+            "description": "Build Python and Kafka pipelines",
             "source_name": "greenhouse",
-            "source_url": f"https://jobs.example/{board}",
-        }]
+            "source_url": "https://jobs.example/owner-board",
+            "required_skills": ["Python", "Kafka"],
+        }],
+        "other-board": [{
+            "title": "Analytics Engineer",
+            "description": "Build SQL analytics models",
+            "source_name": "greenhouse",
+            "source_url": "https://jobs.example/other-board",
+            "required_skills": ["SQL"],
+        }],
+    }
+
+    async def fake_discover(board, limit):
+        return live_jobs[board]
+
+    async def fake_company_profile(source, board):
+        return {
+            "company": "Owner Board Inc" if board == "owner-board" else "Other Board Ltd",
+            "company_website": f"https://{board}.example",
+            "company_domain": f"{board}.example",
+            "company_logo_url": f"https://{board}.example/logo.svg",
+            "company_favicon_url": "",
+            "company_description": f"Public profile for {board}",
+            "company_brand_color": "#123456",
+            "company_brand_source": f"https://jobs.example/{board}",
+            "company_social_links": {"linkedin": f"https://www.linkedin.com/company/{board}"},
+            "company_industry": "Technology",
+            "company_headquarters": "",
+        }
 
     monkeypatch.setattr(tasks, "get_settings", lambda: SimpleNamespace(
         global_automation_paused=False,
         job_discovery_enabled=True,
     ))
     monkeypatch.setattr(tasks, "discover_greenhouse", fake_discover)
+    monkeypatch.setattr(tasks, "discover_company_profile", fake_company_profile)
     monkeypatch.setattr(tasks, "SessionLocal", lambda: Session(bind=db.get_bind()))
 
     result = tasks.run_saved_search_discovery()
@@ -394,9 +423,26 @@ def test_saved_search_worker_persists_each_result_to_its_search_owner(db, users,
     rows = db.scalars(select(CandidateOpportunity)).all()
     by_title = {row.title: row.user_id for row in rows}
     assert by_title == {
-        "Role from owner-board": owner.id,
-        "Role from other-board": other.id,
+        "Data Engineer": owner.id,
+        "Analytics Engineer": other.id,
     }
+    companies = db.scalars(select(Company).order_by(Company.user_id)).all()
+    assert len(companies) == 2
+    assert companies[0].user_id != companies[1].user_id
+    assert all(company.logo_url.endswith("/logo.svg") for company in companies)
+    imported = db.scalars(select(CandidateOpportunity).order_by(CandidateOpportunity.user_id)).all()
+    assert all(row.company_id is not None for row in imported)
+    assert all(row.availability_status == "active" for row in imported)
+    assert imported[0].company_id != imported[1].company_id
+
+    # A successful empty board snapshot marks the old vacancy as removed.
+    live_jobs["owner-board"] = []
+    refreshed = tasks.run_saved_search_discovery()
+    assert refreshed["removed"] == 1
+    owner_role = db.scalar(select(CandidateOpportunity).where(
+        CandidateOpportunity.user_id == owner.id,
+    ))
+    assert owner_role.availability_status == "removed"
 
 
 
