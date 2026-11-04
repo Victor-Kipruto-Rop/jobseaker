@@ -170,6 +170,7 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
         Application.user_id == user_id,
     ).order_by(Application.created_at.desc()).limit(100)).all()
     listed, inserted, page_token = 0, 0, None
+    new_message_ids = []
     while listed < limit:
         result = _GMAIL_BREAKER.call(service.users().messages().list(
             userId="me", q=JOB_QUERY, maxResults=min(100, limit-listed),
@@ -195,7 +196,7 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
             )
             internal_date = metadata.get("internalDate")
             received = datetime.fromtimestamp(int(internal_date)/1000, tz=timezone.utc) if internal_date else None
-            db.add(EmailMessage(user_id=user_id, account_id=account.id,
+            message_row = EmailMessage(user_id=user_id, account_id=account.id,
                 gmail_message_id=message_id, gmail_thread_id=metadata.get("threadId", ""),
                 sender=headers.get("from", "")[:320], recipient=headers.get("to", "")[:320],
                 subject=subject[:1000], snippet=snippet[:5000], classification=classification,
@@ -205,7 +206,10 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
                 intent_confidence=intelligence["confidence"],
                 interview_proposed_text=intelligence["interview_proposed_text"],
                 classification_evidence=intelligence["evidence"],
-                received_at=received))
+                received_at=received)
+            db.add(message_row)
+            db.flush()
+            new_message_ids.append(message_row.id)
             inserted += 1
         listed += len(messages)
         page_token = result.get("nextPageToken")
@@ -213,5 +217,5 @@ def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
             break
     account.last_synced_at = datetime.now(timezone.utc)
     db.commit()
-    return {"mailbox": account.email, "listed": listed, "new_messages": inserted,
+    return {"mailbox": account.email, "listed": listed, "new_messages": inserted, "new_message_ids": new_message_ids,
             "query": JOB_QUERY, "read_only": True}
