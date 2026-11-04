@@ -48,7 +48,7 @@ class AssistantPreference(Base):
     __tablename__ = "assistant_preferences"
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
-    preferences: Mapped[dict] = mapped_column(JSON, default=dict)
+    preferences: Mapped[dict | str] = mapped_column(JSON, default=dict)
     preference_vector: Mapped[list] = mapped_column(JSON, default=list)
     feedback_count: Mapped[int] = mapped_column(Integer, default=0)
     memory_enabled: Mapped[bool] = mapped_column(default=False)
