@@ -15,7 +15,7 @@ async function api(path:string,init:RequestInit={}){const headers=new Headers(in
 function keywords(value:string){return [...new Set(value.split(/[,\n]/).map(x=>x.trim()).filter(Boolean))].slice(0,20);}
 function score(item:Opportunity){return Math.round(Number(item.fit?.fit_score||0));}
 
-export default function Opportunities(){
+export default function Opportunities({initialView="all"}:{initialView?:"all"|"saved"}){
  const [filters,setFilters]=useState<Filters>(initial);
  const [roles,setRoles]=useState<Opportunity[]>([]);
  const [searches,setSearches]=useState<SavedSearch[]>([]);
@@ -27,7 +27,7 @@ export default function Opportunities(){
  const [error,setError]=useState("");
  const [notice,setNotice]=useState("");
  const [discoverySummary,setDiscoverySummary]=useState<{fetched:number;matched_filters:number;saved:number;duplicates_or_invalid:number}|null>(null);
- const [applicationBusy,setApplicationBusy]=useState<number|null>(null);\n const [viewMode,setViewMode]=useState<"all"|"saved">("all");
+ const [applicationBusy,setApplicationBusy]=useState<number|null>(null);\n const [viewMode,setViewMode]=useState<"all"|"saved">(initialView);
 
  const load=useCallback(async()=>{
   setLoading(true);setError("");
@@ -37,7 +37,7 @@ export default function Opportunities(){
   }catch(e){setError(e instanceof Error?e.message:"Unable to load opportunities.");}
   finally{setLoading(false);}
  },[]);
- useEffect(()=>{void load();if(typeof window!=="undefined"&&new URLSearchParams(window.location.search).get("view")==="saved")setViewMode("saved");},[load]);
+ useEffect(()=>{void load();},[load]);
 
  const visible=useMemo(()=>{
   const term=query.trim().toLowerCase();
