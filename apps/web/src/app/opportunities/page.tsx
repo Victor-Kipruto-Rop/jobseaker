@@ -12,7 +12,8 @@ type Filters={source:"greenhouse"|"lever";board:string;company:string;name:strin
 const initial:Filters={source:"greenhouse",board:"",company:"",name:"",keywords:"",location:"",remote:false};
 function csrf(){return decodeURIComponent(document.cookie.split("; ").find(x=>x.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=")||"");}
 async function api(path:string,init:RequestInit={}){const headers=new Headers(init.headers);if(init.method)headers.set("X-CSRF-Token",csrf());const r=await fetch(API+path,{...init,headers,credentials:"include",cache:"no-store"});if(r.status===401)window.location.assign("/login");return r;}
-function keywords(value:string){return [...new Set(value.split(/[,\n]/).map(x=>x.trim()).filter(Boolean))].slice(0,20);}
+function keywords(value:string){return [...new Set(value.split(/[,
+]/).map(x=>x.trim()).filter(Boolean))].slice(0,20);}
 function score(item:Opportunity){return Math.round(Number(item.fit?.fit_score||0));}
 
 export default function Opportunities({initialView="all"}:{initialView?:"all"|"saved"}){
@@ -27,7 +28,8 @@ export default function Opportunities({initialView="all"}:{initialView?:"all"|"s
  const [error,setError]=useState("");
  const [notice,setNotice]=useState("");
  const [discoverySummary,setDiscoverySummary]=useState<{fetched:number;matched_filters:number;saved:number;duplicates_or_invalid:number;refreshed_existing?:number;company_profile?:{name:string;website:string;domain:string;logo_url:string;favicon_url:string;description:string;brand_color:string;source_url:string;brand_assets_verified:boolean}}|null>(null);
- const [applicationBusy,setApplicationBusy]=useState<number|null>(null);\n const [viewMode,setViewMode]=useState<"all"|"saved">(initialView);
+ const [applicationBusy,setApplicationBusy]=useState<number|null>(null);
+ const [viewMode,setViewMode]=useState<"all"|"saved">(initialView);
 
  const load=useCallback(async()=>{
   setLoading(true);setError("");
