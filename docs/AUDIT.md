@@ -180,3 +180,21 @@ Phase 0 is limited to repository hygiene and exposure reduction:
 7. Preserve history; do not force-push.
 
 A clean current tree does not prove a clean Git history. History purge and credential rotation remain owner-controlled operations.
+
+
+## Phase 0 remediation status (new branch)
+
+The following changes are present on `phase-0-security-hygiene` after the audit snapshot above:
+
+- Removed the three private-looking files found at the audited root from the current branch tree: `historical_sacco_verification.csv`, `reconciled_outreach_contacts.csv`, and `outreach_reconciliation_report.md`.
+- Added synthetic fixtures under `data/samples/` for outreach contacts, send logs, opportunity contacts, SACCO verification, and a reconciliation report. All addresses use reserved `.invalid` domains and the records are fabricated, not anonymised exports.
+- Updated `.gitignore` to keep `data/private/` ignored while allowing only `data/samples/` to be committed.
+- Added `secrets/README.md` and retained `secrets/.gitkeep`.
+- Added a Gitleaks pre-commit hook and a full-history GitHub Actions scan workflow.
+- Added a manual history-rewrite script and owner checklist. Neither has been executed.
+- Added `docs/VERIFICATION.md` to distinguish observed inspection from checks not yet run.
+- Corrected the README admin provisioning command to reference `scripts/set_user_role.py`.
+
+The two requested files `kenya_data_opportunities_contacts.csv` and `outreach_send_log.csv` were absent from the audited HEAD and were not deleted. Their history remains unverified. The original three files were deleted from the new branch, not relocated into Git. If their data must be retained, copy them from the pre-Phase-0 local working tree into the ignored `data/private/` directory before switching branches or pulling the deletion commit.
+
+The full-history scan remains unexecuted. Current-branch deletion and the addition of a scanner do not establish that the repository history is clean.
