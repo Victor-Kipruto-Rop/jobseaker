@@ -1,17 +1,114 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowDownUp, ArrowUpRight, Bookmark, BriefcaseBusiness, Building2, Check, ChevronDown, ExternalLink, Filter, MapPin, Plus, RefreshCw, Search, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 import AppShell from "../../components/layout/app-shell";
-import {useEffect,useState} from "react";
+import styles from "./opportunities.module.css";
+
 const API=process.env.NEXT_PUBLIC_API_BASE_URL||"http://localhost:8000";
+type Opportunity={id:number;title:string;company?:string;location?:string;source_name?:string;source_url?:string;status?:string;created_at?:string;fit?:{fit_score?:number;matched_skills?:string[];missing_skills?:string[];warning?:string}};
+type SavedSearch={id:number;name:string;query:{source:"greenhouse"|"lever";board:string;company_name?:string|null;keywords?:string[];location?:string|null;remote_only?:boolean}};
+type Filters={source:"greenhouse"|"lever";board:string;company:string;name:string;keywords:string;location:string;remote:boolean};
+const initial:Filters={source:"greenhouse",board:"",company:"",name:"",keywords:"",location:"",remote:false};
 function csrf(){return decodeURIComponent(document.cookie.split("; ").find(x=>x.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=")||"");}
-async function api(path:string,init:RequestInit={}){const h=new Headers(init.headers);if(init.method)h.set("X-CSRF-Token",csrf());const r=await fetch(API+path,{...init,headers:h,credentials:"include"});if(r.status===401)window.location.assign("/login");return r;}
-export default function Opportunities(){const [rows,setRows]=useState<any[]>([]);const [form,setForm]=useState({title:"",company:"",location:"",source_url:"",description:""});const [error,setError]=useState("");
-async function load(){const r=await api("/api/v1/opportunities");if(r.ok)setRows(await r.json());}
-useEffect(()=>{void load();},[]);
-async function save(e:React.FormEvent){e.preventDefault();const r=await api("/api/v1/opportunities",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)});if(r.ok){setForm({title:"",company:"",location:"",source_url:"",description:""});await load();setError("Opportunity saved.");}else setError((await r.json()).detail||"Unable to save opportunity");}
-async function createApplication(row:any){const r=await api("/api/v1/applications",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({role_title:row.title,company_name:row.company,job_url:row.source_url,opportunity_id:row.id})});if(r.ok)setError("Application draft created for "+row.title);else setError((await r.json()).detail||"Unable to create application");}
-return <AppShell><main style={{maxWidth:1100,margin:"0 auto",padding:32,color:"#edf5ef"}}><a href="/dashboard" style={{color:"#54d69a"}}>← Workspace</a><h1>Opportunity intelligence</h1><p style={{color:"#9aaba2"}}>Save a role, preserve its source and compare its explicit requirements against your recorded skills.</p><p><a href="/discovery" style={{color:"#54d69a"}}>Open Opportunity Radar for Greenhouse and Lever discovery →</a></p><form onSubmit={save} style={panel}><h2>Save an opportunity</h2>{([["title","Job title"],["company","Company"],["location","Location"],["source_url","Original job URL"]] as const).map(([key,label])=><label key={key} style={{display:"block",color:"#a7b8ad",marginBottom:10}}>{label}<input style={input} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})}/></label>)}<label style={{display:"block",color:"#a7b8ad"}}>Job description<textarea style={{...input,minHeight:120}} value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label><button style={primary}>Save opportunity</button>{error&&<p role="status">{error}</p>}</form><section style={{...panel,marginTop:18}}><h2>Saved roles ({rows.length})</h2>{rows.map(row=><article key={row.id} style={{padding:"14px 0",borderTop:"1px solid #25352d"}}><div style={{display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}><strong>{row.title}</strong><span style={{color:"#54d69a"}}>{row.fit?.fit_score??0}% skill coverage</span></div><div style={{color:"#9aaba2"}}>{row.company} · {row.location}</div>{row.source_url&&<a href={row.source_url} target="_blank" rel="noreferrer" style={{color:"#54d69a"}}>Original listing</a>}<p style={{color:"#9aaba2",fontSize:13}}>{row.fit?.matched_skills?.length||0} matched · {row.fit?.missing_skills?.length||0} gaps. {row.fit?.warning}</p><button onClick={()=>void createApplication(row)} style={secondary}>Create application draft</button></article>)}{rows.length===0&&<p style={{color:"#9aaba2"}}>No saved opportunities yet.</p>}</section></main></AppShell>}
-const panel:React.CSSProperties={background:"#111a16",border:"1px solid #25352d",borderRadius:16,padding:20};
-const input:React.CSSProperties={display:"block",width:"100%",background:"#09110d",color:"#edf5ef",border:"1px solid #34483c",borderRadius:9,padding:12,marginTop:6};
-const primary:React.CSSProperties={background:"#54d69a",color:"#07110c",border:0,padding:"12px 16px",borderRadius:9,fontWeight:700,cursor:"pointer",marginTop:12};
-const secondary:React.CSSProperties={background:"#1c3829",color:"#54d69a",border:"1px solid #345744",padding:"9px 12px",borderRadius:9,cursor:"pointer"};
+async function api(path:string,init:RequestInit={}){const headers=new Headers(init.headers);if(init.method)headers.set("X-CSRF-Token",csrf());const r=await fetch(API+path,{...init,headers,credentials:"include",cache:"no-store"});if(r.status===401)window.location.assign("/login");return r;}
+function keywords(value:string){return [...new Set(value.split(/[,\n]/).map(x=>x.trim()).filter(Boolean))].slice(0,20);}
+function score(item:Opportunity){return Math.round(Number(item.fit?.fit_score||0));}
+
+export default function Opportunities(){
+ const [filters,setFilters]=useState<Filters>(initial);
+ const [roles,setRoles]=useState<Opportunity[]>([]);
+ const [searches,setSearches]=useState<SavedSearch[]>([]);
+ const [query,setQuery]=useState("");
+ const [sort,setSort]=useState("fit");
+ const [loading,setLoading]=useState(true);
+ const [searching,setSearching]=useState(false);
+ const [savingSearch,setSavingSearch]=useState(false);
+ const [error,setError]=useState("");
+ const [notice,setNotice]=useState("");
+ const [discoverySummary,setDiscoverySummary]=useState<{fetched:number;matched_filters:number;saved:number;duplicates_or_invalid:number}|null>(null);
+ const [applicationBusy,setApplicationBusy]=useState<number|null>(null);
+
+ const load=useCallback(async()=>{
+  setLoading(true);setError("");
+  try{const [r,s]=await Promise.all([api("/api/v1/opportunities"),api("/api/v1/saved-searches")]);
+   if(!r.ok||!s.ok)throw new Error("Unable to load your saved opportunities and searches.");
+   const [rd,sd]=await Promise.all([r.json(),s.json()]);setRoles(Array.isArray(rd)?rd:[]);setSearches(Array.isArray(sd)?sd:[]);
+  }catch(e){setError(e instanceof Error?e.message:"Unable to load opportunities.");}
+  finally{setLoading(false);}
+ },[]);
+ useEffect(()=>{void load();},[load]);
+
+ const visible=useMemo(()=>{
+  const term=query.trim().toLowerCase();
+  const list=roles.filter(item=>!term||[item.title,item.company,item.location,...(item.fit?.matched_skills||[])].join(" ").toLowerCase().includes(term));
+  return list.sort((a,b)=>sort==="fit"?score(b)-score(a):sort==="newest"?new Date(b.created_at||0).getTime()-new Date(a.created_at||0).getTime():a.title.localeCompare(b.title));
+ },[roles,query,sort]);
+ const update=(key:keyof Filters,value:string|boolean)=>setFilters(current=>({...current,[key]:value}));
+
+ async function discover(event?:React.FormEvent,override?:SavedSearch){
+  event?.preventDefault();setError("");setNotice("");setSearching(true);setDiscoverySummary(null);
+  const f=override?{source:override.query.source,board:override.query.board,company:override.query.company_name||"",name:override.name,keywords:(override.query.keywords||[]).join(", "),location:override.query.location||"",remote:Boolean(override.query.remote_only)}:filters;
+  try{
+   const r=await api("/api/v1/opportunities/discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({source:f.source,board:f.board,company_name:f.company||null,limit:100,keywords:keywords(f.keywords),location:f.location||null,remote_only:f.remote})});
+   const d=await r.json();if(!r.ok)throw new Error(d.detail||"Discovery could not complete.");
+   setDiscoverySummary(d);setNotice("Discovery completed. New matching listings have been added to your saved opportunities.");await load();
+  }catch(e){setError(e instanceof Error?e.message:"Discovery failed.");}
+  finally{setSearching(false);}
+ }
+ async function saveSearch(){
+  setError("");setNotice("");setSavingSearch(true);
+  try{
+   if(filters.board.trim().length===0)throw new Error("Enter a company board identifier first.");
+   const r=await api("/api/v1/saved-searches",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:filters.name.trim()||filters.board+" role search",source:filters.source,board:filters.board,company_name:filters.company||null,keywords:keywords(filters.keywords),location:filters.location||null,remote_only:filters.remote})});
+   const d=await r.json();if(!r.ok)throw new Error(d.detail||"Unable to save this search.");
+   setNotice("Search saved to your recurring search list.");setFilters(x=>({...x,name:""}));await load();
+  }catch(e){setError(e instanceof Error?e.message:"Unable to save search.");}
+  finally{setSavingSearch(false);}
+ }
+ async function removeSearch(id:number){
+  const r=await api("/api/v1/saved-searches/"+id,{method:"DELETE"});
+  if(!r.ok){setError("Unable to remove saved search.");return;}setSearches(x=>x.filter(s=>s.id!==id));
+ }
+ async function createApplication(item:Opportunity){
+  setApplicationBusy(item.id);setError("");setNotice("");
+  try{const r=await api("/api/v1/applications",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({role_title:item.title,company_name:item.company||"",job_url:item.source_url||"",opportunity_id:item.id,notes:"Created from saved opportunity."})});const d=await r.json();if(!r.ok)throw new Error(d.detail||"Unable to create application draft.");setNotice("Application draft created for "+item.title+".");}
+  catch(e){setError(e instanceof Error?e.message:"Unable to create application.");}
+  finally{setApplicationBusy(null);}
+ }
+
+ return <AppShell><div className={styles.page}>
+  <header className={styles.heading}><div><div className={styles.kicker}>YOUR WORKSPACE <span>/</span> OPPORTUNITIES</div><h1>Opportunity library</h1><p>Find relevant roles, compare skill evidence and turn a good match into a trackable application.</p></div><div className={styles.headingMeta}><strong>{roles.length.toLocaleString()}</strong><span>saved roles</span></div></header>
+  <section className={styles.searchLayout}>
+   <div className={styles.searchPanel}>
+    <div className={styles.panelTop}><div><span className={styles.sectionLabel}>DISCOVERY ENGINE</span><h2>Search company job boards</h2><p>Connect a public Greenhouse or Lever board. Results are imported into your private opportunity library.</p></div><span className={styles.panelIcon}><Search size={18}/></span></div>
+    <form onSubmit={e=>void discover(e)} className={styles.form}>
+     <div className={styles.formGrid}>
+      <label>Job board provider<select value={filters.source} onChange={e=>update("source",e.target.value)}><option value="greenhouse">Greenhouse</option><option value="lever">Lever</option></select></label>
+      <label>Board identifier<input required maxLength={80} placeholder="e.g. stripe" value={filters.board} onChange={e=>update("board",e.target.value)}/></label>
+      <label>Company name<input maxLength={250} placeholder="Optional display name" value={filters.company} onChange={e=>update("company",e.target.value)}/></label>
+      <label>Location<input maxLength={120} placeholder="Nairobi, Remote, Africa…" value={filters.location} onChange={e=>update("location",e.target.value)}/></label>
+     </div>
+     <label className={styles.fullField}>Skills and role keywords<input placeholder="Data Engineer, Python, SQL, dbt, Spark" value={filters.keywords} onChange={e=>update("keywords",e.target.value)}/><small>Separate terms with commas. Listings are filtered against their available title and description.</small></label>
+     <div className={styles.formBottom}><label className={styles.checkLabel}><input type="checkbox" checked={filters.remote} onChange={e=>update("remote",e.target.checked)}/><span>Remote or distributed roles only</span></label><div className={styles.formActions}><button type="button" className={styles.secondaryButton} disabled={savingSearch} onClick={()=>void saveSearch()}><Bookmark size={14}/>{savingSearch?"Saving…":"Save search"}</button><button className={styles.primaryButton} disabled={searching}>{searching?<RefreshCw size={14} className={styles.spin}/>:<Search size={14}/ >}{searching?"Searching…":"Find matching roles"}</button></div></div>
+    </form>
+    {error&&<p className={styles.error} role="alert">{error}</p>}{notice&&<p className={styles.notice} role="status"><Check size={14}/>{notice}</p>}
+    {discoverySummary&&<div className={styles.resultSummary}><div><strong>{discoverySummary.fetched}</strong><small>found on board</small></div><div><strong>{discoverySummary.matched_filters}</strong><small>matched filters</small></div><div><strong>{discoverySummary.saved}</strong><small>newly saved</small></div><div><strong>{discoverySummary.duplicates_or_invalid}</strong><small>duplicates skipped</small></div></div>}
+   </div>
+   <aside className={styles.savedSearchPanel}><div className={styles.panelTop}><div><span className={styles.sectionLabel}>YOUR SEARCHES</span><h2>Saved searches</h2><p>Keep your preferred company feeds ready to run.</p></div><span className={styles.count}>{searches.length}</span></div>
+    {searches.length===0?<div className={styles.savedEmpty}><Bookmark size={18}/><strong>No saved searches</strong><small>Save a board and its filters to reuse it later.</small></div>:<div className={styles.savedSearchList}>{searches.map(item=><div className={styles.savedSearch} key={item.id}><div><strong>{item.name}</strong><small>{item.query.source} · {item.query.board}</small><small>{[item.query.location,...(item.query.keywords||[])].filter(Boolean).join(" · ")||"No additional filters"}</small></div><div className={styles.savedActions}><button title="Run search" aria-label={"Run "+item.name} onClick={()=>void discover(undefined,item)} disabled={searching}><RefreshCw size={14}/></button><button title="Delete search" aria-label={"Delete "+item.name} onClick={()=>void removeSearch(item.id)}><Trash2 size={14}/></button></div></div>)}</div>}
+   </aside>
+  </section>
+
+  <section className={styles.rolesSection}>
+   <div className={styles.rolesHeading}><div><span className={styles.sectionLabel}>PRIVATE OPPORTUNITY LIBRARY</span><h2>Saved opportunities <span>{roles.length}</span></h2><p>Each role is scored against the skills and evidence in your career profile.</p></div><div className={styles.listControls}><label><Search size={14}/><input aria-label="Filter saved opportunities" placeholder="Filter roles…" value={query} onChange={e=>setQuery(e.target.value)}/></label><div><ArrowDownUp size={13}/><select aria-label="Sort opportunities" value={sort} onChange={e=>setSort(e.target.value)}><option value="fit">Best skill fit</option><option value="newest">Recently saved</option><option value="title">Role title</option></select></div></div></div>
+   {loading?<div className={styles.loading}>Loading saved opportunities…</div>:visible.length===0?<div className={styles.emptyLibrary}><span><BriefcaseBusiness size={22}/></span><strong>{roles.length===0?"Your opportunity library is ready.":"No roles match this filter."}</strong><p>{roles.length===0?"Run a company board search above. Matching roles will be saved here with their source links and skill-fit evidence.":"Try another keyword or clear your search."}</p>{query&&<button onClick={()=>setQuery("")}>Clear filter</button>}</div>:<div className={styles.roleList}>{visible.map(item=><article className={styles.roleRow} key={item.id}>
+    <div className={styles.companyMark}>{(item.company||item.title||"J").trim().slice(0,1).toUpperCase()}</div>
+    <div className={styles.roleMain}><div className={styles.roleTitleLine}><h3>{item.title}</h3><span className={styles.source}>{item.source_name||"Saved role"}</span></div><div className={styles.roleMeta}><span><Building2 size={12}/>{item.company||"Company not listed"}</span>{item.location&&<span><MapPin size={12}/>{item.location}</span>}</div><div className={styles.skillEvidence}><span>{item.fit?.matched_skills?.length||0} matched skills</span><span>{item.fit?.missing_skills?.length||0} skill gaps</span>{item.fit?.warning&&<em>{item.fit.warning}</em>}</div></div>
+    <div className={styles.fitColumn}><strong>{score(item)}%</strong><small>skill fit</small><div className={styles.fitTrack}><i style={{width:score(item)+"%"}}/></div></div>
+    <div className={styles.roleActions}><button onClick={()=>void createApplication(item)} disabled={applicationBusy===item.id}>{applicationBusy===item.id?"Creating…":<><Plus size={13}/> Create draft</>}</button>{item.source_url&&<a href={item.source_url} target="_blank" rel="noreferrer" aria-label={"Open original listing for "+item.title}><ExternalLink size={14}/></a>}</div>
+   </article>)}</div>}
+  </section>
+  <div className={styles.disclaimer}><Sparkles size={14}/> Fit is transparent keyword and skill coverage, not a probability of being hired. Discovery imports publicly available board listings; always review the original posting.</div>
+ </div></AppShell>;
+}
