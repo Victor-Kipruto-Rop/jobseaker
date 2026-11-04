@@ -604,3 +604,18 @@ For PR head `03e7603c243ce98fd8e63d0e064c552bd2c508e2`:
 - The connector could not retrieve job logs; the log download endpoint returned a missing-artifact response.
 
 No lint, type check, migration, test, dependency audit, image build or Gitleaks command result is available from these runs. This is not a source-code pass/fail signal. The release gate remains open.
+
+
+## Company identity and branding import
+
+Added source-derived company metadata to the Greenhouse/Lever opportunity import path:
+
+- Greenhouse board names are read from the public Job Board API; Lever board pages are inspected for published site identity.
+- Public board HTML metadata is parsed for company description, canonical company URL, Open Graph/Twitter image and favicon.
+- Only HTTPS company asset and website URLs are persisted for dashboard rendering.
+- Company metadata is stored with each imported opportunity by migration `20261104_0009`.
+- Opportunity cards and linked application records render imported company imagery; the discovery result displays the resolved company profile and asset provenance.
+- Re-running discovery can backfill missing company metadata on existing imported roles without overwriting non-empty company fields.
+- Added mocked connector tests for official board name, metadata extraction and missing-logo fallback.
+
+**Still unverified:** the connector tests, Alembic migration, live Greenhouse/Lever import, frontend lint/build, and browser rendering have not been executed. The feature must not be treated as release-verified until those checks pass against the current branch head.
