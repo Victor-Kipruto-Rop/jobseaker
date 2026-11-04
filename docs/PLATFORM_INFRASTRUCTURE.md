@@ -98,3 +98,35 @@ docker compose -f infrastructure/compose/docker-compose.yml up --build
 Also verify migration upgrades from the Phase 3 revision and a clean database, relay crash/replay behavior, DLQ recovery, active model promotion and rollback, authenticated Gmail sync, ATS form approval, storage redaction, cross-account isolation, load behavior, restore drills and accessibility.
 
 OpenTelemetry distributed traces, production schema-registry compatibility enforcement, full downstream Kafka consumer fleet, managed secret/KMS rotation, calendar OAuth/write sync, malware scanning, provider-wide circuit-breaker wiring and production SLOs remain incomplete. Do not describe the platform as production-ready until these gates have evidence.
+
+## Additional master-spec implementation notes
+
+### Durable candidate activity and preference drift
+- Recommendation interactions persist exposure, action type, source, position, dwell duration, scroll depth and bounded feature snapshots.
+- User activity is written to the transactional outbox in the same database transaction as the interaction.
+- The event consumer uses the inbox deduplication helper and updates a bounded, per-candidate preference vector. The online recommendation query includes the strongest positive preference dimensions.
+- Impression-only batches do not alter preference weights. View/click engagement is bounded by dwell and scroll signals; explicit saves and applications carry stronger positive weight, while dismissals and skips carry negative weight.
+- This is a transparent online preference heuristic, not a trained deep preference model. Model promotion still requires offline evaluation and an operator-controlled registry action.
+
+### Event consumer runtime
+- Local Compose runs a dedicated consumer for user.activity and email.classified.
+- Consumer offsets are committed only after the inbox transaction succeeds. Failures retry with capped exponential backoff, then publish to a topic-specific DLQ stream and commit the source offset to prevent poison-message loops.
+- The outbox relay and consumer are at-least-once. The database inbox makes supported handlers idempotent. Monitor DLQ volume and provide an operator-reviewed replay process before production.
+
+### Interview calendar integration
+- Google Calendar is a separate, opt-in integration (CALENDAR_ENABLED=false by default) with its own OAuth redirect and only the Calendar Events scope.
+- Credentials are encrypted with the dedicated credential KEK; OAuth state is hashed, short-lived and single-use.
+- Candidate-owned interview records can be synced as calendar events, with duration and explicit timezone. Sync updates the existing event rather than creating a duplicate when the stored event ID is present.
+- Gmail remains read-only and is not reused as a Calendar write authorization. Configure a Google OAuth client and the dedicated Calendar callback URL before enabling.
+
+### Resume and generated document support
+- Resume normalization accepts PDF, DOCX, Markdown and UTF-8 plain text.
+- Cover-letter prompts can use the candidate's saved project history and sourced employer description from an owned opportunity. Unavailable company mission details are explicitly marked unavailable; unsupported claims are not fabricated.
+
+### Explicitly excluded automation
+- The platform does not spoof browser fingerprints, evade CAPTCHA, rotate residential proxies to circumvent rate limits, defeat bot protections or submit third-party applications unattended.
+- Browser assistance is limited to candidate-authorized field mapping and review. Low-confidence fields and challenge pages pause for the candidate; the candidate completes final submission.
+- These exclusions are deliberate safeguards. Respect each ATS's terms, published automation policy and rate limits.
+
+### Release status
+The implementation is committed to the existing Phase 4 branch and PR #9. It is NOT production-verified. The latest observed head has no associated PR workflow runs. Local Compose startup, database migration execution, full tests, static checks, frontend build, integration OAuth tests and real ATS browser review must still pass before merge or deployment.
