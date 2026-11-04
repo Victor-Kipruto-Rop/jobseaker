@@ -2,12 +2,12 @@ from datetime import datetime
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
-from packages.database.models.career import CareerWorkspaceItem, AuditLog
+from packages.database.models.career import CareerWorkspaceItem, AuditLog, Application, CandidateOpportunity
 
 router = APIRouter()
 ItemType = Literal["task", "note", "learning", "project", "contact"]
@@ -57,6 +57,41 @@ def serialize(row: CareerWorkspaceItem) -> dict:
             "description": row.description, "status": row.status, "priority": row.priority,
             "due_at": row.due_at, "metadata": row.metadata_json or {},
             "created_at": row.created_at, "updated_at": row.updated_at}
+
+
+
+@router.get("/search")
+def search_workspace(q: str = Query(min_length=2, max_length=120),
+                     user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Escape SQL LIKE metacharacters so search input is treated as literal text.
+    term = q.strip().replace("\\\\", "\\\\\\\\").replace("%", "\\\\%").replace("_", "\\\\_")
+    pattern = f"%{term}%"
+    opportunities = db.scalars(select(CandidateOpportunity).where(
+        CandidateOpportunity.user_id == user.id,
+        or_(CandidateOpportunity.title.ilike(pattern, escape="\\\\"),
+            CandidateOpportunity.company.ilike(pattern, escape="\\\\"),
+            CandidateOpportunity.location.ilike(pattern, escape="\\\\")),
+    ).order_by(CandidateOpportunity.created_at.desc()).limit(8)).all()
+    applications = db.scalars(select(Application).where(
+        Application.user_id == user.id,
+        or_(Application.role_title.ilike(pattern, escape="\\\\"),
+            Application.company_name.ilike(pattern, escape="\\\\")),
+    ).order_by(Application.created_at.desc()).limit(8)).all()
+    items = db.scalars(select(CareerWorkspaceItem).where(
+        CareerWorkspaceItem.user_id == user.id,
+        or_(CareerWorkspaceItem.title.ilike(pattern, escape="\\\\"),
+            CareerWorkspaceItem.description.ilike(pattern, escape="\\\\")),
+    ).order_by(CareerWorkspaceItem.updated_at.desc()).limit(12)).all()
+    routes = {"task": "/tasks", "note": "/notes", "learning": "/learning",
+              "project": "/projects", "contact": "/contacts"}
+    results = []
+    results.extend({"id": row.id, "title": row.title, "subtitle": row.company or row.location or "Saved opportunity",
+                    "href": "/saved-opportunities", "kind": "OPPORTUNITY"} for row in opportunities)
+    results.extend({"id": row.id, "title": row.role_title, "subtitle": (row.company_name or "Application") + " · " + row.status,
+                    "href": "/applications", "kind": "APPLICATION"} for row in applications)
+    results.extend({"id": row.id, "title": row.title, "subtitle": row.item_type.replace("_", " "),
+                    "href": routes.get(row.item_type, "/dashboard"), "kind": row.item_type.upper()} for row in items)
+    return results[:20]
 
 
 @router.get("")
