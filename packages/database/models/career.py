@@ -456,3 +456,24 @@ class ATSApplicationDraft(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+
+
+class ATSActionApproval(Base):
+    """Candidate approval for one immutable ATS field action."""
+    __tablename__ = "ats_action_approvals"
+    __table_args__ = (
+        UniqueConstraint("user_id", "application_id", "field_id", name="uq_ats_action_user_app_field"),
+        Index("ix_ats_action_status_created", "status", "created_at"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    application_id: Mapped[int] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"), index=True)
+    draft_id: Mapped[int] = mapped_column(ForeignKey("ats_application_drafts.id", ondelete="CASCADE"), index=True)
+    field_id: Mapped[str] = mapped_column(String(200))
+    action_digest: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(24), default="approved")
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    last_error: Mapped[str] = mapped_column(String(500), default="")
+
