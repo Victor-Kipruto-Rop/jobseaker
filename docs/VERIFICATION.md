@@ -105,3 +105,19 @@ There is no committed `pnpm-lock.yaml` in the repository. The web CI and Docker 
 ### Coverage status
 
 Coverage reporting is enabled, but no measured percentage is available yet. The target of 80% for service and authentication code remains unverified and is not represented as achieved.
+
+
+### GitHub Actions attempt
+
+The branch push created CI run `41775819124` and Secret scan run `41775819131`.
+
+- [CI run 41775819124](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41775819124): failed before any job steps were recorded.
+- [Secret scan run 41775819131](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41775819131): failed before any job steps were recorded.
+
+The run metadata contains no step-level execution evidence. These are infrastructure/workflow-run failures, not test results. The CI, build, audit, migration, and secret-scan checks remain **unverified** until GitHub Actions can execute jobs and report step output.
+
+### Lockfile and coverage gates
+
+- No `pnpm-lock.yaml` exists. Frontend installs remain non-frozen until a lockfile is generated and committed.
+- Coverage output is configured but no percentage was produced. The 80% service/authentication target remains open.
+- No changes enable email sending, application submission, Gmail write access, or live AI provider calls.
