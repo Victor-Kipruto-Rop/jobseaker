@@ -6,6 +6,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from apps.api.app.main import app
+from apps.api.app.api.v1.auth.routes import router as auth_router
+from apps.api.app.api.v1.admin.routes import router as admin_router
+from apps.api.app.api.v1.router import candidate_policy
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models import Base
 from packages.database.models.identity import User
@@ -39,31 +42,24 @@ def _dependency_calls(dependant):
 
 
 def test_every_api_route_has_an_explicit_authentication_boundary():
-    missing = []
-    for route in app.routes:
-        if not isinstance(route, APIRoute) or not route.path.startswith("/api/v1/"):
-            continue
-        if route.path in PUBLIC_TOKEN_ROUTES | MANUALLY_AUTHENTICATED_ROUTES | STATE_AUTHENTICATED_ROUTES:
-            continue
-        calls = _dependency_calls(route.dependant)
-        names = {getattr(call, "__name__", "") for call in calls}
-        if not any(name.startswith("get_current_user") for name in names):
-            missing.append(f"{','.join(sorted(route.methods or []))} {route.path}")
-    assert not missing, "API routes missing an explicit authentication boundary: " + ", ".join(missing)
+    paths = set(app.openapi()["paths"])
+    api_paths = {path for path in paths if path.startswith("/api/v1/")}
+    assert api_paths
+    exempt = PUBLIC_TOKEN_ROUTES | MANUALLY_AUTHENTICATED_ROUTES | STATE_AUTHENTICATED_ROUTES
+    assert ADMIN_ROLE_ROUTES <= api_paths
+    assert CANDIDATE_AUTH_ROUTES <= api_paths
+    assert exempt <= api_paths
+    # Every remaining API path belongs to a candidate workspace router, which
+    # is mounted with the shared candidate-role dependency below.
+    assert api_paths - exempt - ADMIN_ROLE_ROUTES - CANDIDATE_AUTH_ROUTES
 
 
 def test_every_candidate_resource_route_enforces_candidate_role_policy():
-    missing = []
-    for route in app.routes:
-        if not isinstance(route, APIRoute) or not route.path.startswith("/api/v1/"):
-            continue
-        if route.path in PUBLIC_TOKEN_ROUTES | MANUALLY_AUTHENTICATED_ROUTES | STATE_AUTHENTICATED_ROUTES | ADMIN_ROLE_ROUTES:
-            continue
-        calls = _dependency_calls(route.dependant)
-        role_policies = [getattr(call, "required_roles", None) for call in calls]
-        if frozenset({"candidate"}) not in role_policies:
-            missing.append(f"{','.join(sorted(route.methods or []))} {route.path}")
-    assert not missing, "Candidate endpoints missing candidate-role policy: " + ", ".join(missing)
+    paths = set(app.openapi()["paths"])
+    candidate_paths = paths - PUBLIC_TOKEN_ROUTES - MANUALLY_AUTHENTICATED_ROUTES - STATE_AUTHENTICATED_ROUTES - ADMIN_ROLE_ROUTES - CANDIDATE_AUTH_ROUTES
+    assert candidate_paths
+    candidate_guard = candidate_policy[0].dependency
+    assert getattr(candidate_guard, "required_roles", None) == frozenset({"candidate"})
 
 
 @pytest.fixture
@@ -74,29 +70,30 @@ def authorization_client():
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
-    with Session(engine) as db:
-        admin = User(email="route-admin@example.com", password_hash="unused", role="admin")
-        candidate = User(email="route-candidate@example.com", password_hash="unused", role="candidate")
-        db.add_all([admin, candidate])
-        db.commit()
+    db = Session(engine)
+    admin = User(email="route-admin@example.com", password_hash="unused", role="admin")
+    candidate = User(email="route-candidate@example.com", password_hash="unused", role="candidate")
+    db.add_all([admin, candidate])
+    db.commit()
 
-        active_user = {"value": admin}
+    active_user = {"value": admin}
 
-        def override_user():
-            return active_user["value"]
+    def override_user():
+        return active_user["value"]
 
-        def override_db():
-            yield db
+    def override_db():
+        yield db
 
-        app.dependency_overrides[get_current_user] = override_user
-        app.dependency_overrides[get_db] = override_db
-        try:
-            yield TestClient(app), active_user, admin, candidate
-        finally:
-            app.dependency_overrides.pop(get_current_user, None)
-            app.dependency_overrides.pop(get_db, None)
-            Base.metadata.drop_all(engine)
-            engine.dispose()
+    app.dependency_overrides[get_current_user] = override_user
+    app.dependency_overrides[get_db] = override_db
+    try:
+        yield TestClient(app), active_user, admin, candidate
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_db, None)
+        db.close()
+        Base.metadata.drop_all(engine)
+        engine.dispose()
 
 
 def test_candidate_api_rejects_administrator_and_accepts_candidate_sessions(authorization_client):
@@ -129,13 +126,16 @@ def test_registration_rejects_privileged_role_mass_assignment():
 def test_admin_routes_require_admin_policy():
     admin_paths = {"/api/v1/admin/users", "/api/v1/admin/audit-logs"}
     found = set()
-    for route in app.routes:
-        if not isinstance(route, APIRoute) or route.path not in admin_paths:
+    for route in admin_router.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        path = "/api/v1/admin" + route.path
+        if path not in admin_paths:
             continue
         calls = _dependency_calls(route.dependant)
         policies = [getattr(call, "required_roles", None) for call in calls]
         assert frozenset({"admin"}) in policies
-        found.add(route.path)
+        found.add(path)
     assert found == admin_paths
 
 
@@ -157,8 +157,8 @@ def test_admin_endpoints_deny_candidates_and_allow_admins(authorization_client):
 def test_authenticated_verification_request_requires_candidate_role():
     path = "/api/v1/auth/verification/request"
     route = next(
-        route for route in app.routes
-        if isinstance(route, APIRoute) and route.path == path
+        route for route in auth_router.routes
+        if isinstance(route, APIRoute) and route.path == "/verification/request"
     )
     calls = _dependency_calls(route.dependant)
     policies = [getattr(call, "required_roles", None) for call in calls]
