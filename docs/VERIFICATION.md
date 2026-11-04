@@ -189,3 +189,98 @@ The two worker regressions from the preceding run were resolved. The session fac
 The nine pytest warnings include Starlette/httpx deprecation notices and per-request cookie deprecation notices. They did not fail the test run.
 
 These are repository-owner-reported local results, not GitHub Actions results. Docker builds, Compose startup, Alembic migration/drift checks, dependency audits, coverage percentage, and GitHub Actions execution remain outstanding. No claim is made that Phase 2 is fully verified.
+
+
+## Phase 3: complete light-mode career workspace
+
+**Branch:** phase-3-frontend-experience  
+**Pull request:** #8  
+**Initial complete-workspace snapshot:** 378b6401cc39ef2a94ca62bc99694f434260f1e7
+
+Subsequent branch commits refined Gmail authorization gating, read-only message summaries and the OAuth callback destination. The PR head is the source of truth for the current implementation revision.
+
+### Implemented
+
+- Replaced the dark visual system with a light-only warm off-white, white, forest-green and restrained brass palette.
+- Rebuilt the sidebar around five primary destinations: Overview, Opportunities, Applications, Career profile and Settings.
+- Rebuilt the overview with authenticated account metrics, application stage distribution, contextual attention items, recent applications, profile completeness and saved skill matches.
+- Consolidated Greenhouse/Lever discovery, saved searches, saved opportunities and application draft creation.
+- Consolidated application lifecycle management, notes, approval requests and user decisions.
+- Consolidated profile editing, skill evidence, CV uploads, keyword coverage, AI career draft generation and draft editing.
+- Connected account verification, AI token budget, Gmail read-only authorization/sync/disconnect and recent message summaries.
+- Added a notification dropdown and pending approval count to the shared workspace shell.
+- Consolidated legacy routes into the five primary destinations with redirects.
+- Reworked public, sign-in, registration, password recovery, password reset and email verification screens to use the light design system.
+- Updated docs/FRONTEND_DESIGN.md with the route map, backend routes, safety constraints and environment-dependent behavior.
+
+### Source inspection
+
+| Check | Method | Result |
+|---|---|---|
+| Main navigation | GitHub file inspection | Five primary destinations |
+| Theme tokens | GitHub file inspection | Light color scheme only in global tokens |
+| Dashboard API calls | Source inspection | Auth, applications, opportunities, analytics and profile endpoints |
+| Opportunity workflows | Source inspection | Discovery, saved searches, opportunity library and application creation endpoints |
+| Application workflows | Source inspection | Application CRUD, approval list and decision endpoints |
+| Career profile workflows | Source inspection | Profile, skills, resumes, keyword analysis and career-tools endpoints |
+| Settings workflows | Source inspection | AI budget, verification and Gmail read-only endpoints |
+| Notifications | Source inspection | Account-scoped list and mark-read endpoints |
+| Legacy routes | Source inspection | Redirect to consolidated workspace destinations |
+
+Source inspection confirms the frontend calls the existing backend routes. It does not prove that the running backend, provider configuration, Gmail OAuth, AI provider, database, or local storage are correctly configured.
+
+### GitHub Actions attempts
+
+- [CI run 41796942636](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41796942636): Python, web and Docker jobs all failed with empty step lists.
+- [Secret scan run 41796942693](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41796942693): failed with an empty step list.
+
+The failed CI jobs were re-run. GitHub again returned zero recorded steps for Python, Web, Docker and Gitleaks. No command executed in those jobs, so these results are not evidence of code test failures or passes.
+
+### Required local verification
+
+The earlier owner-reported Next.js lint/build results apply to the previous frontend state, not this Phase 3 branch. They must be repeated against this branch.
+
+Run from the repository root after checking out phase-3-frontend-experience:
+
+```powershell
+pnpm --filter web lint
+pnpm --filter web build
+```
+
+Then run the backend suite and the authenticated local Compose smoke test. Review all five destinations at desktop and mobile widths, including notification actions, application approval decisions, opportunity discovery, CV upload/analysis, AI draft editing, Gmail authorization and AI budget changes. Do not enable outbound email or automatic application submission.
+
+**Phase status:** implementation committed; runtime, browser, responsive, accessibility and authenticated integration verification remain outstanding. Do not merge or deploy until actual command outputs and browser evidence have been recorded.
+
+
+### Latest Phase 3 runner attempt
+
+- [CI run 41797581491](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41797581491): Python, Web and Docker jobs all failed with zero recorded steps.
+- [Secret scan run 41797581485](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41797581485): Gitleaks job failed with zero recorded steps.
+
+The jobs were created and queued, then failed before recording a step. This is still no evidence of a source-code failure or a successful check. Local verification on the current branch is required.
+
+
+### Phase 3 dashboard refinement follow-up — 2026-11-04
+
+**Latest branch head:** `98003a6bd917007b32dfff7c3565fe196585d7f1`
+
+- Refined the light-mode sidebar into three clearly labeled groups and five primary destinations: Overview, Opportunities, Applications, Career profile and Settings.
+- Consolidated the standalone Career Studio route into Career Profile, where CV management, role alignment and editable AI career drafts already exist.
+- Improved dashboard typography, spacing, responsive shell proportions and sidebar account/security treatment. No dark theme or gradient-based visual treatment was introduced.
+- Tightened dashboard data integrity: account, applications, opportunities, analytics and profile requests must all succeed and return expected shapes. Failed resources now surface an error rather than silently appearing as empty records or substituted demo data.
+- Updated the Phase 3 pull request description to reflect these refinements and their verification status.
+
+| Check | Method | Result |
+|---|---|---|
+| Five-destination navigation | Current branch source inspection | Confirmed |
+| Career Studio consolidation | Current branch source inspection | Redirects to `/profile` |
+| Dashboard API response handling | Current branch source inspection | All five resources checked; no fallback demo data |
+| Light-mode shell and dashboard styling | Current branch CSS inspection | Light surfaces and forest-green accents |
+| GitHub Actions CI run 41799048803 | Workflow run/job metadata | Python, Web and Docker jobs failed before recording any steps |
+| GitHub Actions secret scan 41799048523 | Workflow run/job metadata | Failed before recording any steps |
+| Step-level logs | GitHub Actions job-step API | Zero steps returned for all four jobs |
+| Local Next.js lint/build | Local execution required | Not run in this environment |
+| Authenticated API smoke test | Running local stack required | Not run in this environment |
+| Browser responsive/accessibility review | Browser execution required | Not run in this environment |
+
+The GitHub Actions failures above are runner/workflow execution failures with no recorded step output. They do not establish that source checks passed or failed. The latest branch still requires local lint/build, authenticated integration testing and browser verification before merge.

@@ -1,17 +1,139 @@
 "use client";
-import {useEffect,useState} from "react";
-const API=process.env.NEXT_PUBLIC_API_BASE_URL||"http://localhost:8000";
-function csrf(){return decodeURIComponent(document.cookie.split("; ").find(x=>x.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=")||"");}
-async function api(path:string,init:RequestInit={}){const headers=new Headers(init.headers);if(init.method)headers.set("X-CSRF-Token",csrf());const r=await fetch(API+path,{...init,headers,credentials:"include",cache:"no-store"});if(r.status===401)window.location.assign("/login");return r;}
-export default function Dashboard(){const [user,setUser]=useState<{full_name:string;email:string;is_verified:boolean}|null>(null);const [apps,setApps]=useState<any[]>([]);const [jobs,setJobs]=useState<any[]>([]);const [error,setError]=useState("");const [verification,setVerification]=useState("");
-useEffect(()=>{void(async()=>{try{const [u,a,j]=await Promise.all([api("/api/v1/auth/me"),api("/api/v1/applications"),api("/api/v1/opportunities")]);if(!u.ok)throw new Error("Sign in required");setUser(await u.json());if(a.ok)setApps(await a.json());if(j.ok)setJobs(await j.json());}catch(e){setError(e instanceof Error?e.message:"Unable to load workspace");}})();},[]);
-async function requestVerification(){const r=await api("/api/v1/auth/verification/request",{method:"POST"});const d=await r.json();setVerification(d.debug_token?"Local verification token: "+d.debug_token:(d.status==="sent"?"Verification email sent.":"Verification status: "+d.status));}
-async function logout(){await api("/api/v1/auth/logout",{method:"POST"});window.location.assign("/login");}
-const links=[["Discover opportunities","/discovery","Find and evaluate suitable roles"],["Saved opportunities","/opportunities","Review roles saved to your workspace"],["Notifications","/notifications","Review reminders and job alerts"],["Applications","/applications","Track every application and next step"],["Candidate profile","/profile","Manage your professional evidence"],["AI intelligence","/intelligence","Use your career copilot"],["CV Studio","/cv-studio","Upload and analyze tailored CV versions"],["Career Studio","/career-studio","Generate CV, cover letter and interview drafts"],["Companies","/companies","Research employers and career pages"],["Career analytics","/analytics","Measure your application activity"],["Settings","/settings","Manage AI budgets and integrations"],["Approval center","/approvals","Review proposed external actions"],["Recruiter intelligence","/recruiters","Organize professional relationships"],["Recruiter inbox","/inbox","Read-only Gmail message intelligence"],["Interview preparation","/interviews","Prepare for upcoming interviews"]];
-return <main style={{maxWidth:1180,margin:"0 auto",padding:"36px 24px",color:"#edf5ef"}}><header style={{display:"flex",justifyContent:"space-between",gap:16,alignItems:"center",flexWrap:"wrap"}}><div><small style={{color:"#54d69a",letterSpacing:2}}>CAREER OPERATIONS</small><h1 style={{fontSize:38,margin:"8px 0"}}>Your workspace</h1><p style={{color:"#9aaba2"}}>{user?"Welcome back, "+(user.full_name||user.email):"Loading your account…"}</p></div><button onClick={()=>void logout()} style={button}>Sign out</button></header>
-{error&&<p role="alert" style={{color:"#ff9b87"}}>{error}</p>}{user&&!user.is_verified&&<section style={{...panel,marginTop:18,borderColor:"#7d6330"}}><strong>Email not verified</strong><p style={{color:"#9aaba2"}}>Verify your address before enabling external integrations and future account-sensitive workflows.</p><button onClick={()=>void requestVerification()} style={button}>Request verification</button>{verification&&<p style={{overflowWrap:"anywhere"}}>{verification}</p>}</section>}
-<section style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:14,marginTop:24}}>{[["Saved opportunities",jobs.length],["Applications",apps.length],["Interviews",apps.filter(a=>a.status==="interview").length],["Offers",apps.filter(a=>a.status==="offer").length]].map(([label,value])=><article key={String(label)} style={panel}><small style={{color:"#9aaba2"}}>{label}</small><div style={{fontSize:34,fontWeight:750,marginTop:8}}>{value}</div></article>)}</section>
-<h2 style={{marginTop:34}}>Career tools</h2><section style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14}}>{links.map(([title,url,desc])=><a key={url} href={url} style={{...panel,textDecoration:"none",color:"#edf5ef"}}><h3 style={{marginTop:0}}>{title}</h3><p style={{color:"#9aaba2",lineHeight:1.6}}>{desc}</p><span style={{color:"#54d69a"}}>Open workspace →</span></a>)}</section>
-<section style={{...panel,marginTop:24}}><h2>Recent applications</h2>{apps.length===0?<p style={{color:"#9aaba2"}}>No applications yet. Start by saving an opportunity and creating an application.</p>:apps.slice(0,5).map(a=><div key={a.id} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"12px 0",borderTop:"1px solid #25352d"}}><div><strong>{a.role_title}</strong><div style={{color:"#9aaba2",fontSize:13}}>{a.company_name||"Company not specified"}</div></div><span style={{color:"#54d69a"}}>{a.status}</span></div>)}</section></main>}
-const panel:React.CSSProperties={background:"#111a16",border:"1px solid #25352d",borderRadius:16,padding:20};
-const button:React.CSSProperties={background:"#1c3829",border:"1px solid #345744",color:"#54d69a",padding:"10px 16px",borderRadius:9,cursor:"pointer"};
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ArrowRight, ArrowUpRight, BriefcaseBusiness, CalendarDays, CheckCircle2,
+  CircleAlert, FileText, Search, ShieldCheck, Sparkles, Target,
+  TrendingUp, UserRound
+} from "lucide-react";
+import AppShell from "../../components/layout/app-shell";
+import styles from "./dashboard.module.css";
+
+const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+type User = { id:number; full_name:string; email:string; is_verified:boolean };
+type Application = { id:number; role_title:string; company_name?:string; status:string; created_at?:string; applied_at?:string|null; job_url?:string };
+type Opportunity = { id:number; title:string; company?:string; location?:string; source_url?:string; fit?:{fit_score?:number;matched_skills?:string[];missing_skills?:string[];warning?:string} };
+type Analytics = { saved_opportunities:number; applications:number; applications_by_status:Record<string,number>; interviews:number; ai_tokens:number };
+type Profile = { profile?:{headline?:string;summary?:string;location?:string;target_roles?:string[]}; skills?:{id:number;skill_name:string}[] };
+function csrf(){return decodeURIComponent(document.cookie.split("; ").find(item=>item.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=")||"");}
+async function api(path:string,init:RequestInit={}){const headers=new Headers(init.headers);if(init.method)headers.set("X-CSRF-Token",csrf());const response=await fetch(API+path,{...init,headers,credentials:"include",cache:"no-store"});if(response.status===401)window.location.assign("/login");return response;}
+async function readJson<T>(response:Response,resource:string):Promise<T>{
+  if(!response.ok){
+    let detail="";
+    try{const payload=await response.json();detail=typeof payload.detail==="string"?payload.detail:"";}catch{/* response may not contain JSON */}
+    throw new Error(resource+" could not be loaded"+(detail?": "+detail:"."));
+  }
+  return response.json() as Promise<T>;
+}
+function fmt(value:number){return Number(value||0).toLocaleString();}
+function titleCase(value:string){return value.replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());}
+function date(value?:string|null){if(!value)return "Not recorded";const parsed=new Date(value);return Number.isNaN(parsed.getTime())?"Not recorded":parsed.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"});}
+const stages=["draft","ready","approved","submitted","screening","interview","assessment","offer","accepted","rejected","withdrawn","archived"];
+
+export default function Dashboard(){
+  const [user,setUser]=useState<User|null>(null);
+  const [applications,setApplications]=useState<Application[]>([]);
+  const [opportunities,setOpportunities]=useState<Opportunity[]>([]);
+  const [analytics,setAnalytics]=useState<Analytics|null>(null);
+  const [profile,setProfile]=useState<Profile|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+  const [verification,setVerification]=useState("");
+  const [verifying,setVerifying]=useState(false);
+
+  const load=useCallback(async()=>{
+    setLoading(true);setError("");
+    try{
+      const [u,a,o,n,p]=await Promise.all([
+        api("/api/v1/auth/me"),api("/api/v1/applications"),api("/api/v1/opportunities"),
+        api("/api/v1/analytics/overview"),api("/api/v1/profile")
+      ]);
+      if(!u.ok)throw new Error("Your sign-in session could not be verified. Please sign in again.");
+      const [ud,ad,od,nd,pd]=await Promise.all([
+        readJson<User>(u,"Account"),readJson<Application[]>(a,"Applications"),
+        readJson<Opportunity[]>(o,"Opportunities"),readJson<Analytics>(n,"Career analytics"),
+        readJson<Profile>(p,"Career profile")
+      ]);
+      if(!Array.isArray(ad)||!Array.isArray(od)||!nd||typeof nd!=="object"||!pd||typeof pd!=="object"){
+        throw new Error("The workspace API returned an unexpected data shape. No demo data has been substituted.");
+      }
+      setUser(ud);setApplications(ad);setOpportunities(od);setAnalytics(nd);setProfile(pd);
+    }catch(e){setError(e instanceof Error?e.message:"Your workspace could not be loaded.");}
+    finally{setLoading(false);}
+  },[]);
+  useEffect(()=>{void load();},[load]);
+
+  const counts=analytics?.applications_by_status||{};
+  const pipeline=useMemo(()=>stages.map(status=>({status,count:Number(counts[status]||0)})).filter(x=>x.count>0),[counts]);
+  const active=applications.filter(x=>!["accepted","rejected","withdrawn","archived"].includes(x.status));
+  const interviews=applications.filter(x=>x.status==="interview").length;
+  const pending=applications.filter(x=>["draft","ready","approved"].includes(x.status));
+  const topMatches=[...opportunities].sort((x,y)=>Number(y.fit?.fit_score||0)-Number(x.fit?.fit_score||0)).slice(0,3);
+  const recent=applications.slice(0,6);
+  const skillCount=profile?.skills?.length||0;
+  const completionParts=[Boolean(profile?.profile?.headline),Boolean(profile?.profile?.summary),Boolean(profile?.profile?.location),Boolean(profile?.profile?.target_roles?.length),skillCount>0];
+  const completion=Math.round(completionParts.filter(Boolean).length/completionParts.length*100);
+  const firstName=user?.full_name?.trim().split(/\s+/)[0]||"there";
+
+  async function requestVerification(){
+    setVerifying(true);setVerification("");
+    try{const r=await api("/api/v1/auth/verification/request",{method:"POST"});const d=await r.json();if(!r.ok)throw new Error(d.detail||"Unable to request verification.");setVerification(d.status==="already_verified"?"Your email is already verified.":d.status==="sent"?"Verification email requested. Check your inbox.":"Request accepted. Follow the instructions for your environment.");}
+    catch(e){setVerification(e instanceof Error?e.message:"Verification request failed.");}
+    finally{setVerifying(false);}
+  }
+
+  return <AppShell user={user}>
+    <div className={styles.page}>
+      <header className={styles.heading}>
+        <div><div className={styles.kicker}>CAREER WORKSPACE <span>/</span> OVERVIEW</div><h1>Good morning, {firstName}.</h1><p>Here is where your search stands and what deserves your attention today.</p></div>
+        <div className={styles.headingActions}><a className={styles.buttonSecondary} href="/applications"><BriefcaseBusiness size={15}/> View applications</a><a className={styles.buttonPrimary} href="/opportunities"><Search size={15}/> Find opportunities <ArrowUpRight size={14}/></a></div>
+      </header>
+
+      {user&&!user.is_verified&&<section className={styles.verifyBanner}><span className={styles.verifyIcon}><ShieldCheck size={17}/></span><div><strong>Verify your email address</strong><p>Confirm your account email to unlock account-sensitive integrations. Your career workspace remains available.</p>{verification&&<small role="status">{verification}</small>}</div><button onClick={()=>void requestVerification()} disabled={verifying}>{verifying?"Requesting…":"Send verification email"}</button></section>}
+
+      {loading?<div className={styles.loading}><span className={styles.loader}/> Loading your workspace data…</div>:error?<div className={styles.error} role="alert"><CircleAlert size={18}/><div><strong>We couldn't load your workspace</strong><p>{error}</p><button onClick={()=>void load()}>Retry loading</button></div></div>:<>
+        <section className={styles.metrics} aria-label="Your career metrics">
+          <article className={styles.metric}><div className={styles.metricHead}><span>Saved opportunities</span><span className={styles.metricIcon}><Target size={16}/></span></div><strong>{fmt(analytics?.saved_opportunities??opportunities.length)}</strong><small>Roles in your library</small><a href="/opportunities">Review saved roles <ArrowUpRight size={12}/></a></article>
+          <article className={styles.metric}><div className={styles.metricHead}><span>Applications</span><span className={styles.metricIcon}><BriefcaseBusiness size={16}/></span></div><strong>{fmt(analytics?.applications??applications.length)}</strong><small>{active.length} currently active</small><a href="/applications">Open tracker <ArrowUpRight size={12}/></a></article>
+          <article className={styles.metric}><div className={styles.metricHead}><span>Interviews</span><span className={styles.metricIcon}><CalendarDays size={16}/></span></div><strong>{fmt(analytics?.interviews??interviews)}</strong><small>Recorded interview stages</small><a href="/applications">Review pipeline <ArrowUpRight size={12}/></a></article>
+          <article className={styles.metric}><div className={styles.metricHead}><span>Profile readiness</span><span className={styles.metricIcon}><UserRound size={16}/></span></div><strong>{completion}%</strong><small>{skillCount} skills recorded</small><a href="/profile">Improve your profile <ArrowUpRight size={12}/></a></article>
+        </section>
+
+        <section className={styles.focusRow}>
+          <article className={styles.pipelinePanel}>
+            <div className={styles.panelHeading}><div><span className={styles.sectionIndex}>01 / APPLICATION FLOW</span><h2>Pipeline overview</h2><p>Applications by their current recorded stage</p></div><a href="/applications">Full tracker <ArrowUpRight size={13}/></a></div>
+            {pipeline.length===0?<div className={styles.emptyState}><span><BriefcaseBusiness size={20}/></span><strong>Your pipeline starts with one good role.</strong><p>Save an opportunity and create an application draft to begin tracking progress.</p><a href="/opportunities">Explore opportunities <ArrowRight size={14}/></a></div>:<div className={styles.pipelineBody}>
+              <div className={styles.pipelineTotal}><strong>{fmt(applications.length)}</strong><span>total applications</span><small>{fmt(active.length)} active in progress</small></div>
+              <div className={styles.stageList}>{pipeline.slice(0,7).map(item=><div className={styles.stageRow} key={item.status}><span>{titleCase(item.status)}</span><div className={styles.stageTrack}><i style={{width:Math.max(3,item.count/Math.max(1,...pipeline.map(x=>x.count))*100)+"%"}}/></div><b>{item.count}</b></div>)}</div>
+            </div>}
+          </article>
+
+          <article className={styles.actionPanel}>
+            <div className={styles.panelHeading}><div><span className={styles.sectionIndex}>02 / ATTENTION</span><h2>What needs your attention</h2><p>Based on your actual workspace records</p></div><Sparkles size={17}/></div>
+            <div className={styles.actionList}>
+              {pending.some(x=>x.status==="draft")&&<a href="/applications" className={styles.actionItem}><span className={styles.actionGlyph}><FileText size={16}/></span><span><strong>Review application drafts</strong><small>{pending.filter(x=>x.status==="draft").length} drafts need your review</small></span><ArrowRight size={15}/></a>}
+              {pending.some(x=>x.status==="ready")&&<a href="/applications?view=approvals" className={styles.actionItem}><span className={styles.actionGlyph}><ShieldCheck size={16}/></span><span><strong>Submission approval required</strong><small>{pending.filter(x=>x.status==="ready").length} ready applications are awaiting your decision</small></span><ArrowRight size={15}/></a>}
+              {opportunities.length===0&&<a href="/opportunities" className={styles.actionItem}><span className={styles.actionGlyph}><Search size={16}/></span><span><strong>Build your opportunity shortlist</strong><small>Discover roles from supported company boards</small></span><ArrowRight size={15}/></a>}
+              {completion<100&&<a href="/profile" className={styles.actionItem}><span className={styles.actionGlyph}><UserRound size={16}/></span><span><strong>Complete your career profile</strong><small>{completion}% complete · add skills and evidence</small></span><ArrowRight size={15}/></a>}
+              {pending.length===0&&opportunities.length>0&&completion===100&&<div className={styles.allClear}><CheckCircle2 size={18}/><span><strong>Nothing urgent is waiting.</strong><small>Your workspace is up to date. Keep your application stages current.</small></span></div>}
+            </div>
+            <div className={styles.profileProgress}><div><span>Profile completeness</span><b>{completion}%</b></div><div className={styles.progressTrack}><i style={{width:completion+"%"}}/></div><a href="/profile">Update career details <ArrowRight size={12}/></a></div>
+          </article>
+        </section>
+
+        <section className={styles.lowerGrid}>
+          <article className={styles.tablePanel}>
+            <div className={styles.panelHeading}><div><span className={styles.sectionIndex}>03 / RECENT ACTIVITY</span><h2>Recent applications</h2><p>Your latest application records</p></div><a href="/applications">View all <ArrowUpRight size={13}/></a></div>
+            {recent.length===0?<div className={styles.emptyState}><span><BriefcaseBusiness size={20}/></span><strong>No applications recorded yet</strong><p>Start from a saved opportunity or create a draft manually.</p><a href="/opportunities">Find your first role <ArrowRight size={14}/></a></div>:<div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>ROLE / COMPANY</th><th>STATUS</th><th>CREATED</th><th/></tr></thead><tbody>{recent.map(row=><tr key={row.id}><td><strong>{row.role_title}</strong><small>{row.company_name||"Company not specified"}</small></td><td><span className={styles.status+" "+styles["status_"+row.status]}>{titleCase(row.status)}</span></td><td>{date(row.created_at)}</td><td><a href="/applications" aria-label={"Open "+row.role_title}><ArrowUpRight size={14}/></a></td></tr>)}</tbody></table></div>}
+          </article>
+          <article className={styles.matchPanel}>
+            <div className={styles.panelHeading}><div><span className={styles.sectionIndex}>04 / YOUR SHORTLIST</span><h2>Strongest saved matches</h2><p>Ranked by recorded skill-fit evidence</p></div><TrendingUp size={17}/></div>
+            {topMatches.length===0?<div className={styles.emptyState}><span><Target size={20}/></span><strong>No matched roles yet</strong><p>Add skills to your profile and save opportunities to see evidence-based fit.</p><a href="/opportunities">Explore roles <ArrowRight size={14}/></a></div>:<div className={styles.matchList}>{topMatches.map((item,index)=><div className={styles.matchItem} key={item.id}><span className={styles.matchRank}>0{index+1}</span><div className={styles.matchCopy}><strong>{item.title}</strong><small>{item.company||"Company not specified"}{item.location?" · "+item.location:""}</small><div className={styles.matchBar}><i style={{width:Math.min(100,Math.max(0,Number(item.fit?.fit_score||0)))+"%"}}/></div><small>{item.fit?.matched_skills?.length||0} matched skills · {item.fit?.missing_skills?.length||0} gaps</small></div><b>{Math.round(Number(item.fit?.fit_score||0))}%</b></div>)}</div>}
+            <a className={styles.panelFootLink} href="/opportunities">Open opportunity library <ArrowRight size={13}/></a>
+          </article>
+        </section>
+        <div className={styles.dataNote}><ShieldCheck size={14}/> Metrics reflect records in your account. Skill-fit percentages are heuristic evidence, not a hiring probability.</div>
+      </>}
+    </div>
+  </AppShell>;
+}
