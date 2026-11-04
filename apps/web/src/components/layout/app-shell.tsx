@@ -39,7 +39,8 @@ const navGroups = [
     { label: "Career profile", href: "/profile", icon: UserRound },
     { label: "CV & documents", href: "/profile#resumes", icon: FileText },
     { label: "AI career studio", href: "/profile#career-tools", icon: WandSparkles },
-    { label: "Skills inventory", href: "/profile#skills", icon: GraduationCap },\n    { label: "Learning roadmap", href: "/learning", icon: BookOpen },
+    { label: "Skills inventory", href: "/profile#skills", icon: GraduationCap },
+    { label: "Learning roadmap", href: "/learning", icon: BookOpen },
     { label: "Career projects", href: "/projects", icon: FolderKanban },
   ]},
   { heading: "INTELLIGENCE", items: [
@@ -79,7 +80,8 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
-  const [quickOpen, setQuickOpen] = useState(false);\n  const [profileOpen, setProfileOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [noticeBusy, setNoticeBusy] = useState(false);
@@ -89,7 +91,8 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
   const [paletteQuery, setPaletteQuery] = useState("");
   const [searchBusy, setSearchBusy] = useState(false);
   const [searchRecords, setSearchRecords] = useState<SearchRecord[]>([]);
-  const [searchError, setSearchError] = useState("");\n  const searchSequence = useRef(0);
+  const [searchError, setSearchError] = useState("");
+  const searchSequence = useRef(0);
 
   useEffect(() => {
     if (user !== undefined) { setSessionUser(user); return; }
@@ -256,7 +259,8 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
               <button onClick={()=>navigate("/interviews?new=1")}><CalendarCheck size={15}/><span><strong>Interview</strong><small>Schedule preparation</small></span></button>
             </div>}
           </div>
-          <button className={styles.topIcon} onClick={()=>navigate("/calendar")} aria-label="Open career calendar" title="Calendar"><CalendarDays size={17}/></button>\n          <button className={styles.topIcon} onClick={()=>navigate("/profile#career-tools")} aria-label="Open AI career studio" title="AI career studio"><Sparkles size={17}/></button>
+          <button className={styles.topIcon} onClick={()=>navigate("/calendar")} aria-label="Open career calendar" title="Calendar"><CalendarDays size={17}/></button>
+          <button className={styles.topIcon} onClick={()=>navigate("/profile#career-tools")} aria-label="Open AI career studio" title="AI career studio"><Sparkles size={17}/></button>
           <button className={styles.topIcon} onClick={()=>navigate("/settings#gmail")} aria-label="Open activity inbox" title="Activity inbox"><Inbox size={17}/></button>
           <div className={styles.noticeWrap}>
             <button className={styles.noticeButton} onClick={()=>void toggleNotices()} aria-label={unread?unread+" unread notifications":"Notifications"} aria-expanded={noticeOpen}><Bell size={18}/>{unread>0&&<i/>}</button>
