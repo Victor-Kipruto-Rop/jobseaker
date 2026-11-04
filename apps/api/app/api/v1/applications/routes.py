@@ -10,27 +10,12 @@ from packages.database.models.career import (
 )
 from packages.integrations.url_validation import validate_http_url
 from packages.events.outbox import enqueue_event
+from packages.applications.fsm import STATUSES, TRANSITIONS
 from packages.automation.idempotency import (
     DispatchConflict, reserve_application_dispatch, complete_application_dispatch,
 )
 
 router = APIRouter()
-STATUSES = {"draft", "ready", "approved", "submitted", "screening", "interview",
-            "assessment", "offer", "accepted", "rejected", "withdrawn", "archived"}
-TRANSITIONS = {
-    "draft": {"ready", "withdrawn", "archived"},
-    # Approval is granted only through the user-owned approval workflow service.
-    "ready": {"draft", "withdrawn", "archived"},
-    "approved": {"ready", "submitted", "withdrawn"},
-    "submitted": {"screening", "interview", "assessment", "rejected", "withdrawn"},
-    "screening": {"interview", "assessment", "rejected", "withdrawn"},
-    "interview": {"assessment", "offer", "rejected", "withdrawn"},
-    "assessment": {"interview", "offer", "rejected", "withdrawn"},
-    "offer": {"accepted", "rejected", "withdrawn"},
-    "accepted": {"archived"}, "rejected": {"archived"},
-    "withdrawn": {"archived"}, "archived": set(),
-}
-
 class ApplicationCreate(BaseModel):
     role_title: str = Field(min_length=2, max_length=250)
     company_name: str = Field(default="", max_length=250)
