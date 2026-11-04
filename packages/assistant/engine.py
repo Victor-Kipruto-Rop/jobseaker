@@ -199,6 +199,75 @@ def remember(db: Session, user_id: int, content: str, conversation_id: int | Non
             _upsert_graph_fact(db, user_id, key, value, row.id)
     return first_id
 
+def preference_snapshot(db: Session, user_id: int) -> dict:
+    row = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user_id))
+    if row is None:
+        return {}
+    if row.preferences_encrypted and isinstance(row.preferences, str):
+        try:
+            value = json.loads(decrypt_credential(row.preferences, purpose=f"assistant-preferences:{user_id}"))
+            return value if isinstance(value, dict) else {}
+        except Exception:
+            return {}
+    value = row.preferences if isinstance(row.preferences, dict) else {}
+    if value:
+        row.preferences = encrypt_credential(json.dumps(value, separators=(",", ":"), ensure_ascii=False),
+                                             purpose=f"assistant-preferences:{user_id}")
+        row.preferences_encrypted = True
+    return value
+
+def store_preferences(db: Session, user_id: int, value: dict) -> AssistantPreference:
+    row = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user_id))
+    if row is None:
+        row = AssistantPreference(user_id=user_id)
+        db.add(row)
+    serialized = json.dumps(value or {}, separators=(",", ":"), ensure_ascii=False)
+    row.preferences = encrypt_credential(serialized, purpose=f"assistant-preferences:{user_id}")
+    row.preferences_encrypted = True
+    row.preference_vector = embedding(serialized)
+    return row
+
+def adapt_preferences(current: dict, rating: int, correction: str) -> dict:
+    result = dict(current or {})
+    result["feedback_events"] = int(result.get("feedback_events", 0)) + 1
+    if rating <= 2 and correction.strip():
+        result["correction_patterns"] = (result.get("correction_patterns", []) + [sanitize(correction)[:300]])[-20:]
+    elif rating >= 4:
+        result["successful_response_count"] = int(result.get("successful_response_count", 0)) + 1
+    return result
+
+def build_context(db: Session, user_id: int, query: str, history: list[dict],
+                  budget_chars: int = 12000) -> str:
+    facts = db.scalars(select(AssistantFact).where(
+        AssistantFact.user_id == user_id, AssistantFact.active.is_(True)).limit(40)).all()
+    memories = retrieve(db, user_id, query, limit=8)
+    prefs = preference_snapshot(db, user_id)
+    graph_rows = db.scalars(select(AssistantRelation).where(
+        AssistantRelation.user_id == user_id).order_by(AssistantRelation.updated_at.desc()).limit(80)).all()
+    graph = []
+    for edge in graph_rows:
+        source = db.get(AssistantEntity, edge.source_entity_id)
+        target = db.get(AssistantEntity, edge.target_entity_id)
+        if source and target:
+            graph.append(f"{source.name} --{edge.relation_type}--> {target.name}")
+    sections = ["USER FACTS (unverified unless explicitly marked):"]
+    for fact in facts:
+        fact_value = decrypt_credential(fact.fact_value, purpose=f"assistant-fact:{user_id}") if fact.fact_value_encrypted else fact.fact_value
+        sections.append(f"- {fact.fact_key}: {fact_value} (confidence {fact.confidence:.2f}; verified={fact.verified_by_user})")
+    sections.append("RELEVANT EPISODIC MEMORY:")
+    sections.extend(f"- {item['content']}" for item in memories)
+    sections.append("SEMANTIC KNOWLEDGE GRAPH:")
+    sections.extend("- " + edge for edge in graph[:40])
+    sections.append("PREFERENCES:")
+    sections.append(str(prefs)[:2000])
+    style = str(prefs.get("response_style", "")).lower()
+    depth = str(prefs.get("technical_depth", "")).lower()
+    if style or depth:
+        sections.append("ADAPTIVE RESPONSE GUIDANCE: " + "; ".join(
+            item for item in (f"style={style}" if style else "", f"technical_depth={depth}" if depth else "") if item))
+    sections.append("RECENT CONVERSATION:")
+    sections.extend(f"{item.get('role', 'user')}: {sanitize(item.get('content', ''))[:1800]}" for item in history[-8:])
+    return "\n".join(sections)[:budget_chars]
 def retrieve(db: Session, user_id: int, query: str, limit: int = 8) -> list[dict[str, Any]]:
     """Tenant-filtered pgvector ANN retrieval with lexical fusion and safe fallback."""
     qvec = embedding(query)
