@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     gmail_client_secret_file: str | None = None
     gmail_redirect_uri: str = "http://localhost:8000/api/v1/integrations/gmail/callback"
     calendar_redirect_uri: str = "http://localhost:8000/api/v1/integrations/calendar/callback"
+    calendar_enabled: bool = False
     web_app_url: str = "http://localhost:3000"
     smtp_host: str | None = None
     smtp_port: int = 587
@@ -68,7 +69,7 @@ def get_settings():
             raise ValueError("S3-compatible storage requires bucket and credentials in production")
         if settings.kafka_enabled and not settings.kafka_bootstrap_servers:
             raise ValueError("Kafka bootstrap servers are required when event streaming is enabled")
-        if settings.gmail_enabled and not (settings.credential_kek or os.getenv("JOBSEEKER_CREDENTIAL_KEK")):
+        if (settings.gmail_enabled or settings.calendar_enabled) and not (settings.credential_kek or os.getenv("JOBSEEKER_CREDENTIAL_KEK")):
             raise ValueError("JOBSEEKER_CREDENTIAL_KEK is required when Gmail OAuth is enabled")
         if not settings.allowed_origins or any(not origin.startswith("https://") for origin in settings.allowed_origins):
             raise ValueError("Production CORS origins must be explicit HTTPS origins")
