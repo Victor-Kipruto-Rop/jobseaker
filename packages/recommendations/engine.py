@@ -309,9 +309,13 @@ def ltr_score(model: Any, features: dict[str, float]) -> float | None:
     if model is None:
         return None
     try:
-        return float(model.predict_proba(
-            [[float(features.get(name, 0.0)) for name in FEATURE_NAMES]]
-        )[0][1])
+        matrix = [[float(features.get(name, 0.0)) for name in FEATURE_NAMES]]
+        if hasattr(model, "predict_proba"):
+            return float(model.predict_proba(matrix)[0][1])
+        # LambdaRank emits an unbounded relevance score. Map it monotonically to
+        # the existing 0..1 recommendation score range for feed presentation.
+        raw = float(model.predict(matrix)[0])
+        return 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, raw))))
     except Exception:
         return None
 
