@@ -44,7 +44,20 @@ def dispatch_pending_ingestion_jobs(redis_url: str, batch_size: int = 20) -> int
         db.close()
     if not dispatches:
         return 0
-    queue = Queue("assistant", connection=Redis.from_url(redis_url))
+    try:
+        queue = Queue("assistant", connection=Redis.from_url(redis_url))
+    except Exception:
+        db = SessionLocal()
+        try:
+            for job_id, attempt in dispatches:
+                row = db.scalar(select(AssistantIngestionJob).where(
+                    AssistantIngestionJob.job_id == job_id).with_for_update())
+                if row and row.status == "queued" and row.dispatch_attempts == attempt:
+                    row.dispatched_at = None
+            db.commit()
+        finally:
+            db.close()
+        raise
     published = 0
     for job_id, attempt in dispatches:
         try:
