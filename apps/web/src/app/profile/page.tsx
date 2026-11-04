@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowUpRight, Check, FileText, GraduationCap, Plus, Save, ShieldCheck, Sparkles, Trash2, UploadCloud, UserRound, X } from "lucide-react";
+import { Check, FileText, GraduationCap, Plus, Save, ShieldCheck, Sparkles, Trash2, UploadCloud, UserRound, X } from "lucide-react";
 import AppShell from "../../components/layout/app-shell";
 import styles from "./profile.module.css";
 
