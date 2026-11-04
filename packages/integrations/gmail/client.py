@@ -39,13 +39,25 @@ def _flow(state: str | None = None):
     return flow
 
 def create_authorization(db: Session, user_id: int) -> str:
+    owner = db.get(User, user_id)
+    if not owner or not owner.is_active or not owner.is_verified or owner.role != "candidate":
+        raise ValueError("Only active, verified candidate accounts can connect Gmail.")
+
+    # Validate OAuth configuration and construct the URL before persisting state.
+    # A missing client-secret file must not leave orphaned, apparently valid states.
     state = secrets.token_urlsafe(32)
-    db.add(OAuthState(user_id=user_id, state_hash=hashlib.sha256(state.encode()).hexdigest(),
-                      expires_at=datetime.now(timezone.utc) + timedelta(minutes=10)))
-    db.commit()
     flow = _flow(state)
-    url, _ = flow.authorization_url(access_type="offline", include_granted_scopes="true",
-                                     prompt="consent")
+    url, _ = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent",
+    )
+    db.add(OAuthState(
+        user_id=user_id,
+        state_hash=hashlib.sha256(state.encode()).hexdigest(),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+    ))
+    db.commit()
     return url
 
 def complete_authorization(db: Session, state: str, code: str) -> EmailAccount:
@@ -56,7 +68,7 @@ def complete_authorization(db: Session, state: str, code: str) -> EmailAccount:
     if not record:
         raise ValueError("OAuth state is invalid, expired, or already used.")
     owner = db.get(User, record.user_id)
-    if not owner or not owner.is_active or owner.role != "candidate":
+    if not owner or not owner.is_active or not owner.is_verified or owner.role != "candidate":
         raise ValueError("OAuth state owner is not authorized to connect Gmail.")
     # Consume the state before calling Google so concurrent callbacks cannot replay it.
     record.consumed_at = datetime.now(timezone.utc)
