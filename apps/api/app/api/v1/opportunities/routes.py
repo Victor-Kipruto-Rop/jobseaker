@@ -207,6 +207,13 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
             if existing.company != profile["company"]:
                 existing.company = profile["company"]
                 changed = True
+            # The source listing is authoritative for the current vacancy. Applications
+            # retain their own immutable snapshots, so refreshing this record is safe.
+            for key in ("title", "description", "location", "employment_type", "remote_type", "required_skills", "posted_at"):
+                incoming = item.get(key)
+                if incoming not in (None, "", [], "unspecified") and getattr(existing, key) != incoming:
+                    setattr(existing, key, incoming)
+                    changed = True
             for key in brand_fields:
                 if profile.get(key) and getattr(existing, key) != profile[key]:
                     setattr(existing, key, profile[key])
