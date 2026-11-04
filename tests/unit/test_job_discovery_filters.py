@@ -25,7 +25,7 @@ def test_empty_filters_preserve_all_normalized_jobs():
 
 def test_company_board_metadata_uses_published_name_and_https_brand_assets(monkeypatch):
     import asyncio
-    from packages.integrations import job_boards
+    import packages.integrations.job_boards.connectors as connectors
 
     class Response:
         def __init__(self, status_code, payload=None, text="", content_type="application/json"):
@@ -60,8 +60,8 @@ def test_company_board_metadata_uses_published_name_and_https_brand_assets(monke
                 content_type="text/html; charset=utf-8",
             )
 
-    monkeypatch.setattr(job_boards.connectors.httpx, "AsyncClient", lambda **kwargs: Client())
-    result = asyncio.run(job_boards.connectors.discover_company_profile("greenhouse", "acme"))
+    monkeypatch.setattr(connectors.httpx, "AsyncClient", lambda **kwargs: Client())
+    result = asyncio.run(connectors.discover_company_profile("greenhouse", "acme"))
 
     assert result["company"] == "Acme Financial"
     assert result["company_website"] == "https://acme.example/careers"
@@ -74,7 +74,7 @@ def test_company_board_metadata_uses_published_name_and_https_brand_assets(monke
 
 def test_company_profile_does_not_invent_missing_brand_assets(monkeypatch):
     import asyncio
-    from packages.integrations import job_boards
+    import packages.integrations.job_boards.connectors as connectors
 
     class Response:
         status_code = 200
@@ -94,8 +94,8 @@ def test_company_profile_does_not_invent_missing_brand_assets(monkeypatch):
         async def get(self, url):
             return Response()
 
-    monkeypatch.setattr(job_boards.connectors.httpx, "AsyncClient", lambda **kwargs: Client())
-    result = asyncio.run(job_boards.connectors.discover_company_profile("lever", "acme"))
+    monkeypatch.setattr(connectors.httpx, "AsyncClient", lambda **kwargs: Client())
+    result = asyncio.run(connectors.discover_company_profile("lever", "acme"))
 
     assert result["company"] == "Acme"
     assert result["company_logo_url"] == ""
