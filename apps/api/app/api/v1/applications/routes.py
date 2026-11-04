@@ -53,6 +53,7 @@ def _serialize(row, opportunity=None):
             "company_favicon_url": opportunity.company_favicon_url if opportunity else "",
             "company_website": opportunity.company_website if opportunity else "",
             "company_description": opportunity.company_description if opportunity else "",
+            "company_brand_color": opportunity.company_brand_color if opportunity else "",
             "status": row.status, "job_url": row.job_url, "notes": row.notes,
             "applied_at": row.applied_at, "created_at": row.created_at}
 
