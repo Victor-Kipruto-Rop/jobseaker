@@ -1,6 +1,7 @@
 """Persistent, user-scoped memory and personalization models for JobSeeker AI."""
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, Boolean
+from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import Mapped, mapped_column
 from packages.database.models.base import Base
 
@@ -20,6 +21,8 @@ class AssistantMemory(Base):
     content: Mapped[str] = mapped_column(Text)
     summary: Mapped[str] = mapped_column(Text, default="")
     embedding: Mapped[list] = mapped_column(JSON, default=list)
+    embedding_vector: Mapped[list | None] = mapped_column(Vector(384).with_variant(JSON, "sqlite"), nullable=True)
+    content_encrypted: Mapped[bool] = mapped_column(Boolean, default=False)
     keywords: Mapped[list] = mapped_column(JSON, default=list)
     importance: Mapped[float] = mapped_column(default=0.5)
     source: Mapped[str] = mapped_column(String(40), default="conversation")
@@ -70,6 +73,7 @@ class AssistantEntity(Base):
     name: Mapped[str] = mapped_column(String(240))
     normalized_name: Mapped[str] = mapped_column(String(240))
     attributes: Mapped[dict] = mapped_column(JSON, default=dict)
+    aliases: Mapped[list] = mapped_column(JSON, default=list)
     source_memory_id: Mapped[int | None] = mapped_column(ForeignKey("assistant_memories.id", ondelete="SET NULL"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
