@@ -13,6 +13,7 @@ class _BrandMetadataParser(HTMLParser):
         self.links = {}
         self.title_parts = []
         self.logo_images = []
+        self.social_links = {}
         self.in_title = False
 
     def handle_starttag(self, tag, attrs):
@@ -26,6 +27,18 @@ class _BrandMetadataParser(HTMLParser):
             href = values.get("href")
             if href and any(token in rel for token in ("icon", "canonical")):
                 self.links[rel] = href
+        elif tag.lower() == "a":
+            href = values.get("href", "")
+            host = (urlsplit(href).hostname or "").lower().removeprefix("www.")
+            social_hosts = {
+                "linkedin.com": "linkedin", "x.com": "x", "twitter.com": "x",
+                "github.com": "github", "facebook.com": "facebook",
+                "youtube.com": "youtube", "instagram.com": "instagram",
+            }
+            for domain, key in social_hosts.items():
+                if host == domain or host.endswith("." + domain):
+                    self.social_links[key] = href
+                    break
         elif tag.lower() == "img":
             image_hint = " ".join((values.get("alt", ""), values.get("title", ""), values.get("class", ""))).casefold()
             if values.get("src") and any(word in image_hint for word in ("logo", "brand", "company")):
@@ -88,6 +101,7 @@ async def discover_company_profile(source: str, board: str) -> dict:
         "company_favicon_url": "",
         "company_description": "",
         "company_brand_color": "",
+        "company_social_links": {},
         "company_brand_source": "",
     }
     try:
@@ -131,6 +145,10 @@ async def discover_company_profile(source: str, board: str) -> dict:
         icon_url = _safe_url(urljoin(page_url, icon)) if icon else ""
         profile["company_logo_url"] = logo_url if urlsplit(logo_url).scheme == "https" else ""
         profile["company_favicon_url"] = icon_url if urlsplit(icon_url).scheme == "https" else ""
+        profile["company_social_links"] = {
+            key: safe for key, value in parser.social_links.items()
+            if (safe := _safe_url(urljoin(page_url, value))) and urlsplit(safe).scheme == "https"
+        }
 
         canonical = parser.links.get("canonical") or meta.get("og:url") or ""
         if canonical:
@@ -145,7 +163,7 @@ async def discover_company_profile(source: str, board: str) -> dict:
         board_name = board.replace("-", " ").title()
         if profile["company"] != board_name or any(profile[key] for key in (
             "company_logo_url", "company_favicon_url", "company_website",
-            "company_description", "company_brand_color",
+            "company_description", "company_brand_color", "company_social_links",
         )):
             profile["company_brand_source"] = page_url
     except (httpx.HTTPError, ValueError, UnicodeError):
