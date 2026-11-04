@@ -74,7 +74,7 @@ def resolve_entity(db: Session, user_id: int, entity_type: str, name: str,
     if match is None:
         canonical_name = normalized if entity_type == "skill" else name.strip()
         match = AssistantEntity(user_id=user_id, entity_type=entity_type, name=canonical_name[:240],
-            normalized_name=normalized, attributes={"aliases": sorted(aliases)}, source_memory_id=memory_id)
+            normalized_name=normalized, attributes={}, aliases=sorted(aliases), source_memory_id=memory_id)
         db.add(match)
         db.flush()
     else:
