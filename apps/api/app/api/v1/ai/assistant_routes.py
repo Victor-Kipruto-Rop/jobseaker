@@ -253,7 +253,8 @@ def assistant_feedback(body: FeedbackInput,user:User=Depends(get_current_user),d
 
 @router.patch("/assistant/memory")
 def set_memory(enabled: bool, user:User=Depends(get_current_user),db:Session=Depends(get_db)):
-    pref=db.scalar(select(AssistantPreference).where(AssistantPreference.user_id==user.id))
+    pref=db.scalar(select(AssistantPreference).where(
+        AssistantPreference.user_id==user.id).with_for_update())
     if pref is None: pref=AssistantPreference(user_id=user.id); db.add(pref)
     if enabled:
         try:
@@ -271,7 +272,8 @@ def set_memory(enabled: bool, user:User=Depends(get_current_user),db:Session=Dep
 
 @router.delete("/assistant/memory")
 def delete_memory(user:User=Depends(get_current_user),db:Session=Depends(get_db)):
-    preference = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user.id))
+    preference = db.scalar(select(AssistantPreference).where(
+        AssistantPreference.user_id == user.id).with_for_update())
     if preference:
         preference.memory_enabled = False
     db.query(AssistantIngestionJob).filter(AssistantIngestionJob.user_id == user.id).update(
