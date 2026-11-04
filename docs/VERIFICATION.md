@@ -129,3 +129,20 @@ Additional latest-commit attempts:
 - [Secret scan run 41775916387](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41775916387): failed with zero recorded steps.
 
 The runner did not execute a workflow step in either run. This does not establish whether application checks pass or fail.
+
+
+### Local frontend verification reported by repository owner
+
+**Environment:** Windows PowerShell, Node/pnpm workspace, pnpm 9.15.0.  
+**Source:** command output supplied by the repository owner after pulling the login CSS Module fix.
+
+| Check | Command | Result |
+|---|---|---|
+| Frozen dependency installation | `pnpm install --frozen-lockfile` | Passed; workspace dependencies installed and lockfile was reported up to date |
+| Frontend TypeScript check | `pnpm --filter web lint` | Passed; `tsc --noEmit` exited without diagnostics |
+| Next.js production build | `pnpm --filter web build` | Passed; compilation, type validation, page-data collection, static generation (24/24), trace collection, and optimization completed |
+| Static routes | Next.js build output | 22 routes listed, including login, dashboard, applications, discovery, and settings |
+
+The login page's responsive styles were moved into `apps/web/src/app/login/login.module.css`; `page.tsx` imports and uses the CSS Module. The reported lint and build output was clean.
+
+These results are owner-reported local execution evidence, not GitHub Actions evidence. Python, database migrations, pytest, Ruff, mypy, dependency audits, Compose validation, and Docker image builds remain unverified. The pnpm lockfile must still be committed before CI and Docker installs can safely switch to frozen-lockfile mode.
