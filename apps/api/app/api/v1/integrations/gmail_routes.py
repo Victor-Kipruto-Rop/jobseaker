@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from fastapi.responses import RedirectResponse
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
+from uuid import NAMESPACE_URL, uuid5
 from apps.api.app.core.config import get_settings
 from apps.api.app.core.redis_limits import enforce_rate_limit
 from apps.api.app.dependencies import get_current_user, get_verified_user, get_db
@@ -56,12 +57,12 @@ def sync(user: User = Depends(get_current_user), db: Session = Depends(get_db),
         if result.get("new_messages", 0):
             account_row = db.scalar(select(EmailAccount).where(
                 EmailAccount.user_id == user.id, EmailAccount.provider == "gmail"))
+            message_ids = result.get("new_message_ids") or []
             rows = db.scalars(select(EmailMessage).where(
                 EmailMessage.user_id == user.id,
                 EmailMessage.account_id == account_row.id,
-            ).order_by(EmailMessage.received_at.desc().nullslast()).limit(
-                min(int(result["new_messages"]), 200)
-            )).all() if account_row else []
+                EmailMessage.id.in_(message_ids),
+            )).all() if account_row and message_ids else []
             for message in rows:
                 enqueue_event(
                     db, "email.classified",
@@ -72,8 +73,13 @@ def sync(user: User = Depends(get_current_user), db: Session = Depends(get_db),
                         "action_required": message.action_required,
                     },
                     partition_key=str(user.id),
+                    event_id=str(uuid5(
+                        NAMESPACE_URL,
+                        f"jobseeker:gmail:{account_row.id}:{message.gmail_message_id}",
+                    )),
                 )
-            db.commit()
+        # Gmail rows, last-sync timestamp and classification outbox records commit together.
+        db.commit()
         return result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
