@@ -32,7 +32,7 @@ The light-mode assistant workspace is available at `/assistant`, linked from the
 
 Document uploads are stored as durable ingestion-job records in the same database transaction used to accept the upload. The database job table is the outbox; a worker-side dispatcher polls it and publishes only opaque job IDs to the existing Redis/RQ `assistant` queue. Dispatch leases and stale-processing recovery make the flow resilient to API/worker restarts. RQ retries use the worker scheduler with bounded backoff. The file payload is AES-GCM encrypted before persistence. The worker rechecks memory consent under row locks before indexing. Job status and cancellation are owner-scoped, duplicate delivery is idempotent, and payload ciphertext is cleared after success, cancellation or terminal failure.
 
-Supported input includes PDF, DOCX, text, Markdown, images with optional OCR, and Python source AST extraction. OCR requires Pillow, pytesseract and the Tesseract system binary.
+Uploads are limited to three active indexing jobs per user and twenty accepted uploads per rolling 24-hour window; each file is capped at 12 MB and its extension is validated before queueing. Supported input includes PDF, DOCX, text, Markdown, images with optional OCR, and Python source AST extraction. OCR requires Pillow, pytesseract and the Tesseract system binary.
 
 ## Agent orchestration and safety
 
