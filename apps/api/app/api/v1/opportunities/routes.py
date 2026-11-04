@@ -114,17 +114,6 @@ def save_opportunity(body: OpportunityCreate, user: User = Depends(get_current_u
             raise HTTPException(status_code=409, detail="This opportunity is already saved")
     row = CandidateOpportunity(user_id=user.id, **body.model_dump())
     db.add(row)
-    # A complete, under-limit source response is a reliable snapshot. Only then
-    # mark previously imported roles missing from the source as no longer listed.
-    if len(discovered) < body.limit:
-        previously_active = db.scalars(select(CandidateOpportunity).where(
-            CandidateOpportunity.user_id == user.id,
-            CandidateOpportunity.company_id == company.id,
-            CandidateOpportunity.availability_status == "active",
-        )).all()
-        for previous in previously_active:
-            if previous.source_url and previous.source_url not in seen_urls:
-                previous.availability_status = "removed"
     try:
         db.commit()
     except IntegrityError as exc:
@@ -212,9 +201,6 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
                 changed = True
             if existing.last_seen_at is None or existing.last_seen_at < checked_at:
                 existing.last_seen_at = checked_at
-            if existing.company in {"", fallback_name} and profile["company"] != fallback_name:
-                existing.company = profile["company"]
-                changed = True
             if existing.company_id is None:
                 existing.company_id = company.id
                 changed = True
@@ -242,6 +228,17 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
         saved += 1
         results.append({"title": row.title, "company": row.company, "source_url": row.source_url,
                         "company_logo_url": row.company_logo_url, "company_website": row.company_website})
+    # A complete, under-limit source response is a reliable snapshot. Only then
+    # mark previously imported roles missing from the source as no longer listed.
+    if len(discovered) < body.limit:
+        previously_active = db.scalars(select(CandidateOpportunity).where(
+            CandidateOpportunity.user_id == user.id,
+            CandidateOpportunity.company_id == company.id,
+            CandidateOpportunity.availability_status == "active",
+        )).all()
+        for previous in previously_active:
+            if previous.source_url and previous.source_url not in seen_urls:
+                previous.availability_status = "removed"
     try:
         db.commit()
     except IntegrityError as exc:
