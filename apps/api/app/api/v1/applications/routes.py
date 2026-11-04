@@ -9,7 +9,7 @@ from packages.database.models.career import (
     Application, ApplicationEvent, CandidateOpportunity, RecommendationInteraction,
 )
 from packages.integrations.url_validation import validate_http_url
-from packages.events.kafka import publish_event
+from packages.events.outbox import enqueue_event
 
 router = APIRouter()
 STATUSES = {"draft", "ready", "approved", "submitted", "screening", "interview",
@@ -110,11 +110,11 @@ async def create_application(body: ApplicationCreate, user: User = Depends(get_c
     db.flush()
     db.add(ApplicationEvent(user_id=user.id, application_id=row.id,
                             event_type="application.created", details={"status": "draft"}))
+    enqueue_event(db, "application.status_changed", {
+        "user_id": user.id, "application_id": row.id, "from": None, "to": "draft",
+    }, partition_key=str(user.id))
     db.commit()
     db.refresh(row)
-    background_tasks.add_task(publish_event, "application.status_changed", {
-        "user_id": user.id, "application_id": row.id, "from": None, "to": "draft",
-    }, key=str(row.id))
     return _serialize(row, owned if body.opportunity_id is not None else None)
 
 @router.patch("/{application_id}")
@@ -153,14 +153,14 @@ async def update_application(application_id: int, body: ApplicationUpdate,
         db.add(ApplicationEvent(user_id=user.id, application_id=row.id,
                                 event_type="application.details_updated",
                                 details={"fields": changed_fields}))
-    db.commit()
     if status and status != before:
-        background_tasks.add_task(
-            publish_event,
+        enqueue_event(
+            db,
             "application.dispatched" if status == "submitted" else "application.status_changed",
             {"user_id": user.id, "application_id": row.id, "from": before, "to": status},
-            key=str(row.id),
+            partition_key=str(user.id),
         )
+    db.commit()
     opportunity = None
     if row.opportunity_id is not None:
         opportunity = db.scalar(select(CandidateOpportunity).where(
