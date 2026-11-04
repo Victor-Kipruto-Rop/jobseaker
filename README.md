@@ -94,7 +94,7 @@ From the repository root, install the Python development extras and frontend pac
 before running the release gate:
 
 ```powershell
-python -m pip install -e ".[dev]" mypy
+python -m pip install -e ".[dev]"
 pnpm install
 python scripts/verify_local_security.py
 ```
@@ -102,4 +102,5 @@ python scripts/verify_local_security.py
 Use the Python version required by `pyproject.toml` (Python 3.12 or newer). Docker
 builds the API, worker, scheduler, and web containers from their dedicated Dockerfiles.
 The local release gate uses the host Python and pnpm installations for tests, linting,
-and frontend type-check/build verification.
+Python and frontend type checks, and frontend build verification. The CI workflow also
+runs dependency audits and builds all four container images.
