@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from apps.api.app.core.redis_limits import enforce_rate_limit
+from apps.api.app.core.config import get_settings
 from packages.events.outbox import enqueue_event
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.ai.agents.job_matching.agent import JOB_SKILL_TAXONOMY
@@ -22,6 +23,7 @@ from packages.database.models.career import (
     Company, RecommendationInteraction, ResumeDocument, CandidatePreferenceState,
 )
 from packages.recommendations.training import load_active_ranker
+from packages.recommendations.bandit_experiments import assign_arm
 from packages.recommendations.engine import (
     document_text, item_key, rank_opportunities, semantic_embeddings,
 )
@@ -45,6 +47,9 @@ class InteractionInput(BaseModel):
     dwell_seconds: float | None = Field(default=None, ge=0, le=86400)
     scroll_depth: float | None = Field(default=None, ge=0, le=100)
     feature_snapshot: dict = Field(default_factory=dict)
+    experiment_id: str | None = Field(default=None, max_length=100)
+    experiment_arm: str | None = Field(default=None, max_length=40)
+    propensity: float | None = Field(default=None, gt=0, le=1)
 
     @field_validator("recommendation_source")
     @classmethod
@@ -144,6 +149,17 @@ def _pgvector_scores(db: Session, user_id: int, embedding: list[float]) -> dict[
         # The portable JSON embedding path remains available if pgvector is absent.
         return {}
 
+
+
+@router.get("/experiments/{experiment_id}/assignment")
+def get_experiment_assignment(experiment_id: str,
+                              user: User = Depends(get_current_user)):
+    """Stable candidate-level assignment; clients must log the returned propensity."""
+    if not re.fullmatch(r"[a-zA-Z0-9._-]{1,100}", experiment_id):
+        raise HTTPException(status_code=422, detail="Invalid experiment identifier")
+    settings = get_settings()
+    return assign_arm(user.id, experiment_id, ["control", "explore"],
+                      settings.app_secret_key)
 
 @router.get("")
 def get_recommendations(
@@ -371,7 +387,7 @@ def record_impressions(
         rows.append(RecommendationInteraction(
             user_id=user.id, item_key=event.item_key, event_type="impression",
             recommendation_source=event.recommendation_source, position=event.position,
-            feature_snapshot=event.feature_snapshot,
+            feature_snapshot={**event.feature_snapshot, **({"experiment_id": event.experiment_id, "experiment_arm": event.experiment_arm, "propensity": event.propensity} if event.experiment_id and event.experiment_arm and event.propensity else {})},
         ))
     db.add_all(rows)
     enqueue_event(db, "user.activity", {
@@ -466,7 +482,13 @@ def record_interaction(
             row = existing
             key = item_key({"source_url": row.source_url, "title": row.title,
                             "company": row.company, "location": row.location})
-    snapshot = body.feature_snapshot
+    snapshot = dict(body.feature_snapshot)
+    if body.experiment_id and body.experiment_arm and body.propensity:
+        if body.experiment_arm not in {"control", "explore"}:
+            raise HTTPException(status_code=422, detail="Unknown experiment arm")
+        snapshot.update({"experiment_id": body.experiment_id,
+                         "experiment_arm": body.experiment_arm,
+                         "propensity": body.propensity})
     if not snapshot and body.event_type in {"click", "save", "apply", "dismiss", "skip"}:
         previous = db.scalar(select(RecommendationInteraction).where(
             RecommendationInteraction.user_id == user.id,
