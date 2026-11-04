@@ -5,6 +5,7 @@ import hashlib
 import pickle
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 import pandas as pd
 
@@ -21,13 +22,23 @@ FEATURE_SCHEMA_VERSION = 1
 
 
 def _auc(labels: list[int], scores: list[float]) -> float | None:
-    positives = [score for label, score in zip(labels, scores) if label == 1]
-    negatives = [score for label, score in zip(labels, scores) if label == 0]
+    if len(labels) != len(scores):
+        raise ValueError("AUC labels and scores must have equal length")
+    positives = sum(labels)
+    negatives = len(labels) - positives
     if not positives or not negatives:
         return None
-    comparisons = sum(1.0 if p > n else 0.5 if p == n else 0.0
-                      for p in positives for n in negatives)
-    return comparisons / (len(positives) * len(negatives))
+    ordered = sorted(zip(scores, labels), key=lambda item: item[0])
+    rank_sum = 0.0
+    index = 0
+    while index < len(ordered):
+        end = index + 1
+        while end < len(ordered) and ordered[end][0] == ordered[index][0]:
+            end += 1
+        average_rank = ((index + 1) + end) / 2.0
+        rank_sum += average_rank * sum(label for _, label in ordered[index:end])
+        index = end
+    return (rank_sum - positives * (positives + 1) / 2.0) / (positives * negatives)
 
 
 def _ndcg_at_k(labels: list[int], scores: list[float], k: int = 10) -> float | None:
@@ -107,7 +118,7 @@ def train_and_register_ranker(db: Session, *, min_rows: int = 100) -> dict[str, 
         owner_scope="recommendation-models",
     )
     trained_at = datetime.now(timezone.utc)
-    version = trained_at.strftime("%Y%m%dT%H%M%SZ")
+    version = trained_at.strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:8]
     record = RecommendationModel(
         model_name="job-relevance-ltr", model_version=version,
         algorithm="lightgbm_binary_classifier", artifact_key=stored["object_key"],
