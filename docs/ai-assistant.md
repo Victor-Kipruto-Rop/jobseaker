@@ -69,3 +69,32 @@ For OCR, install the Tesseract system binary in addition to the Python extra.
   can be uploaded and indexed through the document ingestion endpoint.
 - Tool planning currently uses a deterministic allowlisted intent router rather than an
   unconstrained autonomous agent. No browser or external write tool is auto-executed.
+
+## Explicit implementation boundaries
+
+This is the first integrated assistant release, not a claim that every advanced subsystem
+in the long-term architecture is production-complete.
+
+Not yet implemented:
+- Durable background ingestion/fact extraction workers; document parsing and memory writes
+  currently run synchronously in the authenticated API request.
+- Dedicated vector database or pgvector-backed assistant memory index. JSON embeddings are
+  persisted in PostgreSQL and the application retrieves a bounded recent set.
+- Full entity resolution across every project, employer, skill and person. The graph currently
+  captures explicitly extracted career goals, target roles, technology preferences and style facts.
+- Autonomous multi-step ReAct tool execution, external browser tools or dynamic third-party API
+  routing. The assistant uses a deterministic allowlist of read-only internal data tools.
+- Implicit dwell-time and scroll telemetry. Feedback ratings and explicit corrections are captured.
+- A dedicated toxicity classifier or independent post-generation moderation service. Safety
+  currently relies on input redaction, bounded tool permissions and model instructions.
+- Application-level encryption of episodic memory fields. Use encrypted database volumes,
+  TLS, strict database access controls and managed backups; credential secrets continue to use
+  the existing credential vault.
+- Automated fact verification UI. Extracted facts are labelled unverified and must not be
+  treated as confirmed candidate declarations.
+- GitHub-wide repository crawler/AST indexer. Uploaded Python source files are parsed locally.
+- Hierarchical LLM summarization of entire old conversations. Current memory summaries are
+  bounded extractive summaries.
+
+These boundaries are intentionally explicit so operators do not mistake optional fallbacks or
+initial integrations for completed infrastructure guarantees.
