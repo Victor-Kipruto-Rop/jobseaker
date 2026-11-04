@@ -144,6 +144,8 @@ async def discover_company_profile(source: str, board: str) -> dict:
         "company_description": "",
         "company_brand_color": "",
         "company_social_links": {},
+        "company_industry": "",
+        "company_headquarters": "",
         "company_brand_source": "",
     }
     try:
@@ -178,6 +180,13 @@ async def discover_company_profile(source: str, board: str) -> dict:
 
         description = meta.get("og:description") or meta.get("description") or ""
         profile["company_description"] = re.sub(r"\s+", " ", description).strip()[:2000]
+        profile["company_industry"] = (meta.get("industry") or meta.get("og:industry") or "").strip()[:160]
+        profile["company_headquarters"] = (
+            meta.get("business:contact_data:locality")
+            or meta.get("og:locality")
+            or meta.get("address")
+            or ""
+        ).strip()[:250]
         logo = meta.get("og:image") or meta.get("twitter:image") or (parser.logo_images[0] if parser.logo_images else "")
         theme_color = meta.get("theme-color", "").strip()
         if re.fullmatch(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?", theme_color):
@@ -206,6 +215,7 @@ async def discover_company_profile(source: str, board: str) -> dict:
         if profile["company"] != board_name or any(profile[key] for key in (
             "company_logo_url", "company_favicon_url", "company_website",
             "company_description", "company_brand_color", "company_social_links",
+            "company_industry", "company_headquarters",
         )):
             profile["company_brand_source"] = page_url
     except (httpx.HTTPError, ValueError, UnicodeError):
