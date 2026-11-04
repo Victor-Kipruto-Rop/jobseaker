@@ -101,7 +101,7 @@ async def discover_company_profile(source: str, board: str) -> dict:
                 board_response = await client.get(f"https://boards-api.greenhouse.io/v1/boards/{board}")
                 if board_response.status_code == 200:
                     board_payload = board_response.json()
-                    if isinstance(board_payload.get("name"), str) and board_payload["name"].strip():
+                    if isinstance(board_payload, dict) and isinstance(board_payload.get("name"), str) and board_payload["name"].strip():
                         profile["company"] = board_payload["name"].strip()[:250]
 
             response = await client.get(page_url)
@@ -143,7 +143,7 @@ async def discover_company_profile(source: str, board: str) -> dict:
                     and urlsplit(canonical_url).scheme == "https" and host.lower() not in ats_hosts):
                 profile["company_website"] = canonical_url
                 profile["company_domain"] = domain
-        if any(profile[key] for key in ("company_logo_url", "company_favicon_url", "company_website", "company_description")):
+        if any(profile[key] for key in ("company_logo_url", "company_favicon_url", "company_website", "company_description", "company_brand_color")):
             profile["company_brand_source"] = page_url
     except (httpx.HTTPError, ValueError, UnicodeError):
         return profile
