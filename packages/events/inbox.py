@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from packages.database.models.career import EventInbox
+from packages.events.contracts import EventEnvelope
 
 
 def consume_once(
@@ -17,15 +18,18 @@ def consume_once(
     """
     if not consumer_name or len(consumer_name) > 120:
         raise ValueError("consumer_name must contain 1..120 characters")
-    event_id = str(envelope.get("event_id") or "")
-    if not event_id or len(event_id) > 36:
-        raise ValueError("A valid event_id is required")
+    validated = EventEnvelope.model_validate(envelope)
+    event_id = validated.event_id
     existing = db.scalar(select(EventInbox).where(
         EventInbox.consumer_name == consumer_name, EventInbox.event_id == event_id,
     ))
     if existing:
         return False, existing.result or {}
-    result = handler(db, envelope) or {}
+    try:
+        result = handler(db, envelope) or {}
+    except Exception:
+        db.rollback()
+        raise
     db.add(EventInbox(
         consumer_name=consumer_name, event_id=event_id,
         processed_at=datetime.now(timezone.utc), result=result,
