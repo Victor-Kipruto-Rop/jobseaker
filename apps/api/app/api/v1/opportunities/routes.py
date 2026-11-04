@@ -51,6 +51,7 @@ class OpportunityCreate(BaseModel):
     company_logo_url: str = Field(default="", max_length=2000)
     company_favicon_url: str = Field(default="", max_length=2000)
     company_description: str = Field(default="", max_length=10000)
+    company_brand_color: str = Field(default="", max_length=7, pattern=r"^$|^#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?$")
     company_brand_source: str = Field(default="", max_length=1000)
     source_name: str = Field(default="manual", max_length=100)
     source_url: str = Field(default="", max_length=2000)
@@ -83,7 +84,8 @@ def list_opportunities(user: User = Depends(get_current_user), db: Session = Dep
     return [{"id": r.id, "title": r.title, "company": r.company, "location": r.location,
              "company_website": r.company_website, "company_domain": r.company_domain,
              "company_logo_url": r.company_logo_url, "company_favicon_url": r.company_favicon_url,
-             "company_description": r.company_description, "company_brand_source": r.company_brand_source,
+             "company_description": r.company_description, "company_brand_color": r.company_brand_color,
+             "company_brand_source": r.company_brand_source,
              "source_name": r.source_name, "source_url": r.source_url, "status": r.status,
              "required_skills": r.required_skills, "salary_min": r.salary_min, "salary_max": r.salary_max,
              "employment_type": r.employment_type, "remote_type": r.remote_type,
@@ -135,7 +137,7 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
     results = []
     brand_fields = (
         "company_website", "company_domain", "company_logo_url",
-        "company_favicon_url", "company_description", "company_brand_source",
+        "company_favicon_url", "company_description", "company_brand_color", "company_brand_source",
     )
     fallback_name = body.board.replace("-", " ").title()
     for item in filtered:
@@ -161,7 +163,7 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
         item["company"] = profile["company"]
         item.update({key: profile.get(key, "") for key in (
             "company_website", "company_domain", "company_logo_url",
-            "company_favicon_url", "company_description", "company_brand_source",
+            "company_favicon_url", "company_description", "company_brand_color", "company_brand_source",
         )})
         row = CandidateOpportunity(user_id=user.id, **item)
         db.add(row)
@@ -178,6 +180,7 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
                 "domain": profile["company_domain"], "logo_url": profile["company_logo_url"],
                 "favicon_url": profile["company_favicon_url"],
                 "description": profile["company_description"],
+                "brand_color": profile["company_brand_color"],
                 "source_url": profile["company_brand_source"],
                 "brand_assets_verified": bool(profile["company_logo_url"] or profile["company_favicon_url"]),
             }, "fetched": len(discovered), "matched_filters": len(filtered),
