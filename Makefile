@@ -1,6 +1,10 @@
 PYTHON ?= python
-COMPOSE = docker compose -f infrastructure/compose/docker-compose.yml
-.PHONY: test lint typecheck web-build verify verify-all migrate dev compose-up compose-down compose-config
+PNPM ?= pnpm
+DOCKER ?= docker
+COMPOSE = $(DOCKER) compose -f infrastructure/compose/docker-compose.yml
+WEB_DIR = apps/web
+
+.PHONY: test lint typecheck web-build migrate python-verify compose-config verify verify-all verify-stack dev compose-up compose-down
 
 test:
 	$(PYTHON) -m pytest -q
@@ -9,15 +13,15 @@ lint:
 	ruff check .
 
 typecheck:
-	cd apps/web && pnpm lint
+	cd $(WEB_DIR) && $(PNPM) lint
 
 web-build:
-	cd apps/web && pnpm build
+	cd $(WEB_DIR) && $(PNPM) build
 
 migrate:
 	alembic upgrade head
 
-verify:
+python-verify:
 	$(PYTHON) -m compileall -q apps packages tests migrations scripts
 	alembic upgrade head
 	alembic check
@@ -27,7 +31,15 @@ verify:
 compose-config:
 	$(COMPOSE) config --quiet
 
-verify-all: verify typecheck web-build compose-config
+# One local release-gate command. Requires the configured database, pnpm dependencies,
+# and Docker Compose to be available; it does not start containers or call live providers.
+verify: python-verify typecheck web-build compose-config
+
+verify-all: verify-stack
+
+# Starts the isolated local stack and runs the full release gate, including PostgreSQL tests.
+verify-stack:
+	$(PYTHON) scripts/verify_local_security.py
 
 dev:
 	uvicorn apps.api.app.main:app --reload --host 127.0.0.1 --port 8000

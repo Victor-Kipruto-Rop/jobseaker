@@ -3,6 +3,19 @@ services:
     build: {context: ../.., dockerfile: apps/api/Dockerfile}
     env_file: ../../.env
     environment:
+      APP_ENV: local
+      ADMIN_BOOTSTRAP_ENABLED: "false"
+      AI_DEFAULT_PROVIDER: mock
+      AI_FALLBACK_PROVIDER: mock
+      OPENAI_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      ANTHROPIC_ENABLED: "false"
+      ANTHROPIC_API_KEY: ""
+      SMTP_HOST: ""
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM_EMAIL: ""
+      GMAIL_CLIENT_SECRET_FILE: ""
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
     command: ["alembic", "upgrade", "head"]
     depends_on:
@@ -11,9 +24,27 @@ services:
     build: {context: ../.., dockerfile: apps/api/Dockerfile}
     env_file: ../../.env
     environment:
+      APP_ENV: local
+      ADMIN_BOOTSTRAP_ENABLED: "false"
+      AI_DEFAULT_PROVIDER: mock
+      AI_FALLBACK_PROVIDER: mock
+      OPENAI_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      ANTHROPIC_ENABLED: "false"
+      ANTHROPIC_API_KEY: ""
+      SMTP_HOST: ""
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM_EMAIL: ""
+      GMAIL_CLIENT_SECRET_FILE: ""
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
       REDIS_URL: redis://redis:6379/0
       STORAGE_PATH: /workspace/data/uploads
+      GLOBAL_AUTOMATION_PAUSED: "true"
+      AUTO_EMAIL_SEND: "false"
+      AUTO_APPLICATION_SUBMIT: "false"
+      GMAIL_ENABLED: "false"
+      JOB_DISCOVERY_ENABLED: "false"
     volumes: ["../../data:/workspace/data", "../../secrets:/run/secrets:ro"]
     ports: ["127.0.0.1:8000:8000"]
     healthcheck:
@@ -25,40 +56,93 @@ services:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
       migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
   web:
-    build: {context: ../.., dockerfile: apps/web/Dockerfile}
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
     ports: ["127.0.0.1:3000:3000"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
     depends_on:
       api: {condition: service_healthy}
   worker:
     build: {context: ../.., dockerfile: apps/worker/Dockerfile}
     env_file: ../../.env
     environment:
+      APP_ENV: local
+      ADMIN_BOOTSTRAP_ENABLED: "false"
+      AI_DEFAULT_PROVIDER: mock
+      AI_FALLBACK_PROVIDER: mock
+      OPENAI_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      ANTHROPIC_ENABLED: "false"
+      ANTHROPIC_API_KEY: ""
+      SMTP_HOST: ""
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM_EMAIL: ""
+      GMAIL_CLIENT_SECRET_FILE: ""
+      GLOBAL_AUTOMATION_PAUSED: "true"
+      AUTO_EMAIL_SEND: "false"
+      AUTO_APPLICATION_SUBMIT: "false"
+      GMAIL_ENABLED: "false"
+      JOB_DISCOVERY_ENABLED: "false"
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
       migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
   scheduler:
     build: {context: ../.., dockerfile: apps/scheduler/Dockerfile}
     env_file: ../../.env
     environment:
+      APP_ENV: local
+      ADMIN_BOOTSTRAP_ENABLED: "false"
+      AI_DEFAULT_PROVIDER: mock
+      AI_FALLBACK_PROVIDER: mock
+      OPENAI_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      ANTHROPIC_ENABLED: "false"
+      ANTHROPIC_API_KEY: ""
+      SMTP_HOST: ""
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM_EMAIL: ""
+      GMAIL_CLIENT_SECRET_FILE: ""
+      GLOBAL_AUTOMATION_PAUSED: "true"
+      AUTO_EMAIL_SEND: "false"
+      AUTO_APPLICATION_SUBMIT: "false"
+      GMAIL_ENABLED: "false"
+      JOB_DISCOVERY_ENABLED: "false"
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
       migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
   postgres:
     image: postgres:16-alpine
+    ports: ["127.0.0.1:5432:5432"]
     environment: {POSTGRES_DB: jobseeker, POSTGRES_USER: jobseeker, POSTGRES_PASSWORD: jobseeker_local}
     volumes: [jobseeker_pgdata:/var/lib/postgresql/data]
     healthcheck: {test: ["CMD-SHELL","pg_isready -U jobseeker -d jobseeker"], interval: 5s, timeout: 5s, retries: 15}
+    restart: unless-stopped
   redis:
     image: redis:7-alpine
+    ports: ["127.0.0.1:6379:6379"]
     volumes: [jobseeker_redisdata:/data]
     healthcheck: {test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 15}
+    restart: unless-stopped
 volumes:
   jobseeker_pgdata:
   jobseeker_redisdata:

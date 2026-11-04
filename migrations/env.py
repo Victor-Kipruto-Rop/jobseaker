@@ -1,6 +1,6 @@
 from logging.config import fileConfig
 from alembic import context
-from sqlalchemy import engine_from_config, pool, inspect
+from sqlalchemy import engine_from_config, pool
 from apps.api.app.core.config import get_settings
 from packages.database.models import Base
 from packages.database.models import identity, career, entities  # noqa: F401
@@ -20,6 +20,14 @@ def run_migrations_offline():
         context.run_migrations()
 
 def run_migrations_online():
+    supplied_connection = config.attributes.get("connection")
+    if supplied_connection is not None:
+        context.configure(connection=supplied_connection, target_metadata=target_metadata,
+                          compare_type=True, render_as_batch=supplied_connection.dialect.name == "sqlite")
+        with context.begin_transaction():
+            context.run_migrations()
+        return
+
     connectable = engine_from_config(config.get_section(config.config_ini_section),
                                      prefix="sqlalchemy.", poolclass=pool.NullPool)
     with connectable.connect() as connection:

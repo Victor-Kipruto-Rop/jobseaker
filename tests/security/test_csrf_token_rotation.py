@@ -72,3 +72,35 @@ def test_valid_csrf_token_is_stable_across_repeated_bootstrap_requests(monkeypat
         assert first["csrf_token"] == csrf_token
         assert second["csrf_token"] == csrf_token
     Base.metadata.drop_all(engine)
+
+def test_csrf_endpoint_rotates_a_tampered_cookie(monkeypatch):
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False},
+                           poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr(routes, "get_settings", lambda: SimpleNamespace(app_env="local"))
+    with Session(engine) as db:
+        user = User(email="csrf-tamper@example.com", password_hash="unused")
+        db.add(user)
+        db.commit()
+        session_token, csrf_token, _ = create_session(db, user)
+        tampered = csrf_token + "tampered"
+        cookie = f"jobseeker_session={session_token}; jobseeker_csrf={tampered}"
+        response = Response()
+        result = routes.csrf(_request(cookie), response, db)
+        session = db.query(routes.UserSession).filter_by(user_id=user.id).one()
+        assert result["authenticated"] is True
+        assert result["csrf_token"] != tampered
+        assert session.csrf_hash == hashlib.sha256(result["csrf_token"].encode()).hexdigest()
+    Base.metadata.drop_all(engine)
+
+from apps.api.app.api.v1.applications.routes import TRANSITIONS
+
+def test_ready_application_requires_explicit_approval_before_submission():
+    assert "approved" not in TRANSITIONS["ready"]
+    assert "submitted" not in TRANSITIONS["ready"]
+    assert "submitted" in TRANSITIONS["approved"]
+
+def test_application_lifecycle_does_not_allow_skipping_approval():
+    assert "approved" not in TRANSITIONS["draft"]
+    assert "submitted" not in TRANSITIONS["draft"]
+    assert TRANSITIONS["archived"] == set()

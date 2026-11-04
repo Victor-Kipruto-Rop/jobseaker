@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_default_model: str = "claude-sonnet-4-20250514"
     global_automation_paused: bool = True
+    admin_bootstrap_enabled: bool = False
     auto_email_send: bool = False
     auto_application_submit: bool = False
     @property

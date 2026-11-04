@@ -1,11 +1,12 @@
 import hashlib
+import hmac
 import secrets
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
-from apps.api.app.dependencies import get_db, get_current_user
+from apps.api.app.dependencies import get_db, get_current_user, require_roles
 from apps.api.app.core.config import get_settings
 from apps.api.app.core.redis_limits import enforce_rate_limit
 from apps.api.app.core.security import create_session, hash_password, resolve_session, revoke_session, verify_password
@@ -18,6 +19,8 @@ COOKIE_NAME = "jobseeker_session"
 CSRF_COOKIE = "jobseeker_csrf"
 
 class RegisterRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     email: EmailStr
     password: str = Field(min_length=12, max_length=128)
     full_name: str = Field(min_length=2, max_length=160)
@@ -85,6 +88,11 @@ def login(body: LoginRequest, request: Request, response: Response, db: Session 
     user = db.scalar(select(User).where(User.email == body.email.lower()))
     if not user or not verify_password(body.password, user.password_hash) or not user.is_active:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    # Rotate an existing session presented by this browser without logging out
+    # the user's other devices.
+    previous = resolve_session(db, request.cookies.get(COOKIE_NAME))
+    if previous:
+        revoke_session(db, previous[1])
     token, csrf_token, expires = create_session(db, user)
     db.add(AuditLog(user_id=user.id, action="account.login"))
     db.commit()
@@ -133,14 +141,14 @@ def _consume_account_token(db: Session, raw_token: str, purpose: str):
     record = db.scalar(select(AccountToken).where(
         AccountToken.token_hash == token_hash, AccountToken.purpose == purpose,
         AccountToken.consumed_at.is_(None),
-        AccountToken.expires_at > datetime.now(timezone.utc)))
+        AccountToken.expires_at > datetime.now(timezone.utc)).with_for_update())
     if not record:
         raise HTTPException(status_code=400, detail="Token is invalid, expired, or already used")
     record.consumed_at = datetime.now(timezone.utc)
     return record
 
 @router.post("/verification/request")
-def request_verification(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def request_verification(user: User = Depends(require_roles("candidate")), db: Session = Depends(get_db)):
     if user.is_verified:
         return {"status": "already_verified"}
     enforce_rate_limit(f"verify-email:{user.id}", 3, 3600)
@@ -188,7 +196,6 @@ def request_password_reset(body: PasswordResetRequest, request: Request,
         if get_settings().app_env == "production":
             _consume_account_token(db, token, "password_reset")
             db.commit()
-        # Never disclose reset tokens in production or reveal account existence.
         return {"status": "accepted"}
     return {"status": "accepted"}
 

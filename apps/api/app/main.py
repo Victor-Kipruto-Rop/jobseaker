@@ -1,5 +1,3 @@
-import hashlib
-import hmac
 import re
 import time
 from uuid import uuid4
@@ -8,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from apps.api.app.core.config import get_settings
 from apps.api.app.core.security import resolve_session
+from apps.api.app.core.csrf import double_submit_matches, token_is_bound_to_session
 from apps.api.app.core.origin import is_allowed_origin, origin_from_referer
 from apps.api.app.lifespan import lifespan
 from apps.api.app.api.v1.router import router
@@ -28,6 +27,8 @@ async def csrf_protection(request: Request, call_next):
         origin = request.headers.get("origin")
         referer = request.headers.get("referer")
         browser_origin = origin or origin_from_referer(referer)
+        # Validate Origin/Referer whenever supplied. Non-browser clients may omit
+        # these headers, but must still present the same double-submit CSRF token.
         if browser_origin and not is_allowed_origin(browser_origin, s.allowed_origins):
             return JSONResponse(status_code=403, content={"detail": "Untrusted request origin"})
         fetch_site = request.headers.get("sec-fetch-site", "").lower()
@@ -40,10 +41,9 @@ async def csrf_protection(request: Request, call_next):
             with SessionLocal() as db:
                 resolved = resolve_session(db, session_token)
                 if resolved:
-                    if not csrf_cookie or not csrf_header or not hmac.compare_digest(csrf_cookie, csrf_header):
+                    if not double_submit_matches(csrf_cookie, csrf_header):
                         return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
-                    expected = hashlib.sha256(csrf_cookie.encode("utf-8")).hexdigest()
-                    if not hmac.compare_digest(resolved[1].csrf_hash, expected):
+                    if not token_is_bound_to_session(csrf_cookie, resolved[1].csrf_hash):
                         return JSONResponse(status_code=403, content={"detail": "CSRF session binding failed"})
                 else:
                     public_token_routes = {
@@ -54,8 +54,12 @@ async def csrf_protection(request: Request, call_next):
                     }
                     if request.url.path not in public_token_routes:
                         return JSONResponse(status_code=403, content={"detail": "Session is invalid"})
-                    if not csrf_cookie or not csrf_header or not hmac.compare_digest(csrf_cookie, csrf_header):
+                    if not double_submit_matches(csrf_cookie, csrf_header):
                         return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
+        else:
+            # Anonymous browser mutations must also complete the CSRF bootstrap handshake.
+            if not double_submit_matches(csrf_cookie, csrf_header):
+                return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
     response = await call_next(request)
     return response
 

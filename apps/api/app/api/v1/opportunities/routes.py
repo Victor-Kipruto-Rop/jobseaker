@@ -62,7 +62,7 @@ class OpportunityCreate(BaseModel):
         return validate_http_url(value)
 
 @router.post("/match")
-def match(body: MatchRequest, request: Request):
+def match(body: MatchRequest, request: Request, user: User = Depends(get_current_user)):
     enforce_rate_limit(f"job-match:{request.client.host if request.client else 'unknown'}", limit=60, window_seconds=60)
     return score_job(body.title, body.description, body.skills)
 

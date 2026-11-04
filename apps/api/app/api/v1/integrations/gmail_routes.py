@@ -10,6 +10,7 @@ from packages.database.models.career import EmailAccount, EmailMessage
 from packages.integrations.gmail.client import create_authorization, complete_authorization, sync_messages
 
 router = APIRouter(prefix="/gmail")
+oauth_callback_router = APIRouter(prefix="/gmail")
 
 @router.post("/authorize")
 def authorize(user: User = Depends(get_verified_user), db: Session = Depends(get_db)):
@@ -23,7 +24,7 @@ def authorize(user: User = Depends(get_verified_user), db: Session = Depends(get
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Unable to start Gmail authorization. Check OAuth client configuration.") from exc
 
-@router.get("/callback")
+@oauth_callback_router.get("/callback")
 def callback(state: str = Query(min_length=20), code: str = Query(min_length=5),
              db: Session = Depends(get_db)):
     try:

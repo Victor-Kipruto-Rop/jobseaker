@@ -55,7 +55,8 @@ See [Platform architecture and engineering contracts](docs/architecture/platform
 3. Keep APP_ENV=local. Replace APP_SECRET_KEY with a random local secret of at least 32 characters.
 4. For local Python verification, create a virtual environment and install the development dependencies: `python -m venv .venv`, activate it (PowerShell: `.venv\\Scripts\\Activate.ps1`), then run `python -m pip install -e ".[dev]"`.
 5. For local web verification, run `pnpm install` from the repository root.
-6. Run:
+6. Optional: provision an administrator only through the audited operator command. Set `ADMIN_BOOTSTRAP_ENABLED=true` temporarily in the local `.env`, then run `python scripts/promote_admin.py --email admin@example.com --confirm`. The command refuses to run without the flag and explicit confirmation; disable the flag again immediately afterward. No public API can assign privileged roles.
+7. Run:
 
    docker compose -f infrastructure/compose/docker-compose.yml config
    docker compose -f infrastructure/compose/docker-compose.yml up --build
@@ -86,3 +87,22 @@ Configure OpenAI or Anthropic credentials only in the private API environment. N
 ## Current release status
 
 This is an actively developed feature branch, not a production-ready release. Authentication, user-scoped workflows, persistent AI conversations and drafts, provider routing, job-board connectors, Gmail read-only integration, local CV processing, approval-gated application tracking, and recurring discovery have implementation code. However, this turn has not run Python tests, frontend lint/build, Docker Compose, database migrations, or live third-party integrations. Production object storage, backup/restore drills, full account deletion/export, richer job-source coverage, production OAuth review, and comprehensive end-to-end security verification remain outstanding. Do not merge or deploy based on code presence alone.
+
+
+### Install local verification dependencies
+
+From the repository root, install the Python development extras and frontend packages
+before running the release gate:
+
+```powershell
+python -m pip install -e ".[dev]"
+cd apps/web
+pnpm install
+cd ../..
+python scripts/verify_local_security.py
+```
+
+Use the Python version required by `pyproject.toml` (Python 3.12 or newer). Docker
+builds the API, worker, scheduler, and web containers from their dedicated Dockerfiles.
+The local release gate uses the host Python and pnpm installations for tests, linting,
+and frontend type-check/build verification.
