@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode, KeyboardEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Activity, Bell, BriefcaseBusiness, CalendarDays, CheckCheck, ChevronDown,
+  Activity, Bell, BriefcaseBusiness, CalendarDays, CheckCheck, ChevronDown, Inbox,
   CircleHelp, Command, Compass, FileText, FolderKanban, GraduationCap,
   LayoutDashboard, LogOut, Menu, Plus, Search, Settings2, ShieldCheck,
-  Sparkles, StickyNote, Target, TrendingUp, UserRound, WandSparkles, X,
+  StickyNote, Target, TrendingUp, UserRound, WandSparkles, X,
   ListTodo, BarChart3, Bookmark, CalendarCheck, Users, ChartNoAxesCombined
 } from "lucide-react";
 import styles from "./app-shell.module.css";
@@ -129,14 +129,14 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
     try {
       const [jobsResponse, appsResponse, itemsResponse] = await Promise.all([
         api("/api/v1/opportunities"), api("/api/v1/applications"),
-        api("/api/v1/workspace/items?item_type=note"),
+        api("/api/v1/workspace/items"),
       ]);
       if (!jobsResponse.ok || !appsResponse.ok || !itemsResponse.ok) throw new Error("Workspace search is temporarily unavailable.");
-      const [jobs, apps, notes] = await Promise.all([jobsResponse.json(), appsResponse.json(), itemsResponse.json()]);
+      const [jobs, apps, items] = await Promise.all([jobsResponse.json(), appsResponse.json(), itemsResponse.json()]);
       const term = query.trim().toLowerCase();
       const records: SearchRecord[] = [];
       if (Array.isArray(jobs)) jobs.forEach((job: {id:number;title?:string;company?:string;status?:string}) => {
-        if ((job.title + " " + job.company).toLowerCase().includes(term)) records.push({id:job.id,title:job.title||"Untitled opportunity",subtitle:job.company||"Saved opportunity",href:"/opportunities?view=saved",kind:"OPPORTUNITY"});
+        if ((job.title + " " + job.company).toLowerCase().includes(term)) records.push({id:job.id,title:job.title||"Untitled opportunity",subtitle:job.company||"Saved opportunity",href:"/saved-opportunities",kind:"OPPORTUNITY"});
       });
       if (Array.isArray(apps)) apps.forEach((app: {id:number;role_title?:string;company_name?:string;status?:string}) => {
         if ((app.role_title + " " + app.company_name).toLowerCase().includes(term)) records.push({id:app.id,title:app.role_title||"Untitled application",subtitle:(app.company_name||"Application")+" · "+(app.status||"draft"),href:"/applications",kind:"APPLICATION"});
@@ -252,7 +252,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
             </div>}
           </div>
           <button className={styles.topIcon} onClick={()=>navigate("/calendar")} aria-label="Open career calendar" title="Calendar"><CalendarDays size={17}/></button>
-          <button className={styles.topIcon} onClick={()=>navigate("/settings#gmail")} aria-label="Open activity inbox" title="Activity inbox"><Bell size={17}/></button>
+          <button className={styles.topIcon} onClick={()=>navigate("/settings#gmail")} aria-label="Open activity inbox" title="Activity inbox"><Inbox size={17}/></button>
           <div className={styles.noticeWrap}>
             <button className={styles.noticeButton} onClick={()=>void toggleNotices()} aria-label={unread?unread+" unread notifications":"Notifications"} aria-expanded={noticeOpen}><Bell size={18}/>{unread>0&&<i/>}</button>
             {noticeOpen&&<div className={styles.noticePanel}>
