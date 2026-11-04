@@ -20,6 +20,8 @@ def reserve_application_dispatch(
     if not idempotency_key or len(idempotency_key) > 128:
         raise ValueError("An idempotency key of 1..128 characters is required")
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    raw_job_key = str(payload.get("job_key") or payload.get("job_url") or f"application:{application_id}")
+    job_key = hashlib.sha256(raw_job_key.strip().lower().rstrip("/").encode()).hexdigest()
     existing = db.scalar(select(ApplicationDispatchKey).where(
         ApplicationDispatchKey.user_id == user_id,
         ApplicationDispatchKey.application_id == application_id,
@@ -28,9 +30,16 @@ def reserve_application_dispatch(
         if existing.idempotency_key != idempotency_key or existing.payload_hash != digest:
             raise DispatchConflict("This application already has a dispatch reservation")
         return existing
+    duplicate_job = db.scalar(select(ApplicationDispatchKey).where(
+        ApplicationDispatchKey.user_id == user_id,
+        ApplicationDispatchKey.job_key == job_key,
+    ).with_for_update())
+    if duplicate_job:
+        raise DispatchConflict("This job already has a dispatch reservation for this account")
     row = ApplicationDispatchKey(
-        user_id=user_id, application_id=application_id, idempotency_key=idempotency_key,
-        payload_hash=digest, status="reserved", created_at=datetime.now(timezone.utc),
+        user_id=user_id, application_id=application_id, job_key=job_key,
+        idempotency_key=idempotency_key, payload_hash=digest,
+        status="reserved", created_at=datetime.now(timezone.utc),
     )
     db.add(row)
     try:
