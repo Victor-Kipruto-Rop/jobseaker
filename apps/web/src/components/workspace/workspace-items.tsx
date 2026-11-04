@@ -35,7 +35,9 @@ export default function WorkspaceItems({itemType}:{itemType:ItemType}){
  const [title,setTitle]=useState("");
  const [description,setDescription]=useState("");
  const [priority,setPriority]=useState("normal");
- const [dueAt,setDueAt]=useState("");\n const [reference,setReference]=useState("");\n const [organization,setOrganization]=useState("");
+ const [dueAt,setDueAt]=useState("");
+ const [reference,setReference]=useState("");
+ const [organization,setOrganization]=useState("");
 
  const load=useCallback(async()=>{setLoading(true);setError("");try{const r=await api("/api/v1/workspace/items?item_type="+itemType);if(r.status===401){window.location.assign("/login");return;}if(!r.ok)throw new Error("Unable to load "+meta.title.toLowerCase()+".");const data=await r.json();if(!Array.isArray(data))throw new Error("The workspace service returned an invalid record set.");setRows(data);}catch(e){setError(e instanceof Error?e.message:"Unable to load records.");}finally{setLoading(false);}},[itemType,meta.title]);
  useEffect(()=>{void load();},[load]);
