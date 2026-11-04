@@ -3,7 +3,9 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 import httpx
 from apps.api.app.core.redis_limits import enforce_rate_limit
-from packages.integrations.job_boards.connectors import discover_greenhouse, discover_lever, filter_jobs
+from packages.integrations.job_boards.connectors import (
+    discover_company_profile, discover_greenhouse, discover_lever, filter_jobs,
+)
 from packages.integrations.url_validation import validate_http_url
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -44,6 +46,12 @@ class OpportunityCreate(BaseModel):
     title: str = Field(min_length=2, max_length=250)
     company: str = Field(default="", max_length=250)
     description: str = Field(default="", max_length=30000)
+    company_website: str = Field(default="", max_length=1000)
+    company_domain: str = Field(default="", max_length=253)
+    company_logo_url: str = Field(default="", max_length=2000)
+    company_favicon_url: str = Field(default="", max_length=2000)
+    company_description: str = Field(default="", max_length=10000)
+    company_brand_source: str = Field(default="", max_length=1000)
     source_name: str = Field(default="manual", max_length=100)
     source_url: str = Field(default="", max_length=2000)
     location: str = Field(default="", max_length=250)
@@ -56,7 +64,7 @@ class OpportunityCreate(BaseModel):
     def normalize_required_skills(cls, values):
         return list(dict.fromkeys(value.strip()[:120] for value in values if value.strip()))
 
-    @field_validator("source_url")
+    @field_validator("source_url", "company_website", "company_logo_url", "company_favicon_url", "company_brand_source")
     @classmethod
     def safe_source_url(cls, value):
         return validate_http_url(value)
@@ -73,6 +81,9 @@ def list_opportunities(user: User = Depends(get_current_user), db: Session = Dep
     skills = db.scalars(select(CandidateSkill).where(CandidateSkill.user_id == user.id)).all()
     candidate_skills = [item.skill_name for item in skills]
     return [{"id": r.id, "title": r.title, "company": r.company, "location": r.location,
+             "company_website": r.company_website, "company_domain": r.company_domain,
+             "company_logo_url": r.company_logo_url, "company_favicon_url": r.company_favicon_url,
+             "company_description": r.company_description, "company_brand_source": r.company_brand_source,
              "source_name": r.source_name, "source_url": r.source_url, "status": r.status,
              "required_skills": r.required_skills, "salary_min": r.salary_min, "salary_max": r.salary_max,
              "employment_type": r.employment_type, "remote_type": r.remote_type,
@@ -117,6 +128,9 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail="Unable to reach the selected job board") from exc
     filtered = filter_jobs(discovered, keywords=body.keywords, location=body.location, remote_only=body.remote_only)
+    profile = await discover_company_profile(body.source, body.board)
+    if body.company_name:
+        profile["company"] = body.company_name.strip()
     saved, skipped = 0, 0
     results = []
     for item in filtered:
@@ -125,12 +139,16 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
             CandidateOpportunity.user_id == user.id, CandidateOpportunity.source_url == url)):
             skipped += 1
             continue
-        if body.company_name:
-            item["company"] = body.company_name
+        item["company"] = profile["company"]
+        item.update({key: profile.get(key, "") for key in (
+            "company_website", "company_domain", "company_logo_url",
+            "company_favicon_url", "company_description", "company_brand_source",
+        )})
         row = CandidateOpportunity(user_id=user.id, **item)
         db.add(row)
         saved += 1
-        results.append({"title": row.title, "company": row.company, "source_url": row.source_url})
+        results.append({"title": row.title, "company": row.company, "source_url": row.source_url,
+                        "company_logo_url": row.company_logo_url, "company_website": row.company_website})
     try:
         db.commit()
     except IntegrityError as exc:
