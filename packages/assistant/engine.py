@@ -244,7 +244,9 @@ def build_context(db: Session, user_id: int, query: str, history: list[dict],
         if source and target:
             graph.append(f"{source.name} --{edge.relation_type}--> {target.name}")
     sections = ["USER FACTS (unverified unless explicitly marked):"]
-    sections.extend(f"- {f.fact_key}: {decrypt_credential(f.fact_value, purpose=f"assistant-fact:{user_id}") if f.fact_value_encrypted else f.fact_value} (confidence {f.confidence:.2f}; verified={f.verified_by_user})" for f in facts)
+    for fact in facts:
+        fact_value = decrypt_credential(fact.fact_value, purpose=f"assistant-fact:{user_id}") if fact.fact_value_encrypted else fact.fact_value
+        sections.append(f"- {fact.fact_key}: {fact_value} (confidence {fact.confidence:.2f}; verified={fact.verified_by_user})")
     sections.append("RELEVANT EPISODIC MEMORY:")
     sections.extend(f"- {m['content']}" for m in memories)
     sections.append("SEMANTIC KNOWLEDGE GRAPH:")
