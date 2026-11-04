@@ -1,0 +1,51 @@
+"use client";
+import {useEffect,useRef,useState} from "react";
+import {Bot,BrainCircuit,Send,Plus,ShieldCheck,History,Settings2,ThumbsUp,ThumbsDown,Trash2,Sparkles} from "lucide-react";
+const API=process.env.NEXT_PUBLIC_API_BASE_URL||"http://localhost:8000";
+function csrf(){return decodeURIComponent(document.cookie.split("; ").find(x=>x.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=")||"");}
+async function api(path:string,init:RequestInit={}){const h=new Headers(init.headers);if(init.method)h.set("X-CSRF-Token",csrf());const r=await fetch(API+path,{...init,headers:h,credentials:"include",cache:"no-store"});if(r.status===401)window.location.assign("/login");return r;}
+type Message={id?:number;role:"user"|"assistant";content:string};
+export default function AssistantPage(){
+ const [messages,setMessages]=useState<Message[]>([]),[input,setInput]=useState(""),[conversation,setConversation]=useState<number|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(""),[memory,setMemory]=useState<any>(null),[showMemory,setShowMemory]=useState(false);
+ const bottom=useRef<HTMLDivElement>(null);
+ async function loadMemory(){const r=await api("/api/v1/ai/assistant/memory");if(r.ok)setMemory(await r.json());}
+ useEffect(()=>{void loadMemory();},[]);
+ useEffect(()=>{bottom.current?.scrollIntoView({behavior:"smooth"});},[messages]);
+ async function send(text=input){if(!text.trim()||busy)return;setError("");setInput("");setMessages(m=>[...m,{role:"user",content:text}]);setBusy(true);
+  try{const r=await api("/api/v1/ai/assistant/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text,conversation_id:conversation})});const d=await r.json();if(!r.ok)throw new Error(d.detail||"Assistant request failed");setConversation(d.conversation_id);setMessages(m=>[...m,{role:"assistant",content:d.text,id:d.message_id}]);}
+  catch(e){setError(e instanceof Error?e.message:"Unable to reach assistant");}
+  finally{setBusy(false);}
+ }
+ async function feedback(message:Message,rating:number){if(!message.id)return;await api("/api/v1/ai/assistant/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:conversation,message_id:message.id,rating})});}
+ async function toggleMemory(){const enabled=!(memory?.enabled??true);const r=await api("/api/v1/ai/assistant/memory?enabled="+enabled,{method:"PATCH"});if(r.ok)await loadMemory();}
+ async function clearMemory(){if(!confirm("Delete your saved assistant memories and extracted facts? Conversation history will remain."))return;const r=await api("/api/v1/ai/assistant/memory",{method:"DELETE"});if(r.ok)await loadMemory();}
+ function newChat(){setMessages([]);setConversation(null);setError("");}
+ return <main style={{minHeight:"100vh",background:"#f5f8f6",color:"#17352a",display:"grid",gridTemplateColumns:"minmax(0,1fr) 320px",fontFamily:"Inter,ui-sans-serif,system-ui"}}>
+  <section style={{minWidth:0,display:"flex",flexDirection:"column",height:"100vh"}}>
+   <header style={{height:76,background:"#fff",borderBottom:"1px solid #e3ebe6",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 28px"}}>
+    <div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:40,height:40,borderRadius:13,background:"#e2f5eb",display:"grid",placeItems:"center",color:"#168653"}}><Bot size={22}/></div><div><strong style={{fontSize:16}}>JobSeeker Assistant</strong><div style={{fontSize:12,color:"#71877b"}}>Your personal career intelligence partner</div></div></div>
+    <button onClick={newChat} style={outline}><Plus size={15}/> New conversation</button>
+   </header>
+   <div style={{flex:1,overflowY:"auto",padding:"34px max(24px,calc((100% - 850px)/2))"}}>
+    {messages.length===0?<div style={{maxWidth:760,margin:"9vh auto 0"}}><div style={{color:"#168653",fontSize:12,fontWeight:750,letterSpacing:1.4}}>CAREER INTELLIGENCE</div><h1 style={{fontSize:36,lineHeight:1.12,letterSpacing:-1.2,margin:"12px 0"}}>Make your next career move with clarity.</h1><p style={{color:"#71877b",fontSize:16,lineHeight:1.7}}>Ask about your applications, interview preparation, career direction, CV, skills or job search. Your assistant can use your saved career context when memory is enabled.</p><div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:12,marginTop:30}}>{["Review my current application pipeline","Help me prepare for an upcoming interview","Identify skill gaps for my target role","Improve my CV for data engineering roles"].map(x=><button key={x} onClick={()=>void send(x)} style={suggestion}><Sparkles size={16} color="#168653"/>{x}</button>)}</div></div>:<div style={{maxWidth:850,margin:"0 auto",display:"grid",gap:22}}>{messages.map((m,i)=><article key={i} style={{display:"flex",gap:12,alignItems:"flex-start",flexDirection:m.role==="user"?"row-reverse":"row"}}><div style={{width:34,height:34,flexShrink:0,borderRadius:11,background:m.role==="assistant"?"#e2f5eb":"#e9eef0",display:"grid",placeItems:"center",color:"#168653"}}>{m.role==="assistant"?<Bot size={18}/>:<span style={{fontWeight:700}}>Y</span>}</div><div style={{maxWidth:"85%",background:m.role==="assistant"?"#fff":"#eaf5ee",border:"1px solid #e2ebe5",borderRadius:16,padding:"15px 17px",whiteSpace:"pre-wrap",lineHeight:1.65,fontSize:14}}>{m.content}{m.role==="assistant"&&<div style={{display:"flex",gap:8,marginTop:12}}><button title="Helpful" onClick={()=>void feedback(m,5)} style={iconButton}><ThumbsUp size={14}/></button><button title="Not helpful" onClick={()=>void feedback(m,1)} style={iconButton}><ThumbsDown size={14}/></button></div>}</div></article>)}</div>}
+    {busy&&<div style={{maxWidth:850,margin:"22px auto",color:"#71877b",fontSize:13}}>Thinking through your career context…</div>}{error&&<p role="alert" style={{color:"#b42318",maxWidth:850,margin:"12px auto"}}>{error}</p>}<div ref={bottom}/>
+   </div>
+   <form onSubmit={e=>{e.preventDefault();void send();}} style={{maxWidth:900,width:"calc(100% - 40px)",margin:"0 auto 24px",display:"flex",gap:10,background:"#fff",padding:10,border:"1px solid #dce8e0",borderRadius:18,boxShadow:"0 8px 30px rgba(22,70,46,.06)"}}>
+    <textarea value={input} onChange={e=>setInput(e.target.value)} rows={2} placeholder="Ask your career assistant anything…" style={{flex:1,border:0,outline:0,resize:"none",padding:10,font: "inherit",color:"#17352a"}}/>
+    <button disabled={busy||!input.trim()} style={{...sendButton,opacity:busy||!input.trim()?.5:1}} aria-label="Send message"><Send size={17}/></button>
+   </form>
+  </section>
+  <aside style={{background:"#fff",borderLeft:"1px solid #e3ebe6",padding:22,overflowY:"auto"}}>
+   <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:22}}><BrainCircuit color="#168653"/><strong>Personal context</strong></div>
+   <div style={sideCard}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><strong style={{fontSize:13}}>Memory</strong><span style={{fontSize:11,color:memory?.enabled?"#168653":"#9a6b24"}}>{memory?.enabled?"Enabled":"Paused"}</span></div><p style={{fontSize:12,color:"#71877b",lineHeight:1.6}}>Use relevant conversation memories to personalize career guidance.</p><button style={outline} onClick={()=>void toggleMemory()}>{memory?.enabled?"Pause memory":"Enable memory"}</button></div>
+   <div style={{...sideCard,marginTop:14}}><div style={{display:"flex",alignItems:"center",gap:8}}><ShieldCheck size={17} color="#168653"/><strong style={{fontSize:13}}>Privacy controls</strong></div><p style={{fontSize:12,color:"#71877b",lineHeight:1.6}}>Memories are private to your account. Sensitive-looking identifiers are redacted before memory storage and model context assembly.</p><button onClick={()=>void clearMemory()} style={{...outline,color:"#a33"}}><Trash2 size={14}/> Clear saved memory</button></div>
+   <div style={{...sideCard,marginTop:14}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><strong style={{fontSize:13}}>Remembered facts</strong><button onClick={()=>setShowMemory(v=>!v)} style={iconButton}><History size={14}/></button></div><div style={{fontSize:26,fontWeight:750,marginTop:8}}>{memory?.episodic_count??"—"}</div><div style={{fontSize:11,color:"#71877b"}}>episodic memories</div>{showMemory&&(memory?.facts||[]).map((f:any)=><div key={f.id} style={{padding:"10px 0",borderTop:"1px solid #edf1ee",marginTop:8}}><div style={{fontSize:11,color:"#71877b"}}>{f.key} · {Math.round(f.confidence*100)}% confidence</div><div style={{fontSize:12,marginTop:3}}>{f.value}</div></div>)}</div>
+   <div style={{fontSize:11,color:"#91a198",lineHeight:1.6,marginTop:18}}>Assistant responses can be wrong. Review important career facts and approve all external actions yourself.</div>
+  </aside>
+ </main>
+}
+const outline:React.CSSProperties={border:"1px solid #dce8e0",background:"#fff",borderRadius:10,padding:"9px 12px",display:"inline-flex",alignItems:"center",gap:7,color:"#315c46",fontSize:12,cursor:"pointer"};
+const suggestion:React.CSSProperties={background:"#fff",border:"1px solid #e1ebe4",borderRadius:14,padding:16,textAlign:"left",display:"flex",gap:10,alignItems:"center",color:"#315c46",fontSize:13,cursor:"pointer"};
+const sideCard:React.CSSProperties={background:"#f8faf9",border:"1px solid #e6ede8",borderRadius:14,padding:15};
+const iconButton:React.CSSProperties={border:"1px solid #e1ebe4",background:"#fff",borderRadius:8,padding:7,color:"#557464",cursor:"pointer"};
+const sendButton:React.CSSProperties={alignSelf:"stretch",border:0,borderRadius:12,background:"#168653",color:"#fff",padding:"0 17px",cursor:"pointer"};
