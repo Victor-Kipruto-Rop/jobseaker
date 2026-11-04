@@ -24,7 +24,7 @@
 .brandName{font-size:19px;letter-spacing:-.9px}
 .brandName small{font-size:8px;letter-spacing:1.8px}
 .workspaceCard{padding:12px;margin-bottom:24px;border-radius:8px;background:#f8faf7}
-.navigation{display:flex;flex-direction:column;gap:22px}
+.navigation{display:flex;flex-direction:column;gap:22px}.navGroup{display:flex;flex-direction:column;gap:3px}
 .navGroup{display:flex;flex-direction:column;gap:3px}
 .navHeading{margin:0 0 6px;padding:0 11px;color:#9aa59b;font-size:8px;letter-spacing:1.7px}
 .navLink,.navActive{min-height:41px;padding:0 11px;margin:0;border-radius:6px;font-size:12px;gap:12px}
