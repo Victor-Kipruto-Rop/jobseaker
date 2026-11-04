@@ -5,7 +5,7 @@ import type { ReactNode, KeyboardEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity, Bell, BriefcaseBusiness, CalendarDays, CheckCheck, ChevronDown, Inbox,
-  CircleHelp, Command, Compass, FileText, FolderKanban, GraduationCap,
+  CircleHelp, Command, Compass, FileText, FolderKanban, GraduationCap, BookOpen,
   LayoutDashboard, LogOut, Menu, Plus, Search, Settings2, ShieldCheck,
   Sparkles, StickyNote, Target, TrendingUp, UserRound, WandSparkles, X,
   ListTodo, BarChart3, Bookmark, CalendarCheck, Users, ChartNoAxesCombined
@@ -39,7 +39,7 @@ const navGroups = [
     { label: "Career profile", href: "/profile", icon: UserRound },
     { label: "CV & documents", href: "/profile#resumes", icon: FileText },
     { label: "AI career studio", href: "/profile#career-tools", icon: WandSparkles },
-    { label: "Skills & learning", href: "/learning", icon: GraduationCap },
+    { label: "Skills inventory", href: "/profile#skills", icon: GraduationCap },\n    { label: "Learning roadmap", href: "/learning", icon: BookOpen },
     { label: "Career projects", href: "/projects", icon: FolderKanban },
   ]},
   { heading: "INTELLIGENCE", items: [
