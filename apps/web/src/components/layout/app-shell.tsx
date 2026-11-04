@@ -33,6 +33,7 @@ const navGroups = [
     { label: "Discover jobs", href: "/opportunities", icon: Compass },
     { label: "Saved opportunities", href: "/saved-opportunities", icon: Bookmark },
     { label: "Applications", href: "/applications", icon: BriefcaseBusiness },
+    { label: "Companies", href: "/companies", icon: Building2 },
     { label: "Interviews", href: "/interviews", icon: CalendarCheck },
   ]},
   { heading: "CAREER DEVELOPMENT", items: [
@@ -64,6 +65,7 @@ const commandItems = [
   { label: "Go to overview", description: "Your career command centre", href: "/dashboard", icon: LayoutDashboard },
   { label: "Discover opportunities", description: "Search and shortlist roles", href: "/opportunities", icon: Compass },
   { label: "Open applications", description: "Manage your application pipeline", href: "/applications", icon: BriefcaseBusiness },
+  { label: "Company intelligence", description: "Explore employer profiles and vacancies", href: "/companies", icon: Building2 },
   { label: "Prepare for interviews", description: "Schedule and manage interviews", href: "/interviews", icon: CalendarCheck },
   { label: "Edit career profile", description: "Experience, education and skills", href: "/profile", icon: UserRound },
   { label: "Open CV documents", description: "Your resumes and career documents", href: "/profile#resumes", icon: FileText },
