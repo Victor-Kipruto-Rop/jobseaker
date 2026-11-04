@@ -10,7 +10,7 @@ from apps.api.app.dependencies import get_current_user, get_db
 from apps.api.app.core.config import get_settings
 from packages.database.models.identity import User
 from packages.database.models.career import AIConversation, AIMessage, Application, Interview, CandidateProfile, CandidateSkill, ResumeDocument, CandidateOpportunity
-from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference, AssistantFeedback
+from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference, AssistantFeedback, AssistantEntity, AssistantRelation
 from packages.assistant.engine import sanitize, remember, retrieve, build_context, plan_tools, adapt_preferences, embedding
 from packages.assistant.ingestion import parse_document, MAX_BYTES
 from packages.ai.providers.base import GenerationRequest
@@ -148,6 +148,8 @@ def set_memory(enabled: bool, user:User=Depends(get_current_user),db:Session=Dep
 
 @router.delete("/assistant/memory")
 def delete_memory(user:User=Depends(get_current_user),db:Session=Depends(get_db)):
+    db.query(AssistantRelation).filter(AssistantRelation.user_id==user.id).delete(synchronize_session=False)
+    db.query(AssistantEntity).filter(AssistantEntity.user_id==user.id).delete(synchronize_session=False)
     db.query(AssistantMemory).filter(AssistantMemory.user_id==user.id).delete(synchronize_session=False)
     db.query(AssistantFact).filter(AssistantFact.user_id==user.id).delete(synchronize_session=False)
     db.commit()
