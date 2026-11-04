@@ -32,8 +32,8 @@ _CALENDAR_BREAKER = CircuitBreaker(failure_threshold=5, recovery_seconds=60.0)
 
 def _flow(state: str | None = None) -> Flow:
     settings = get_settings()
-    if not settings.gmail_client_secret_file:
-        raise RuntimeError("Configure the Google OAuth client secret file first.")
+    if not settings.calendar_enabled or not settings.gmail_client_secret_file:
+        raise RuntimeError("Enable CALENDAR_ENABLED and configure the Google OAuth client secret file first.")
     flow = Flow.from_client_secrets_file(
         settings.gmail_client_secret_file, scopes=SCOPES, state=state,
     )
