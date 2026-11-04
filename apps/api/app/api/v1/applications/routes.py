@@ -38,6 +38,22 @@ class ApplicationUpdate(BaseModel):
     def safe_job_url(cls, value):
         return validate_http_url(value or "")
 
+
+class ApplicationApproval(BaseModel):
+    confirm: bool = True
+    note: str = Field(default="", max_length=1000)
+
+
+class SubmissionConfirmation(BaseModel):
+    confirm: bool = True
+    confirmation_note: str = Field(default="", max_length=2000)
+    external_receipt_url: str = Field(default="", max_length=2000)
+
+    @field_validator("external_receipt_url")
+    @classmethod
+    def safe_receipt_url(cls, value):
+        return validate_http_url(value or "")
+
 def _serialize(row, opportunity=None):
     snapshot = row.company_profile_snapshot or {}
     return {"id": row.id, "role_title": row.role_title, "company_name": row.company_name,
@@ -105,6 +121,97 @@ async def create_application(body: ApplicationCreate, user: User = Depends(get_c
     db.refresh(row)
     return _serialize(row, owned if body.opportunity_id is not None else None)
 
+@router.post("/{application_id}/approve")
+def approve_application(
+    application_id: int,
+    body: ApplicationApproval,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Record explicit candidate approval after the application draft is ready."""
+    row = db.scalar(select(Application).where(
+        Application.id == application_id, Application.user_id == user.id,
+    ).with_for_update())
+    if not row:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail="Candidate approval is required")
+    if row.status == "approved":
+        return {"status": "already_approved", "application_id": row.id}
+    if row.status != "ready" or not TRANSITIONS.get(row.status, set()).issuperset({"archived"}):
+        raise HTTPException(status_code=409, detail="Only a ready application can be approved")
+    row.status = "approved"
+    db.add(ApplicationEvent(
+        user_id=user.id, application_id=row.id, event_type="application.approved",
+        details={"candidate_confirmed": True, "note": body.note},
+    ))
+    enqueue_event(db, "application.status_changed", {
+        "user_id": user.id, "application_id": row.id,
+        "from": "ready", "to": "approved", "candidate_confirmed": True,
+    }, partition_key=str(user.id))
+    db.commit()
+    return {"status": "approved", "application_id": row.id}
+
+
+@router.post("/{application_id}/confirm-submission")
+def confirm_submission(
+    application_id: int,
+    body: SubmissionConfirmation,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    """Record that the candidate submitted on the external ATS themselves."""
+    row = db.scalar(select(Application).where(
+        Application.id == application_id, Application.user_id == user.id,
+    ).with_for_update())
+    if not row:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail="Candidate submission confirmation is required")
+    if row.status == "submitted":
+        return {"status": "already_confirmed", "application_id": row.id,
+                "application_status": row.status}
+    if row.status != "approved":
+        raise HTTPException(status_code=409, detail="Approve the application before confirming submission")
+    job_key = (
+        f"opportunity:{row.opportunity_id}" if row.opportunity_id
+        else (row.job_url or f"application:{row.id}")
+    )
+    try:
+        reservation = reserve_application_dispatch(
+            db, user_id=user.id, application_id=row.id,
+            idempotency_key=idempotency_key or f"candidate-confirmed:{row.id}",
+            payload={
+                "job_key": job_key, "candidate_confirmed": True,
+                "external_receipt_url": body.external_receipt_url,
+            },
+        )
+    except DispatchConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    row.status = "submitted"
+    row.applied_at = datetime.now(timezone.utc)
+    complete_application_dispatch(db, reservation)
+    db.add(ApplicationEvent(
+        user_id=user.id, application_id=row.id,
+        event_type="application.submission_confirmed",
+        details={
+            "candidate_confirmed": True,
+            "confirmation_note": body.confirmation_note,
+            "external_receipt_url": body.external_receipt_url,
+            "external_ats_acceptance_verified": False,
+        },
+    ))
+    enqueue_event(db, "application.status_changed", {
+        "user_id": user.id, "application_id": row.id,
+        "from": "approved", "to": "submitted",
+        "submission_recorded": True, "external_ats_acceptance_verified": False,
+    }, partition_key=str(user.id))
+    db.commit()
+    return {"status": "submission_recorded", "application_id": row.id,
+            "external_ats_acceptance_verified": False}
+
+
 @router.patch("/{application_id}")
 async def update_application(application_id: int, body: ApplicationUpdate,
                        user: User = Depends(get_current_user), db: Session = Depends(get_db),
@@ -118,6 +225,11 @@ async def update_application(application_id: int, body: ApplicationUpdate,
     status = values.get("status")
     if status is not None and status not in STATUSES:
         raise HTTPException(status_code=422, detail="Unsupported application status")
+    if status in {"approved", "submitted"}:
+        raise HTTPException(
+            status_code=409,
+            detail="Use the explicit candidate approval or submission confirmation action",
+        )
     before = row.status
     if status is not None and status != before and status not in TRANSITIONS.get(before, set()):
         raise HTTPException(status_code=409, detail="Invalid application status transition: " + before + " -> " + status)
