@@ -8,6 +8,7 @@ from typing import Any, Callable
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 from packages.database.models.career import EventOutbox
+from packages.ops.metrics import EVENT_DELIVERY, OUTBOX_BACKLOG
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,7 @@ async def relay_outbox_batch(
                 row.locked_at = None
                 row.last_error = ""
                 result["published"] += 1
+                EVENT_DELIVERY.labels("outbox", topic, "published").inc()
             except Exception as exc:
                 row.attempts += 1
                 row.last_error = str(exc)[:2000]
@@ -97,6 +99,7 @@ async def relay_outbox_batch(
                         )
                         row.status = "dead_letter"
                         result["dead_lettered"] += 1
+                    EVENT_DELIVERY.labels("outbox", topic, "dead_letter").inc()
                     except Exception as dlq_exc:
                         row.status = "retry"
                         row.available_at = datetime.now(timezone.utc) + timedelta(minutes=5)
@@ -105,12 +108,18 @@ async def relay_outbox_batch(
                         logger.exception("Could not publish event to DLQ; retaining outbox row",
                                          extra={"event_id": row.event_id})
                         result["retrying"] += 1
+                    EVENT_DELIVERY.labels("outbox", topic, "retry").inc()
                 else:
                     delay = min(3600, 2 ** min(row.attempts, 11))
                     row.status = "retry"
                     row.available_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
                     result["retrying"] += 1
             db.commit()
+    with session_factory() as db:
+        backlog = db.query(EventOutbox).filter(
+            EventOutbox.status.in_(("pending", "retry", "processing"))
+        ).count()
+        OUTBOX_BACKLOG.set(backlog)
     return result
 
 
