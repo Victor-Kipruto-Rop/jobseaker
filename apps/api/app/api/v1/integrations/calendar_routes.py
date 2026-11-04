@@ -177,7 +177,7 @@ def sync_interview_to_calendar(
                 ).execute,
             )
         except HttpError as google_error:
-            if getattr(google_error, "status_code", None) != 404:
+            if getattr(getattr(google_error, "resp", None), "status", None) != 404:
                 raise
             response = _CALENDAR_BREAKER.call(
                 service.events().insert(calendarId="primary", body=body).execute,
