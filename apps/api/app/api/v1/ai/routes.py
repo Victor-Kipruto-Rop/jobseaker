@@ -206,3 +206,8 @@ def update_budget(body: BudgetUpdate, user: User = Depends(get_current_user),
     budget.alert_threshold_percent = body.alert_threshold_percent
     db.commit()
     return _budget_snapshot(user, db, budget)
+
+
+# Personal assistant endpoints share the existing AI provider, quota and conversation infrastructure.
+from apps.api.app.api.v1.ai.assistant_routes import router as personal_assistant_router
+router.include_router(personal_assistant_router)
