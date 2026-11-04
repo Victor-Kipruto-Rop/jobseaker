@@ -2,7 +2,7 @@
 from __future__ import annotations
 import asyncio, logging
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -11,7 +11,7 @@ from apps.api.app.core.config import get_settings
 from packages.database.models.identity import User
 from packages.database.models.career import AIConversation, AIMessage, Application, Interview, CandidateProfile, CandidateSkill, ResumeDocument, CandidateOpportunity
 from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference, AssistantFeedback
-from packages.assistant.engine import sanitize, remember, retrieve, build_context, plan_tools, adapt_preferences, embedding
+from packages.assistant.engine import sanitize, remember, retrieve, build_context, plan_tools, adapt_preferences, embedding\nfrom packages.assistant.ingestion import parse_document, MAX_BYTES
 from packages.ai.providers.base import GenerationRequest
 from packages.ai.providers.router import generate_with_fallback
 from packages.ai.budget import AIQuotaExceeded, reserve_ai_tokens, finish_ai_reservation, record_ai_usage
@@ -151,3 +151,27 @@ def delete_memory(user:User=Depends(get_current_user),db:Session=Depends(get_db)
     db.query(AssistantFact).filter(AssistantFact.user_id==user.id).delete(synchronize_session=False)
     db.commit()
     return {"deleted":True}
+
+@router.post("/assistant/ingest")
+async def ingest_knowledge_file(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    pref = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user.id))
+    if not pref or not pref.memory_enabled:
+        raise HTTPException(status_code=409, detail="Enable assistant memory before adding personal documents.")
+    payload = await file.read(MAX_BYTES + 1)
+    try:
+        extracted = parse_document(file.filename or "upload", file.content_type or "", payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        await file.close()
+    clean = sanitize(extracted)
+    if len(clean.strip()) < 20:
+        raise HTTPException(status_code=422, detail="No usable text could be extracted from this file.")
+    memory_id = remember(db, user.id, clean, source="document")
+    db.commit()
+    return {"ingested": True, "memory_id": memory_id, "characters_indexed": len(clean),
+            "filename": (file.filename or "upload")[:255], "source_type": "document"}
