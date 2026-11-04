@@ -36,7 +36,7 @@ ALLOWED = {
 def extract_text(filename: str, data: bytes) -> tuple[str, str]:
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED:
-        raise HTTPException(status_code=415, detail="Supported formats are PDF, DOCX, Markdown and plain text")
+        raise HTTPException(status_code=415, detail="Supported formats are PDF, DOCX, Markdown, plain text and common images")
     if not data:
         raise HTTPException(status_code=400, detail="The uploaded document is empty")
 
