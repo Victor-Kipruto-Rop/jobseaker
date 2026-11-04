@@ -14,7 +14,7 @@ from packages.database.models.assistant import AssistantMemory, AssistantFact, A
 from packages.database.models.assistant_jobs import AssistantIngestionJob
 from packages.assistant.orchestration import plan_agent_steps, execute_plan, plan_trace
 from packages.security.credential_vault import encrypt_credential, decrypt_credential
-from packages.assistant.engine import sanitize, remember, retrieve, build_context, plan_tools, adapt_preferences, embedding
+from packages.assistant.engine import sanitize, remember, retrieve, build_context, plan_tools, adapt_preferences, embedding, preference_snapshot, store_preferences
 from packages.ai.providers.base import GenerationRequest
 from packages.ai.providers.router import generate_with_fallback
 from packages.ai.budget import AIQuotaExceeded, reserve_ai_tokens, finish_ai_reservation, record_ai_usage
@@ -134,11 +134,13 @@ def memory_overview(user: User = Depends(get_current_user), db: Session = Depend
 @router.put("/assistant/preferences")
 def save_preferences(body: PreferenceInput, user: User=Depends(get_current_user), db: Session=Depends(get_db)):
     if len(str(body.preferences))>8000: raise HTTPException(status_code=422,detail="Preferences are too large")
-    row=db.scalar(select(AssistantPreference).where(AssistantPreference.user_id==user.id))
-    if row is None: row=AssistantPreference(user_id=user.id); db.add(row)
-    row.preferences={k:v for k,v in body.preferences.items() if isinstance(k,str) and len(k)<=80}
-    row.preference_vector=embedding(str(row.preferences)); db.commit()
-    return {"saved":True,"preferences":row.preferences}
+    values={k:v for k,v in body.preferences.items() if isinstance(k,str) and len(k)<=80}
+    try:
+        store_preferences(db, user.id, values)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="Assistant preference encryption is unavailable.") from exc
+    db.commit()
+    return {"saved":True,"preferences":values}
 
 @router.post("/assistant/feedback")
 def assistant_feedback(body: FeedbackInput,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
@@ -146,7 +148,12 @@ def assistant_feedback(body: FeedbackInput,user:User=Depends(get_current_user),d
         raise HTTPException(status_code=404,detail="Conversation not found")
     if body.message_id and not db.scalar(select(AIMessage.id).where(AIMessage.id==body.message_id,AIMessage.user_id==user.id)):
         raise HTTPException(status_code=404,detail="Message not found")
-    row=AssistantFeedback(user_id=user.id,conversation_id=body.conversation_id,message_id=body.message_id,rating=body.rating,correction=sanitize(body.correction))
+    try:
+        encrypted_correction = encrypt_credential(sanitize(body.correction), purpose=f"assistant-feedback:{user.id}")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="Assistant feedback encryption is unavailable.") from exc
+    row=AssistantFeedback(user_id=user.id,conversation_id=body.conversation_id,message_id=body.message_id,
+        rating=body.rating,correction=encrypted_correction)
     db.add(row)
     pref=db.scalar(select(AssistantPreference).where(AssistantPreference.user_id==user.id))
     if pref is None:
@@ -154,7 +161,13 @@ def assistant_feedback(body: FeedbackInput,user:User=Depends(get_current_user),d
         db.add(pref)
     else:
         pref.feedback_count = int(pref.feedback_count or 0) + 1
-    pref.preferences=adapt_preferences(pref.preferences or {},body.rating,body.correction)
+    try:
+        updated_preferences = adapt_preferences(preference_snapshot(db, user.id), body.rating, body.correction)
+        pref.preferences = encrypt_credential(__import__("json").dumps(updated_preferences, separators=(",", ":")),
+                                             purpose=f"assistant-preferences:{user.id}")
+        pref.preferences_encrypted = True
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="Assistant preference encryption is unavailable.") from exc
     db.commit()
     return {"recorded":True,"feedback_count":pref.feedback_count}
 
@@ -184,6 +197,7 @@ def delete_memory(user:User=Depends(get_current_user),db:Session=Depends(get_db)
     db.query(AssistantFeedback).filter(AssistantFeedback.user_id==user.id).delete(synchronize_session=False)
     if preference:
         preference.preferences = {}
+        preference.preferences_encrypted = False
         preference.preference_vector = []
         preference.feedback_count = 0
     db.commit()
@@ -204,6 +218,7 @@ def export_assistant_memory(user: User = Depends(get_current_user), db: Session 
                          "created_at": row.created_at.isoformat() if row.created_at else None,
                          "expires_at": row.expires_at.isoformat() if row.expires_at else None})
     return {"exported_at": datetime.now(timezone.utc).isoformat(), "memories": memories,
+            "preferences": preference_snapshot(db, user.id),
             "facts": [{"key": item.fact_key, "value": decrypt_credential(item.fact_value, purpose=f"assistant-fact:{user.id}") if item.fact_value_encrypted else item.fact_value,
                        "confidence": item.confidence, "verified": item.verified_by_user}
                       for item in facts]}
