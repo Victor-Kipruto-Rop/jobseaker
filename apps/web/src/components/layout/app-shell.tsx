@@ -7,7 +7,7 @@ import {
   Activity, Bell, BriefcaseBusiness, CalendarDays, CheckCheck, ChevronDown, Inbox,
   CircleHelp, Command, Compass, FileText, FolderKanban, GraduationCap,
   LayoutDashboard, LogOut, Menu, Plus, Search, Settings2, ShieldCheck,
-  StickyNote, Target, TrendingUp, UserRound, WandSparkles, X,
+  Sparkles, StickyNote, Target, TrendingUp, UserRound, WandSparkles, X,
   ListTodo, BarChart3, Bookmark, CalendarCheck, Users, ChartNoAxesCombined
 } from "lucide-react";
 import styles from "./app-shell.module.css";
@@ -254,7 +254,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
               <button onClick={()=>navigate("/interviews?new=1")}><CalendarCheck size={15}/><span><strong>Interview</strong><small>Schedule preparation</small></span></button>
             </div>}
           </div>
-          <button className={styles.topIcon} onClick={()=>navigate("/calendar")} aria-label="Open career calendar" title="Calendar"><CalendarDays size={17}/></button>
+          <button className={styles.topIcon} onClick={()=>navigate("/calendar")} aria-label="Open career calendar" title="Calendar"><CalendarDays size={17}/></button>\n          <button className={styles.topIcon} onClick={()=>navigate("/profile#career-tools")} aria-label="Open AI career studio" title="AI career studio"><Sparkles size={17}/></button>
           <button className={styles.topIcon} onClick={()=>navigate("/settings#gmail")} aria-label="Open activity inbox" title="Activity inbox"><Inbox size={17}/></button>
           <div className={styles.noticeWrap}>
             <button className={styles.noticeButton} onClick={()=>void toggleNotices()} aria-label={unread?unread+" unread notifications":"Notifications"} aria-expanded={noticeOpen}><Bell size={18}/>{unread>0&&<i/>}</button>
