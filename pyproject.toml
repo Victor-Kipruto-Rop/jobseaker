@@ -16,7 +16,7 @@ dependencies = [
   "google-auth>=2.35,<3", "google-auth-oauthlib>=1.2,<2",
 ]
 [project.optional-dependencies]
-dev = ["pytest>=8,<9", "pytest-asyncio>=0.24,<2", "ruff>=0.7,<1"]
+dev = ["pytest>=8,<9", "pytest-asyncio>=0.24,<2", "pytest-cov>=5,<7", "ruff>=0.7,<1", "mypy>=1.11,<2"]
 [tool.pytest.ini_options]
 pythonpath = [".", "apps/api"]
 testpaths = ["tests", "apps/api/tests"]
@@ -27,3 +27,11 @@ target-version = "py312"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["apps*", "packages*"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true

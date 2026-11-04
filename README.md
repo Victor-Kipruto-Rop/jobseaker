@@ -67,11 +67,10 @@ The API applies Alembic migrations automatically in local, development, and test
 
 ## Verification
 
-   PowerShell: `./scripts/verification/verify_local.ps1`
    Full local Compose release gate (cross-platform): `python scripts/verify_local_security.py`
-   Frontend separately: `cd apps/web && pnpm lint && pnpm build`
+   Host-side PowerShell checks: `./scripts/verification/verify_local.ps1`
 
-The local verification script runs Python compile checks, applies Alembic migrations to the configured DATABASE_URL, checks model/schema drift, runs pytest and Ruff, and verifies frontend TypeScript/build plus Compose configuration in the PowerShell workflow. It does not start Docker or perform live OpenAI, Anthropic, Gmail, or SMTP calls.
+The Compose-backed release gate validates Compose, builds and starts the local services, waits for API and web readiness, verifies the six runtime services, applies and checks Alembic migrations, runs mypy, pytest with coverage reporting, Ruff, and the frontend TypeScript check and production build. It does not call live OpenAI, Anthropic, Gmail, or SMTP providers. The stack remains running after success or failure so its logs can be inspected.
 
 ## AI configuration
 
@@ -96,13 +95,12 @@ before running the release gate:
 
 ```powershell
 python -m pip install -e ".[dev]"
-cd apps/web
 pnpm install
-cd ../..
 python scripts/verify_local_security.py
 ```
 
 Use the Python version required by `pyproject.toml` (Python 3.12 or newer). Docker
 builds the API, worker, scheduler, and web containers from their dedicated Dockerfiles.
 The local release gate uses the host Python and pnpm installations for tests, linting,
-and frontend type-check/build verification.
+Python and frontend type checks, and frontend build verification. The CI workflow also
+runs dependency audits and builds all four container images.

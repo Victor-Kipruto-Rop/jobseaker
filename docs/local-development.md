@@ -46,7 +46,7 @@ Production does not auto-migrate. Run migrations as a controlled release step.
    pnpm lint
    pnpm build
 
-The cross-platform release-gate script validates Compose configuration, starts the local Compose stack, waits for API and web readiness, confirms required services are running, applies Alembic migrations, checks schema drift, runs pytest and Ruff, and runs frontend type-check/build commands. It leaves the stack running if a check fails so logs can be inspected. It does not call live AI, Gmail, or SMTP providers.
+The cross-platform release-gate script validates Compose configuration, builds and starts the local Compose stack, waits for API and web readiness, confirms PostgreSQL, Redis, API, web, worker, and scheduler are running, applies Alembic migrations, checks schema drift, runs mypy, pytest with coverage reporting, Ruff, and frontend TypeScript/build checks. It leaves the stack running after success or failure for log inspection. It does not call live AI, Gmail, or SMTP providers. Install the Python development extras (which include pytest-cov, Ruff, and mypy), then run `pnpm install` from the repository root before invoking it.
 
 ## Gmail
 
