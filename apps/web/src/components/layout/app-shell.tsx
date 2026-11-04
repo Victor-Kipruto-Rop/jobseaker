@@ -125,31 +125,22 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
 
   const searchWorkspace = useCallback(async (query: string) => {
     if (query.trim().length < 2) { setSearchRecords([]); setSearchError(""); return; }
+    const requestId = ++searchSequence.current;
     setSearchBusy(true); setSearchError("");
     try {
-      const [jobsResponse, appsResponse, itemsResponse] = await Promise.all([
-        api("/api/v1/opportunities"), api("/api/v1/applications"),
-        api("/api/v1/workspace/items"),
-      ]);
-      if (!jobsResponse.ok || !appsResponse.ok || !itemsResponse.ok) throw new Error("Workspace search is temporarily unavailable.");
-      const [jobs, apps, items] = await Promise.all([jobsResponse.json(), appsResponse.json(), itemsResponse.json()]);
-      if (requestId !== searchSequence.current) return;\n      const term = query.trim().toLowerCase();
-      const records: SearchRecord[] = [];
-      if (Array.isArray(jobs)) jobs.forEach((job: {id:number;title?:string;company?:string;status?:string}) => {
-        if ((job.title + " " + job.company).toLowerCase().includes(term)) records.push({id:job.id,title:job.title||"Untitled opportunity",subtitle:job.company||"Saved opportunity",href:"/saved-opportunities",kind:"OPPORTUNITY"});
-      });
-      if (Array.isArray(apps)) apps.forEach((app: {id:number;role_title?:string;company_name?:string;status?:string}) => {
-        if ((app.role_title + " " + app.company_name).toLowerCase().includes(term)) records.push({id:app.id,title:app.role_title||"Untitled application",subtitle:(app.company_name||"Application")+" · "+(app.status||"draft"),href:"/applications",kind:"APPLICATION"});
-      });
-      if (Array.isArray(items)) items.forEach((item: {id:number;item_type:string;title?:string;description?:string}) => {
-        if ((item.title + " " + item.description).toLowerCase().includes(term)) {
-          const routes:Record<string,string>={task:"/tasks",note:"/notes",learning:"/learning",project:"/projects",contact:"/contacts"};
-          records.push({id:item.id,title:item.title||"Untitled record",subtitle:item.item_type.replaceAll("_"," "),href:routes[item.item_type]||"/dashboard",kind:item.item_type.toUpperCase()});
-        }
-      });
-      setSearchRecords(records.slice(0,12));
-    } catch (error) { setSearchRecords([]); setSearchError(error instanceof Error?error.message:"Search failed."); }
-    finally { setSearchBusy(false); }
+      const response = await api("/api/v1/workspace/items/search?q=" + encodeURIComponent(query.trim()));
+      if (!response.ok) throw new Error("Workspace search is temporarily unavailable.");
+      const records = await response.json();
+      if (!Array.isArray(records)) throw new Error("Search returned an unexpected result set.");
+      if (requestId === searchSequence.current) setSearchRecords(records.slice(0, 12));
+    } catch (error) {
+      if (requestId === searchSequence.current) {
+        setSearchRecords([]);
+        setSearchError(error instanceof Error ? error.message : "Search failed.");
+      }
+    } finally {
+      if (requestId === searchSequence.current) setSearchBusy(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -163,7 +154,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
     return () => window.removeEventListener("keydown", handle);
   }, []);
 
-  useEffect(() => {\n    if (searchQuery.trim().length < 2) { searchSequence.current += 1; setSearchRecords([]); setSearchError(""); setSearchBusy(false); return; }\n    const timer = window.setTimeout(() => void searchWorkspace(searchQuery), 220);\n    return () => window.clearTimeout(timer);\n  }, [searchQuery, searchWorkspace]);
+  useEffect(() => {\n    if (searchQuery.trim().length < 2) { searchSequence.current += 1; setSearchRecords([]); setSearchError(""); setSearchBusy(false); return; }\n    searchSequence.current += 1;\n    const timer = window.setTimeout(() => void searchWorkspace(searchQuery), 220);\n    return () => window.clearTimeout(timer);\n  }, [searchQuery, searchWorkspace]);
   useEffect(() => { if (paletteOpen) setPaletteQuery(""); }, [paletteOpen]);
 
   const unread = useMemo(() => notices.filter(item => !item.read_at).length, [notices]);
