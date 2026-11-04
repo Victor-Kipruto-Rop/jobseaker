@@ -36,6 +36,6 @@ No fabricated response rates, salary estimates, market trends, application histo
 
 ## Scope and verification
 
-This branch establishes the shared workspace shell, the redesigned dashboard and public landing page. The remaining route pages still need to be migrated to the shared shell and design primitives in follow-up frontend work.
+This branch establishes the shared workspace shell across the authenticated application routes, the redesigned dashboard and the public landing page. The route-specific forms, tables and content panels still need a visual and interaction pass so each workflow reaches the same level of polish as the dashboard.
 
 The code has been committed through GitHub. A local Next.js build, browser review, accessibility audit and responsive-device verification have not yet been run in this environment. These must be completed by the repository owner before this phase is considered verified.
