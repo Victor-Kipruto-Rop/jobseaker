@@ -28,7 +28,7 @@ async def enqueue_ingestion(file: UploadFile = File(...), user: User = Depends(g
         raise HTTPException(status_code=409, detail="Enable assistant memory before adding personal documents.")
     allowed_extensions = {".pdf", ".docx", ".txt", ".md", ".rst", ".json", ".yaml", ".yml",
                           ".toml", ".csv", ".log", ".py", ".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
-    suffix = Path((file.filename or "").replace("\\\\", "/").split("/")[-1]).suffix.lower()
+    suffix = Path((file.filename or "").replace(chr(92), "/").split("/")[-1]).suffix.lower()
     if suffix not in allowed_extensions:
         raise HTTPException(status_code=415, detail="Unsupported file type.")
     active_jobs = db.scalar(select(func.count(AssistantIngestionJob.id)).where(
