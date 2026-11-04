@@ -15,9 +15,11 @@ from apps.api.app.core.security import resolve_session
 from apps.api.app.health.routes import router as health_router
 from apps.api.app.lifespan import lifespan
 from packages.database.sessions import SessionLocal
+from packages.ops.observability import configure_telemetry
 
 s = get_settings()
 app = FastAPI(title="JobSeeker Intelligence", version="0.3.0", lifespan=lifespan)
+configure_telemetry(app)
 app.add_middleware(CORSMiddleware, allow_origins=s.allowed_origins, allow_credentials=True,
                    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
                    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-CSRF-Token"],
