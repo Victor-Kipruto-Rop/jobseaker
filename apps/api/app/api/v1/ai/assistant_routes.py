@@ -126,7 +126,7 @@ def memory_overview(user: User = Depends(get_current_user), db: Session = Depend
     count = db.scalar(select(func.count(AssistantMemory.id)).where(AssistantMemory.user_id==user.id)) or 0
     pref = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id==user.id))
     return {"enabled":pref.memory_enabled if pref else False,"episodic_count":int(count),
-        "facts":[{"id":f.id,"key":f.fact_key,"value":f.fact_value,"confidence":f.confidence,"verified":f.verified_by_user} for f in facts]}
+        "facts":[{"id":f.id,"key":f.fact_key,"value":decrypt_credential(f.fact_value, purpose=f"assistant-fact:{user.id}") if f.fact_value_encrypted else f.fact_value,"confidence":f.confidence,"verified":f.verified_by_user} for f in facts]}
 
 @router.put("/assistant/preferences")
 def save_preferences(body: PreferenceInput, user: User=Depends(get_current_user), db: Session=Depends(get_db)):
