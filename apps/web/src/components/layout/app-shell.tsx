@@ -3,10 +3,10 @@
 import { ReactNode, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
-  Activity, ArrowUpRight, Bell, BriefcaseBusiness, Building2, CalendarDays,
+  Activity, Bell, BriefcaseBusiness, Building2, CalendarDays,
   ChartNoAxesCombined, ChevronDown, Command, FileText, Gauge, Inbox,
   LayoutDashboard, LogOut, Menu, Search, Settings2, ShieldCheck, Sparkles,
-  Users, X
+  Users
 } from "lucide-react";
 import styles from "./app-shell.module.css";
 
@@ -15,8 +15,9 @@ type AppShellProps = {
   user?: { full_name?: string; email?: string; is_verified?: boolean } | null;
   onLogout?: () => void;
 };
+type NavigationItem = { label: string; href: string; icon: typeof LayoutDashboard };
 
-const primaryNav = [
+const primaryNav: NavigationItem[] = [
   { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { label: "Discover jobs", href: "/discovery", icon: Search },
   { label: "Saved opportunities", href: "/opportunities", icon: BriefcaseBusiness },
@@ -24,7 +25,7 @@ const primaryNav = [
   { label: "Career intelligence", href: "/intelligence", icon: Sparkles },
   { label: "Career analytics", href: "/analytics", icon: ChartNoAxesCombined },
 ];
-const workspaceNav = [
+const workspaceNav: NavigationItem[] = [
   { label: "CV Studio", href: "/cv-studio", icon: FileText },
   { label: "Career Studio", href: "/career-studio", icon: Command },
   { label: "Interviews", href: "/interviews", icon: CalendarDays },
@@ -33,7 +34,7 @@ const workspaceNav = [
   { label: "Inbox", href: "/inbox", icon: Inbox },
   { label: "Notifications", href: "/notifications", icon: Bell },
 ];
-const accountNav = [
+const accountNav: NavigationItem[] = [
   { label: "Approvals", href: "/approvals", icon: ShieldCheck },
   { label: "Settings", href: "/settings", icon: Settings2 },
 ];
@@ -44,7 +45,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
   const displayName = user?.full_name?.trim() || user?.email?.split("@")[0] || "Your account";
   const initials = displayName.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join("") || "JS";
 
-  function navGroup(title: string, items: typeof primaryNav) {
+  function navGroup(title: string, items: NavigationItem[]) {
     return <div className={styles.navGroup} key={title}>
       <p className={styles.navLabel}>{title}</p>
       {items.map(({ label, href, icon: Icon }) => {
@@ -64,7 +65,6 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
       <a href="/dashboard" className={styles.brand}>
         <span className={styles.brandMark}><Gauge size={19} strokeWidth={2.2} /></span>
         <span className={styles.brandText}>jobseeker<span>.</span><small>INTELLIGENCE</small></span>
-        <button className={styles.closeMenu} aria-label="Close menu" onClick={(event) => { event.preventDefault(); setMobileOpen(false); }}><X size={19} /></button>
       </a>
       <div className={styles.workspacePicker}>
         <span className={styles.workspaceIcon}>J</span>
