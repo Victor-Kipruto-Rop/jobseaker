@@ -298,6 +298,17 @@ def retrieve(db: Session, user_id: int, query: str, limit: int = 8) -> list[dict
             summary = decrypt_credential(row.summary, purpose=f"assistant-memory:{user_id}") if row.content_encrypted and row.summary else row.summary
             score = 0.62 * max(0.0, 1.0 - float(distance_value)) + 0.38 * min(bm25_score(query, content), 1.0)
             ranked.append((score, row, content, summary))
+        legacy_rows = db.scalars(select(AssistantMemory).where(
+            AssistantMemory.user_id == user_id,
+            AssistantMemory.embedding_vector.is_(None),
+            (AssistantMemory.expires_at.is_(None) | (AssistantMemory.expires_at > datetime.now(timezone.utc)))
+        ).order_by(AssistantMemory.created_at.desc()).limit(300)).all()
+        for row in legacy_rows:
+            content = decrypt_credential(row.content, purpose=f"assistant-memory:{user_id}") if row.content_encrypted else row.content
+            summary = decrypt_credential(row.summary, purpose=f"assistant-memory:{user_id}") if row.content_encrypted and row.summary else row.summary
+            lexical = min(bm25_score(query, content), 1.0)
+            if lexical > 0:
+                ranked.append((0.38 * lexical, row, content, summary))
         ranked.sort(key=lambda item: (item[0], item[1].importance), reverse=True)
         shortlist = ranked[:max(limit * 3, 12)]
         cross = _cross_encoder()
