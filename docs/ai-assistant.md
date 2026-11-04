@@ -21,16 +21,16 @@ The light-mode assistant workspace is available at `/assistant`, linked from the
 ## Memory, retrieval and knowledge graph
 
 - Persistent episodic memory is opt-in. Pausing it prevents new writes and retrieval.
-- Episodic content, summaries, and extracted fact values are encrypted using the existing versioned AES-256-GCM credential keyring with purpose-specific associated data.
+- Episodic content, summaries, extracted fact values, saved preferences, feedback corrections and queued document payloads are encrypted using the existing versioned AES-256-GCM credential keyring with purpose-specific associated data.
 - New PostgreSQL memory records use 384-dimensional pgvector embeddings and an HNSW cosine index. Hybrid ranking combines dense similarity and lexical BM25-style scoring, with optional cross-encoder reranking.
 - SQLite and non-PostgreSQL test environments retain the JSON embedding fallback.
-- Existing legacy JSON vectors are not cast to a different dimension. Re-embedding/backfill is required before those records can participate in the pgvector index.
+- Existing legacy JSON vectors are never cast to a different dimension. Retrieval incrementally re-embeds up to 50 legacy records per request and persists them into the 384-dimensional pgvector column.
 - Entity resolution is scoped to the authenticated user and entity type. It canonicalizes common technology aliases and extracts selected skills, employers, projects and roles. Fuzzy merges require a high confidence margin; ambiguous candidates are not merged.
 - Working context is bounded and includes recent messages, relevant memory, facts, preferences and graph relationships.
 
 ## Background ingestion
 
-Document uploads are stored as durable ingestion-job records and dispatched to the existing Redis/RQ worker on the dedicated `assistant` queue. The file payload is encrypted before persistence; Redis receives only the job identifier. The worker rechecks memory consent before parsing and indexing. Job status and cancellation are owner-scoped. Payload ciphertext is cleared after success, cancellation or terminal failure.
+Document uploads are stored as durable ingestion-job records in the same database transaction used to accept the upload. The database job table is the outbox; a worker-side dispatcher polls it and publishes only opaque job IDs to the existing Redis/RQ `assistant` queue. Dispatch leases and stale-processing recovery make the flow resilient to API/worker restarts. RQ retries use the worker scheduler with bounded backoff. The file payload is AES-GCM encrypted before persistence. The worker rechecks memory consent under row locks before indexing. Job status and cancellation are owner-scoped, duplicate delivery is idempotent, and payload ciphertext is cleared after success, cancellation or terminal failure.
 
 Supported input includes PDF, DOCX, text, Markdown, images with optional OCR, and Python source AST extraction. OCR requires Pillow, pytesseract and the Tesseract system binary.
 
@@ -45,7 +45,7 @@ The assistant cannot submit applications, send email, change application lifecyc
 - Memory starts disabled. Enabling it requires a configured encryption keyring.
 - Configure `JOBSEEKER_CREDENTIAL_KEYRING` and `JOBSEEKER_CREDENTIAL_ACTIVE_KEY_ID`, or the supported legacy `JOBSEEKER_CREDENTIAL_KEK`, in the deployment secret manager. Do not commit key material.
 - Retain old key IDs during key rotation until stored ciphertext has been rewrapped.
-- New episodic memories receive a 365-day expiry by default; the owner can change retention from 30 to 730 days.
+- New episodic memories receive a 365-day expiry by default; the owner's 30-to-730-day retention setting is persisted and applied to future memories as well as existing ones.
 - Users can export their memory and facts, pause memory, cancel queued ingestion, or delete memories, facts and graph relations. Deletion disables memory and clears pending encrypted ingestion payloads.
 - Graph entity labels and selected operational metadata remain structured database fields. Protect the database with TLS, encrypted storage, restricted service credentials and managed backups.
 
