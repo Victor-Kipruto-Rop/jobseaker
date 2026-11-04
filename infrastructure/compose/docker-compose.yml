@@ -56,6 +56,7 @@ services:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
       migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
   web:
     build:
       context: ../..
@@ -135,11 +136,13 @@ services:
     environment: {POSTGRES_DB: jobseeker, POSTGRES_USER: jobseeker, POSTGRES_PASSWORD: jobseeker_local}
     volumes: [jobseeker_pgdata:/var/lib/postgresql/data]
     healthcheck: {test: ["CMD-SHELL","pg_isready -U jobseeker -d jobseeker"], interval: 5s, timeout: 5s, retries: 15}
+    restart: unless-stopped
   redis:
     image: redis:7-alpine
     ports: ["127.0.0.1:6379:6379"]
     volumes: [jobseeker_redisdata:/data]
     healthcheck: {test: ["CMD","redis-cli","ping"], interval: 5s, timeout: 3s, retries: 15}
+    restart: unless-stopped
 volumes:
   jobseeker_pgdata:
   jobseeker_redisdata:
