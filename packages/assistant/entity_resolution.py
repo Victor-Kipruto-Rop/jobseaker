@@ -46,7 +46,8 @@ def extract_entities(text: str) -> list[tuple[str, str]]:
         ("role", r"\b(?:target role|role|position)\s*(?:is|:|as)?\s+([A-Za-z][\w/&+.-]*(?:\s+[A-Za-z][\w/&+.-]*){0,3})"),
     ]
     for kind, pattern in patterns:
-        for match in re.finditer(pattern, source, re.I):
+        flags = re.I if kind == "role" else 0
+        for match in re.finditer(pattern, source, flags):
             value = match.group(1).strip(" .,:;")
             if 2 <= len(value) <= 160 and not re.search(r"@|https?://|\b\d{7,}\b", value, re.I):
                 found.add((kind, value))
