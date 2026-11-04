@@ -32,7 +32,13 @@ def _decode_key(raw: str, key_id: str) -> bytes:
 
 
 def _keyring() -> tuple[dict[str, bytes], str]:
-    raw_ring = os.getenv(KEYRING_ENV, "")
+    settings = None
+    try:
+        from apps.api.app.core.config import get_settings
+        settings = get_settings()
+    except Exception:
+        pass
+    raw_ring = os.getenv(KEYRING_ENV, "") or (settings.credential_keyring if settings else "") or ""
     keys: dict[str, bytes] = {}
     if raw_ring:
         try:
@@ -59,7 +65,9 @@ def _keyring() -> tuple[dict[str, bytes], str]:
 
     if not keys:
         raise RuntimeError(f"{KEYRING_ENV} or {KEY_ENV} is required to encrypt credentials")
-    active = os.getenv(ACTIVE_KEY_ENV, "")
+    active = os.getenv(ACTIVE_KEY_ENV, "") or (
+        settings.credential_active_key_id if settings else ""
+    ) or ""
     if not active:
         active = next((key_id for key_id in keys if key_id != "legacy"), "legacy")
     if active not in keys:
