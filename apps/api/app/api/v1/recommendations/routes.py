@@ -295,7 +295,7 @@ def get_recommendations(
         job.pop("semantic_embedding", None)
         job.pop("embedding_model", None)
         job.pop("_pgvector_similarity", None)
-        job.pop("features", None)  # Internal training signals are retained server-side.
+        job["feature_snapshot"] = job.pop("features", {})
         job["position"] = position
         items.append(job)
 
@@ -329,6 +329,29 @@ def get_recommendations(
         },
         "disclaimer": "Recommendations estimate relevance from your profile, public job text and aggregated interaction signals. They do not predict hiring outcomes.",
     }
+
+
+@router.post("/impressions", status_code=201)
+def record_impressions(
+    body: InteractionBatch,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Batch-write recommendation exposures for unbiased bandit denominators."""
+    rows = []
+    for event in body.events:
+        if event.event_type != "impression":
+            raise HTTPException(status_code=422, detail="Only impression events are accepted in this batch")
+        if not event.item_key:
+            raise HTTPException(status_code=422, detail="Every impression requires an item_key")
+        rows.append(RecommendationInteraction(
+            user_id=user.id, item_key=event.item_key, event_type="impression",
+            recommendation_source=event.recommendation_source, position=event.position,
+            feature_snapshot=event.feature_snapshot,
+        ))
+    db.add_all(rows)
+    db.commit()
+    return {"status": "recorded", "count": len(rows)}
 
 
 @router.post("/interactions", status_code=201)
