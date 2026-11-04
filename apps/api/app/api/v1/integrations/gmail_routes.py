@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -8,6 +8,7 @@ from apps.api.app.dependencies import get_current_user, get_verified_user, get_d
 from packages.database.models.identity import User
 from packages.database.models.career import EmailAccount, EmailMessage
 from packages.integrations.gmail.client import create_authorization, complete_authorization, sync_messages
+from packages.events.kafka import publish_event
 
 router = APIRouter(prefix="/gmail")
 oauth_callback_router = APIRouter(prefix="/gmail")
@@ -45,10 +46,31 @@ def account(user: User = Depends(get_current_user), db: Session = Depends(get_db
             "scopes": row.scopes, "read_only": True}
 
 @router.post("/sync")
-def sync(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def sync(background_tasks: BackgroundTasks, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     enforce_rate_limit(f"gmail-sync:{user.id}", limit=10, window_seconds=3600)
     try:
-        return sync_messages(db, user.id, limit=200)
+        result = sync_messages(db, user.id, limit=200)
+        if result.get("new_messages", 0):
+            account_row = db.scalar(select(EmailAccount).where(
+                EmailAccount.user_id == user.id, EmailAccount.provider == "gmail"))
+            rows = db.scalars(select(EmailMessage).where(
+                EmailMessage.user_id == user.id,
+                EmailMessage.account_id == account_row.id,
+            ).order_by(EmailMessage.received_at.desc().nullslast()).limit(
+                min(int(result["new_messages"]), 200)
+            )).all() if account_row else []
+            for message in rows:
+                background_tasks.add_task(
+                    publish_event, "email.classified",
+                    {
+                        "user_id": user.id, "email_message_id": message.id,
+                        "classification": message.classification,
+                        "confidence": message.confidence,
+                        "action_required": message.action_required,
+                    },
+                    key=str(user.id),
+                )
+        return result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
