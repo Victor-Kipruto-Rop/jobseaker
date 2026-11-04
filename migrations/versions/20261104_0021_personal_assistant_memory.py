@@ -52,7 +52,7 @@ def upgrade():
         sa.Column("preferences", sa.JSON(), nullable=False, server_default="{}"),
         sa.Column("preference_vector", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("feedback_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("memory_enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column("memory_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("ix_assistant_preferences_user_id", "assistant_preferences", ["user_id"])
