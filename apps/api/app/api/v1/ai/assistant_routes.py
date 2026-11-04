@@ -72,7 +72,7 @@ async def assistant_chat(body: AssistantChat, user: User = Depends(get_current_u
     else:
         conversation = AIConversation(user_id=user.id, title=body.message[:80]); db.add(conversation); db.flush()
     history_rows = db.scalars(select(AIMessage).where(AIMessage.user_id == user.id, AIMessage.conversation_id == conversation.id).order_by(AIMessage.created_at.desc()).limit(24)).all()
-    history = [{"role":m.role,"content":m.content} for m in reversed(history_rows)]
+    history = [{"role":m.role,"content":sanitize(m.content)} for m in reversed(history_rows)]
     prefs = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user.id))
     memory_enabled = prefs.memory_enabled if prefs else False
     clean_query = sanitize(body.message)
