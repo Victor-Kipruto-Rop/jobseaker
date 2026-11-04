@@ -320,6 +320,7 @@ class RecommendationInteraction(Base):
     recommendation_source: Mapped[str] = mapped_column(String(40), default="")
     position: Mapped[int | None] = mapped_column(Integer, nullable=True)
     dwell_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    scroll_depth: Mapped[float | None] = mapped_column(Float, nullable=True)
     feature_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
