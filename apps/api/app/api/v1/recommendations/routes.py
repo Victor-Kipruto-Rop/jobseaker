@@ -243,20 +243,21 @@ def get_recommendations(
     if semantic_ready:
         for index, job in enumerate(jobs):
             job["semantic_embedding"] = embeddings[index + 1]
+            job["_profile_embedding"] = embeddings[0]
             job["embedding_model"] = "sentence-transformers/all-MiniLM-L6-v2"
             owner_id = job.get("owner_user_id")
             row_id = job.get("owned_opportunity_id")
             if owner_id and row_id:
                 source_row = next((r for r in rows if r.id == row_id and r.user_id == owner_id), None)
+                text_hash = hashlib.sha256(document_text(job).encode("utf-8")).hexdigest()
                 if source_row and (
                     refresh_embeddings or source_row.embedding_model != job["embedding_model"]
                     or not source_row.semantic_embedding
+                    or source_row.embedding_text_hash != text_hash
                 ):
                     source_row.semantic_embedding = embeddings[index + 1]
                     source_row.embedding_model = job["embedding_model"]
-                    source_row.embedding_text_hash = hashlib.sha256(
-                        document_text(job).encode("utf-8")
-                    ).hexdigest()
+                    source_row.embedding_text_hash = text_hash
                     if (owner_id, row_id) in pg_scores:
                         pass
                     # pgvector storage is populated when the optional native column exists.
