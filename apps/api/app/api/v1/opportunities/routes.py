@@ -140,7 +140,18 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail="Unable to reach the selected job board") from exc
     filtered = filter_jobs(discovered, keywords=body.keywords, location=body.location, remote_only=body.remote_only)
-    profile = await discover_company_profile(body.source, body.board)
+    try:
+        profile = await discover_company_profile(body.source, body.board)
+    except (httpx.HTTPError, ValueError):
+        # Employer branding is best-effort; never discard a valid public job feed
+        # because a company's career page is temporarily unavailable.
+        profile = {
+            "company": body.company_name or body.board.replace("-", " ").title(),
+            "company_website": "", "company_domain": "", "company_logo_url": "",
+            "company_favicon_url": "", "company_description": "",
+            "company_brand_color": "", "company_brand_source": "",
+            "company_social_links": {}, "company_industry": "", "company_headquarters": "",
+        }
     if body.company_name and body.company_name.strip():
         profile["company"] = body.company_name.strip()
     company = db.scalar(select(Company).where(
