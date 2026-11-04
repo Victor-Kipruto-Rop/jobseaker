@@ -9,7 +9,7 @@ from functools import lru_cache
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference, AssistantEntity, AssistantRelation
 from packages.assistant.entity_resolution import index_entities
@@ -305,6 +305,7 @@ def retrieve(db: Session, user_id: int, query: str, limit: int = 8) -> list[dict
     """Tenant-filtered pgvector ANN retrieval with lexical fusion and safe fallback."""
     qvec = embedding(query)
     if db.get_bind().dialect.name == "postgresql":
+        db.execute(text("SET LOCAL hnsw.ef_search = 100"))
         distance = AssistantMemory.embedding_vector.cosine_distance(qvec)
         rows = db.execute(select(AssistantMemory, distance.label("distance")).where(
             AssistantMemory.user_id == user_id,
