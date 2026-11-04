@@ -25,7 +25,8 @@
         "user.activity",
         "application.dispatched",
         "application.status_changed",
-        "email.classified"
+        "email.classified",
+        "ats.action.approved"
       ]
     },
     "schema_version": {
