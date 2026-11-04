@@ -316,3 +316,56 @@ class RecommendationInteraction(Base):
     dwell_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     feature_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class EventOutbox(Base):
+    """Durable producer-side event record; published only after the domain transaction commits."""
+    __tablename__ = "event_outbox"
+    __table_args__ = (
+        Index("ix_event_outbox_status_available", "status", "available_at"),
+        Index("ix_event_outbox_topic_created", "topic", "created_at"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(36), unique=True, index=True)
+    topic: Mapped[str] = mapped_column(String(120), index=True)
+    partition_key: Mapped[str] = mapped_column(String(255), default="")
+    envelope: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class EventInbox(Base):
+    """Consumer idempotency receipt, unique per consumer and event."""
+    __tablename__ = "event_inbox"
+    __table_args__ = (
+        UniqueConstraint("consumer_name", "event_id", name="uq_event_inbox_consumer_event"),
+        Index("ix_event_inbox_processed_at", "processed_at"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    consumer_name: Mapped[str] = mapped_column(String(120))
+    event_id: Mapped[str] = mapped_column(String(36))
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    result: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class ApplicationDispatchKey(Base):
+    """Database-enforced one-dispatch-per-application and request idempotency."""
+    __tablename__ = "application_dispatch_keys"
+    __table_args__ = (
+        UniqueConstraint("user_id", "idempotency_key", name="uq_application_dispatch_user_key"),
+        UniqueConstraint("user_id", "application_id", name="uq_application_dispatch_user_app"),
+        Index("ix_application_dispatch_status", "status", "created_at"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    application_id: Mapped[int] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"))
+    idempotency_key: Mapped[str] = mapped_column(String(128))
+    payload_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(20), default="reserved")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
