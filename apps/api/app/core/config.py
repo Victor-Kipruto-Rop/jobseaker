@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     kafka_client_id: str = "jobseeker-api"
     gmail_enabled: bool = False
     credential_kek: str | None = None
+    otel_exporter_otlp_endpoint: str | None = None
+    otel_service_name: str = "jobseeker-api"
     job_discovery_enabled: bool = False
     gmail_client_secret_file: str | None = None
     gmail_redirect_uri: str = "http://localhost:8000/api/v1/integrations/gmail/callback"
