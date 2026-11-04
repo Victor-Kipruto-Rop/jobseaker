@@ -9,7 +9,8 @@ export default function AssistantPage(){
  const [messages,setMessages]=useState<Message[]>([]),[input,setInput]=useState(""),[conversation,setConversation]=useState<number|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(""),[memory,setMemory]=useState<any>(null),[showMemory,setShowMemory]=useState(false),[uploadStatus,setUploadStatus]=useState(""),[isMobile,setIsMobile]=useState(false);
  const bottom=useRef<HTMLDivElement>(null),uploadRef=useRef<HTMLInputElement>(null);
  async function loadMemory(){const r=await api("/api/v1/ai/assistant/memory");if(r.ok)setMemory(await r.json());}
- useEffect(()=>{void loadMemory();},[]);\n useEffect(()=>{const query=window.matchMedia("(max-width: 900px)");const update=()=>setIsMobile(query.matches);update();query.addEventListener("change",update);return()=>query.removeEventListener("change",update);},[]);
+ useEffect(()=>{void loadMemory();},[]);
+ useEffect(()=>{const query=window.matchMedia("(max-width: 900px)");const update=()=>setIsMobile(query.matches);update();query.addEventListener("change",update);return()=>query.removeEventListener("change",update);},[]);
  useEffect(()=>{bottom.current?.scrollIntoView({behavior:"smooth"});},[messages]);
  async function send(text=input){if(!text.trim()||busy)return;setError("");setInput("");setMessages(m=>[...m,{role:"user",content:text}]);setBusy(true);
   try{const r=await api("/api/v1/ai/assistant/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text,conversation_id:conversation})});const d=await r.json();if(!r.ok)throw new Error(d.detail||"Assistant request failed");setConversation(d.conversation_id);setMessages(m=>[...m,{role:"assistant",content:d.text,id:d.message_id}]);}
