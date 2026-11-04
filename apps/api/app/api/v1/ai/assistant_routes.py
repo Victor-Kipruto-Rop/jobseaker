@@ -14,7 +14,7 @@ from packages.database.models.assistant import AssistantMemory, AssistantFact, A
 from packages.database.models.assistant_jobs import AssistantIngestionJob
 from packages.assistant.orchestration import plan_agent_steps, execute_plan, plan_trace
 from packages.security.credential_vault import encrypt_credential, decrypt_credential
-from packages.assistant.engine import sanitize, remember, retrieve, build_context, plan_tools, adapt_preferences, embedding, preference_snapshot, store_preferences
+from packages.assistant.engine import sanitize, remember, build_context, adapt_preferences, preference_snapshot, store_preferences
 from packages.ai.providers.base import GenerationRequest
 from packages.ai.providers.router import generate_with_fallback
 from packages.ai.budget import AIQuotaExceeded, reserve_ai_tokens, finish_ai_reservation, record_ai_usage
