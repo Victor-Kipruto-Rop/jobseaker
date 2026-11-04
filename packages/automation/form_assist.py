@@ -138,6 +138,10 @@ async def capture_failure_evidence(page: Any, *, owner_scope: str) -> dict[str, 
     """Store private, best-effort redacted screenshot and DOM evidence for a failed run."""
     from packages.storage.objects import store_private_object
 
+    await page.add_style_tag(content=(
+        "input, textarea, select, [contenteditable='true'] "
+        "{ color: transparent !important; text-shadow: none !important; }"
+    ))
     screenshot = await page.screenshot(full_page=True, animations="disabled")
     html = await page.content()
     # Do not retain scripts or values from form controls in the DOM evidence.
