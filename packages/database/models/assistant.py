@@ -53,6 +53,7 @@ class AssistantPreference(Base):
     feedback_count: Mapped[int] = mapped_column(Integer, default=0)
     memory_enabled: Mapped[bool] = mapped_column(default=False)
     memory_retention_days: Mapped[int] = mapped_column(Integer, default=365)
+    preferences_encrypted: Mapped[bool] = mapped_column(Boolean, default=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 class AssistantFeedback(Base):
