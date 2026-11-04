@@ -43,6 +43,7 @@ class InteractionInput(BaseModel):
     recommendation_source: str = Field(default="", max_length=40)
     position: int | None = Field(default=None, ge=0, le=500)
     dwell_seconds: float | None = Field(default=None, ge=0, le=86400)
+    scroll_depth: float | None = Field(default=None, ge=0, le=100)
     feature_snapshot: dict = Field(default_factory=dict)
 
     @field_validator("recommendation_source")
@@ -482,7 +483,7 @@ def record_interaction(
         item_key=key, event_type=body.event_type,
         recommendation_source=body.recommendation_source,
         position=body.position, dwell_seconds=body.dwell_seconds,
-        feature_snapshot=snapshot,
+        scroll_depth=body.scroll_depth, feature_snapshot=snapshot,
     )
     db.add(event)
     db.flush()
@@ -490,7 +491,7 @@ def record_interaction(
         "user_id": user.id, "interaction_id": event.id, "item_key": key,
         "event_type": body.event_type, "recommendation_source": body.recommendation_source,
         "position": body.position, "dwell_seconds": body.dwell_seconds,
-        "feature_snapshot": snapshot,
+        "scroll_depth": body.scroll_depth, "feature_snapshot": snapshot,
     }, partition_key=str(user.id))
     db.commit()
     return {"status": "recorded", "event_id": event.id,
