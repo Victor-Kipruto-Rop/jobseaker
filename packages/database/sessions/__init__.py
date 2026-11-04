@@ -7,7 +7,6 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from apps.api.app.core.config import get_settings
-from packages.database.models import Base
 
 settings = get_settings()
 connect_args = (
@@ -49,7 +48,7 @@ def init_database() -> None:
 
         try:
             with engine.connect() as connection:
-                actual = connection.execute(
+                actual: str = connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
         except Exception as exc:
