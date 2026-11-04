@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 
@@ -23,6 +24,7 @@ async def main() -> None:
             client_id=f"{settings.kafka_client_id}-outbox-relay",
             enable_idempotence=True,
             acks="all",
+            value_serializer=lambda value: json.dumps(value, separators=(",", ":")).encode("utf-8"),
             request_timeout_ms=10000,
         ),
         poll_seconds=1.0,
