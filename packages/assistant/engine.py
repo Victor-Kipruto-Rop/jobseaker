@@ -172,7 +172,7 @@ def remember(db: Session, user_id: int, content: str, conversation_id: int | Non
     if len(clean.strip()) < 20: return None
     chunks = semantic_chunks(clean)
     first_id = None
-    for chunk in chunks[:12]:
+    for chunk in chunks[:80]:
         row = AssistantMemory(user_id=user_id, conversation_id=conversation_id,
             memory_kind="episodic", content=chunk, summary=extractive_summary(chunk),
             embedding=embedding(chunk), keywords=list(dict.fromkeys(tokens(chunk)))[:40],
