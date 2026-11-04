@@ -124,7 +124,7 @@ def main() -> int:
             file=sys.stderr,
         )
         return exc.returncode or 1
-    except Exception as exc:
+    except (RuntimeError, OSError, URLError, TimeoutError) as exc:
         print(
             f"Verification failed: {exc}. The local stack is intentionally left running for inspection.",
             file=sys.stderr,
