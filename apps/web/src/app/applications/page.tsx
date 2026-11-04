@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, ArrowUpRight, BriefcaseBusiness, Check, CheckCircle2, Clock3, FilePlus2, Filter, MessageSquareText, Plus, Search, ShieldCheck, X } from "lucide-react";
+import { ArrowRight, ArrowUpRight, BriefcaseBusiness, Check, CheckCircle2, FilePlus2, Filter, MessageSquareText, Plus, Search, ShieldCheck, X } from "lucide-react";
 import AppShell from "../../components/layout/app-shell";
 import styles from "./applications.module.css";
 
@@ -40,7 +40,7 @@ export default function Applications(){
   catch(e){setError(e instanceof Error?e.message:"Unable to load applications.");}
   finally{setLoading(false);}
  },[]);
- useEffect(()=>{void load();const params=new URLSearchParams(window.location.search);if(params.get("view")==="approvals")setView("approvals");},[load]);
+ useEffect(()=>{void load();const params=new URLSearchParams(window.location.search);if(params.get("view")==="approvals")setView("approvals");const stage=params.get("stage");if(stage&&statuses.includes(stage))setFilter(stage);},[load]);
 
  const visible=useMemo(()=>rows.filter(row=>(filter==="all"||row.status===filter)&&(!query.trim()||[row.role_title,row.company_name].join(" ").toLowerCase().includes(query.toLowerCase()))),[rows,filter,query]);
  const pending=approvals.filter(item=>item.status==="pending");
