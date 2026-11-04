@@ -17,7 +17,7 @@ export default function AssistantPage(){
   finally{setBusy(false);}
  }
  async function feedback(message:Message,rating:number){if(!message.id)return;await api("/api/v1/ai/assistant/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:conversation,message_id:message.id,rating})});}
- async function toggleMemory(){const enabled=!(memory?.enabled??true);const r=await api("/api/v1/ai/assistant/memory?enabled="+enabled,{method:"PATCH"});if(r.ok)await loadMemory();}
+ async function toggleMemory(){const enabled=!(memory?.enabled??false);const r=await api("/api/v1/ai/assistant/memory?enabled="+enabled,{method:"PATCH"});if(r.ok)await loadMemory();}
  async function clearMemory(){if(!confirm("Delete your saved assistant memories and extracted facts? Conversation history will remain."))return;const r=await api("/api/v1/ai/assistant/memory",{method:"DELETE"});if(r.ok)await loadMemory();}
  function newChat(){setMessages([]);setConversation(null);setError("");}
  return <main style={{minHeight:"100vh",background:"#f5f8f6",color:"#17352a",display:"grid",gridTemplateColumns:"minmax(0,1fr) 320px",fontFamily:"Inter,ui-sans-serif,system-ui"}}>
