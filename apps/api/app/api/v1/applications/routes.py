@@ -177,8 +177,9 @@ async def update_application(application_id: int, body: ApplicationUpdate,
     if status and status != before:
         enqueue_event(
             db,
-            "application.dispatched" if status == "submitted" else "application.status_changed",
-            {"user_id": user.id, "application_id": row.id, "from": before, "to": status},
+            "application.status_changed",
+            {"user_id": user.id, "application_id": row.id, "from": before, "to": status,
+             "submission_recorded": status == "submitted"},
             partition_key=str(user.id),
         )
     db.commit()
