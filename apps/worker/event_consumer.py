@@ -2,6 +2,8 @@
 from __future__ import annotations
 import asyncio
 import logging
+import os
+from prometheus_client import start_http_server
 
 from apps.api.app.core.config import get_settings
 from packages.database.sessions import SessionLocal
@@ -13,7 +15,8 @@ async def main() -> None:
     settings = get_settings()
     if not settings.kafka_enabled:
         raise RuntimeError("KAFKA_ENABLED must be true for event consumers")
-    logging.basicConfig(level="INFO")
+    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+    start_http_server(int(os.getenv("METRICS_PORT", "9102")), addr="0.0.0.0")
     await run_kafka_consumer(
         SessionLocal,
         settings.kafka_bootstrap_servers,
