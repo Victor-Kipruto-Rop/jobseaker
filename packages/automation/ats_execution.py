@@ -58,8 +58,10 @@ async def execute_ats_field(db: Session, page, *, user_id: int,
         ATSApplicationDraft.application_id == application_id))
     application = db.scalar(select(Application).where(
         Application.id == application_id, Application.user_id == user_id))
-    if not draft or not application or not draft.candidate_confirmed:
-        raise PermissionError("ATS draft or application ownership could not be verified")
+    if (not draft or not application or not draft.candidate_confirmed
+            or draft.status != "approved"
+            or application.status not in {"draft", "ready", "approved"}):
+        raise PermissionError("ATS draft or application is not eligible for browser execution")
     job_origin = urlsplit(application.job_url or "")
     approved = urlsplit(approved_origin or "")
     if (job_origin.scheme != "https" or approved.scheme != "https"
