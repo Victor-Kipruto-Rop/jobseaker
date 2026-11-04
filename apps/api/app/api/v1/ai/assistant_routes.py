@@ -64,7 +64,7 @@ async def assistant_chat(body: AssistantChat, user: User = Depends(get_current_u
     history_rows = db.scalars(select(AIMessage).where(AIMessage.user_id == user.id, AIMessage.conversation_id == conversation.id).order_by(AIMessage.created_at.desc()).limit(24)).all()
     history = [{"role":m.role,"content":m.content} for m in reversed(history_rows)]
     prefs = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user.id))
-    memory_enabled = prefs.memory_enabled if prefs else True
+    memory_enabled = prefs.memory_enabled if prefs else False
     clean_query = sanitize(body.message)
     safe_tools = plan_tools(clean_query)
     tool_context = _tool_context(db, user.id, safe_tools)
@@ -109,7 +109,7 @@ def memory_overview(user: User = Depends(get_current_user), db: Session = Depend
     facts = db.scalars(select(AssistantFact).where(AssistantFact.user_id==user.id,AssistantFact.active.is_(True)).order_by(AssistantFact.updated_at.desc()).limit(100)).all()
     count = db.scalar(select(func.count(AssistantMemory.id)).where(AssistantMemory.user_id==user.id)) or 0
     pref = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id==user.id))
-    return {"enabled":pref.memory_enabled if pref else True,"episodic_count":int(count),
+    return {"enabled":pref.memory_enabled if pref else False,"episodic_count":int(count),
         "facts":[{"id":f.id,"key":f.fact_key,"value":f.fact_value,"confidence":f.confidence,"verified":f.verified_by_user} for f in facts]}
 
 @router.put("/assistant/preferences")
