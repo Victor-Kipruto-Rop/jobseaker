@@ -154,3 +154,39 @@ packages/events/schema_registry.py validates envelopes against the registered JS
 ## Operational metrics
 
 The API exposes Prometheus metrics at /metrics. HTTP request totals and latency use route templates to avoid high-cardinality path labels. The outbox relay and event consumer expose independent scrape endpoints at localhost:9101/metrics and localhost:9102/metrics in local Compose; these export outbox delivery/backlog and consumer retry/DLQ metrics respectively. Outbox events carry W3C trace context from the API into Kafka; the consumer extracts that context and creates a processing span when OTLP instrumentation is installed. Configure the OTLP endpoint to enable API and SQLAlchemy tracing. The relay's broker-send span, scheduler spans and full service dependency map still need additional instrumentation. Protect metrics endpoints with network policy or an authenticated metrics gateway in production.
+## Six-area acceptance criteria: latest implementation details
+
+### 1. Reliable event backbone
+- Event envelopes accept schema version 1 only and validate UUID event IDs, allowed event types, and required user/application/email references for the corresponding topics. Unsupported versions and malformed payloads are rejected into the consumer DLQ path.
+- Outbox delivery remains at-least-once. If a DLQ publish fails, the source outbox record remains retryable; it is never marked terminal until the broker acknowledges the DLQ record.
+- Gmail import, last-sync state and stable-ID classification outbox records now share one database transaction. A replay of the same Gmail provider message does not create another message/outbox event.
+- The inbox remains scoped by consumer and event ID. Kafka consumer transactions are traced when OTLP is enabled.
+
+### 2. Recommendation intelligence
+- Online preference drift now reweights the actual ranking feature values rather than adding feature names to the semantic candidate query.
+- Offline ranking uses LightGBM LambdaRank with graded feedback labels and candidate-level query groups. Validation holds out entire candidates to reduce user leakage and reports AUC plus NDCG@10.
+- Ranker artifacts remain unelevated candidates until both ranking-quality promotion thresholds pass. The API serves only integrity-checked active LambdaRank artifacts and falls back to transparent hybrid ranking when no supported model is active.
+- This is a supervised ranker, not a continuously retrained model. Training requires enough real candidate/job interactions with feature snapshots and both positive and negative relevance labels.
+
+### 3. Application automation and submission safety
+- ATS mapping validates every proposed field against the inspected form and candidate-supplied facts. Candidate approval is required before filling; challenge detection pauses the workflow; submission is never performed by the browser helper.
+- Browser failure evidence is stored privately and DOM redaction now removes script bodies, input values and textarea contents before persistence.
+- Candidate approval and submission confirmation are separate API actions. A candidate must move a ready application through explicit approval, then confirm that they personally submitted it on the external ATS. Idempotency keys prevent duplicate confirmation records.
+- A locally confirmed submission is not evidence that an external ATS accepted or processed the application. External receipt links are recorded as candidate-supplied evidence only.
+
+### 4. Application lifecycle and email intelligence
+- Application lifecycle transitions are centralized in a shared finite-state machine. Email classification only proposes a next state; a candidate confirmation endpoint requires high-confidence intent, an unambiguous application match and recorded email evidence before applying a valid transition.
+- The confirmation action is idempotent when the application already has the proposed state and writes an audit event plus an outbox event in the same transaction.
+- Interview calendar sync uses a deterministic Google event ID so retries update an existing event rather than creating duplicates after a lost local commit.
+
+### 5. Resume intelligence
+- Tailored CV outputs and cover letters are saved as separate draft artifacts. CV tailoring can be linked to an owned opportunity; cover letters can use saved candidate projects and employer details sourced from that opportunity.
+- The CV tailoring route validates opportunity ownership before linking the generated version. Generated text remains a draft and does not overwrite the uploaded source resume.
+
+### 6. Security, operations and observability
+- Credential ciphertext supports a versioned AES-GCM keyring and active key IDs. Gmail and Calendar credentials are rewrapped with the active key when they are next used.
+- The API exposes FastAPI/SQLAlchemy traces when OTLP is configured. Event consumers emit Kafka processing spans, and worker processes can export OTLP traces/metrics. Prometheus counters and backlog gauges remain available for operational scraping.
+- Redis sliding-window limits, provider circuit breakers, bounded retry loops and dead-letter counters provide operational protection. Production still requires dashboards, alert thresholds, credential-rotation runbooks and a tested replay operator workflow.
+
+### Verification caveat
+All changes above are source-level implementation. They have not been executed against a local Docker environment or a live Google/ATS account in this session. CI, migration execution, unit tests, frontend builds and integration smoke tests must pass on the latest branch head before PR #9 is merged.
