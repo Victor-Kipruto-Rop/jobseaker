@@ -9,6 +9,7 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 from packages.database.models.career import EventOutbox
 from packages.ops.metrics import EVENT_DELIVERY, OUTBOX_BACKLOG
+from packages.ops.tracing import inject_trace_context
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
