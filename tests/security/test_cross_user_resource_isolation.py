@@ -558,3 +558,11 @@ def test_global_workspace_search_only_returns_the_signed_in_users_records(db, us
     assert len(results) == 2
     assert {item["subtitle"] for item in results} == {"Owner Labs"}
     assert all(item["kind"] in {"OPPORTUNITY", "APPLICATION"} for item in results)
+
+
+def test_global_workspace_search_rejects_whitespace_only_queries(db, users):
+    owner, _ = users
+    with pytest.raises(HTTPException) as error:
+        search_workspace("   ", owner, db)
+    assert error.value.status_code == 422
+    assert error.value.detail == "Search query must contain at least two non-whitespace characters"
