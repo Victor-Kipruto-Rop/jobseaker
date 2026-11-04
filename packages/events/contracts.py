@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from packages.events.kafka import ALLOWED_TOPICS
 
@@ -27,6 +27,12 @@ class EventEnvelope(BaseModel):
         except ValueError as exc:
             raise ValueError("event_id must be a UUID") from exc
         return value
+
+    @model_validator(mode="after")
+    def validate_registered_schema(self):
+        from packages.events.schema_registry import validate_envelope
+        validate_envelope(self.model_dump(mode="json"))
+        return self
 
     @field_validator("event_type")
     @classmethod
