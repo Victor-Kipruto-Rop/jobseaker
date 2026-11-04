@@ -121,3 +121,11 @@ The run metadata contains no step-level execution evidence. These are infrastruc
 - No `pnpm-lock.yaml` exists. Frontend installs remain non-frozen until a lockfile is generated and committed.
 - Coverage output is configured but no percentage was produced. The 80% service/authentication target remains open.
 - No changes enable email sending, application submission, Gmail write access, or live AI provider calls.
+
+
+Additional latest-commit attempts:
+
+- [CI run 41775916410](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41775916410): all three jobs were marked failed with zero recorded steps.
+- [Secret scan run 41775916387](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41775916387): failed with zero recorded steps.
+
+The runner did not execute a workflow step in either run. This does not establish whether application checks pass or fail.
