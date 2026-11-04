@@ -31,12 +31,15 @@ def _wilson(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:
     margin = z*math.sqrt((p*(1-p)+z*z/(4*total))/total)/denominator
     return max(0.0, center-margin), min(1.0, center+margin)
 
-def evaluate_experiment(events: Iterable[dict], arms: list[str], min_impressions: int = 100) -> dict:
+def evaluate_experiment(events: Iterable[dict], arms: list[str], min_impressions: int = 100, experiment_id: str | None = None) -> dict:
     stats = defaultdict(lambda: {"impressions": 0, "clicks": 0, "saves": 0,
                                  "applies": 0, "interviews": 0, "offers": 0,
                                  "dismissals": 0, "weighted_reward": 0.0})
     for event in events:
         features = event.get("feature_snapshot") or {}
+        event_experiment = event.get("experiment_id") or features.get("experiment_id")
+        if experiment_id and event_experiment != experiment_id:
+            continue
         arm = str(event.get("experiment_arm") or features.get("experiment_arm")
                   or event.get("arm") or event.get("recommendation_source") or "")
         propensity = float(event.get("propensity") or features.get("propensity") or 1.0)
@@ -83,7 +86,8 @@ def evaluate_experiment(events: Iterable[dict], arms: list[str], min_impressions
         report[arm] = row
     eligible = [name for name in arms if report[name]["eligible_for_decision"]]
     winner = max(eligible, key=lambda name: report[name]["reward_per_impression"] or 0) if eligible else None
-    return {"arms": report, "minimum_impressions": min_impressions,
+    return {"experiment_id": experiment_id, "arms": report,
+            "minimum_impressions": min_impressions,
             "decision": "candidate_winner" if winner else "insufficient_exposure",
             "candidate_winner": winner,
             "automatic_promotion": False,
