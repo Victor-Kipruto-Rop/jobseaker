@@ -90,6 +90,13 @@ async def discover_company_profile(source: str, board: str) -> dict:
             follow_redirects=False,
             headers={"User-Agent": "JobSeeker-Intelligence/0.3"},
         ) as client:
+            if source == "greenhouse":
+                board_response = await client.get(f"https://boards-api.greenhouse.io/v1/boards/{board}")
+                if board_response.status_code == 200:
+                    board_payload = board_response.json()
+                    if isinstance(board_payload.get("name"), str) and board_payload["name"].strip():
+                        profile["company"] = board_payload["name"].strip()[:250]
+
             response = await client.get(page_url)
             if response.status_code != 200 or "text/html" not in response.headers.get("content-type", "").lower():
                 return profile
@@ -107,15 +114,17 @@ async def discover_company_profile(source: str, board: str) -> dict:
         profile["company_description"] = re.sub(r"\\s+", " ", description).strip()[:2000]
         logo = meta.get("og:image") or meta.get("twitter:image") or ""
         icon = parser.links.get("icon") or parser.links.get("shortcut icon") or ""
-        profile["company_logo_url"] = _safe_url(urljoin(page_url, logo)) if logo else ""
-        profile["company_favicon_url"] = _safe_url(urljoin(page_url, icon)) if icon else ""
+        logo_url = _safe_url(urljoin(page_url, logo)) if logo else ""
+        icon_url = _safe_url(urljoin(page_url, icon)) if icon else ""
+        profile["company_logo_url"] = logo_url if urlsplit(logo_url).scheme == "https" else ""
+        profile["company_favicon_url"] = icon_url if urlsplit(icon_url).scheme == "https" else ""
 
         canonical = parser.links.get("canonical") or meta.get("og:url") or ""
         if canonical:
             canonical_url = _safe_url(urljoin(page_url, canonical))
             host = urlsplit(canonical_url).hostname or ""
             ats_hosts = {"boards.greenhouse.io", "job-boards.greenhouse.io", "jobs.lever.co", "api.lever.co"}
-            if canonical_url and host.lower() not in ats_hosts:
+            if canonical_url and urlsplit(canonical_url).scheme == "https" and host.lower() not in ats_hosts:
                 profile["company_website"] = canonical_url
                 profile["company_domain"] = host.lower().removeprefix("www.")
         if any(profile[key] for key in ("company_logo_url", "company_favicon_url", "company_website", "company_description")):
