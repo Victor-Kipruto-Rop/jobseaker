@@ -282,7 +282,7 @@ def build_context(db: Session, user_id: int, query: str, history: list[dict],
         source = db.get(AssistantEntity, edge.source_entity_id)
         target = db.get(AssistantEntity, edge.target_entity_id)
         if source and target and source_memory_is_active(db, source.source_memory_id) and source_memory_is_active(db, target.source_memory_id):
-            graph.append(f"{source.name} --{edge.relation_type}--> {target.name}")
+            graph.append(sanitize(f"{source.name} --{edge.relation_type}--> {target.name}"))
     sections = ["USER FACTS (unverified unless explicitly marked):"]
     for fact in facts:
         fact_value = decrypt_credential(fact.fact_value, purpose=f"assistant-fact:{user_id}") if fact.fact_value_encrypted else fact.fact_value
@@ -293,8 +293,8 @@ def build_context(db: Session, user_id: int, query: str, history: list[dict],
     sections.extend("- " + edge for edge in graph[:40])
     sections.append("PREFERENCES:")
     sections.append(sanitize(str(prefs))[:2000])
-    style = str(prefs.get("response_style", "")).lower()
-    depth = str(prefs.get("technical_depth", "")).lower()
+    style = sanitize(str(prefs.get("response_style", "")).lower())[:100]
+    depth = sanitize(str(prefs.get("technical_depth", "")).lower())[:100]
     if style or depth:
         sections.append("ADAPTIVE RESPONSE GUIDANCE: " + "; ".join(
             item for item in (f"style={style}" if style else "", f"technical_depth={depth}" if depth else "") if item))
