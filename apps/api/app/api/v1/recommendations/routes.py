@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import desc, inspect, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -57,6 +57,20 @@ class InteractionInput(BaseModel):
         if value and value not in SOURCES:
             raise ValueError("Unknown recommendation source")
         return value
+
+    @field_validator("experiment_arm")
+    @classmethod
+    def valid_experiment_arm(cls, value):
+        if value and value not in {"control", "explore"}:
+            raise ValueError("Unknown experiment arm")
+        return value
+
+    @model_validator(mode="after")
+    def experiment_fields_are_consistent(self):
+        supplied = [self.experiment_id, self.experiment_arm, self.propensity]
+        if any(value is not None for value in supplied) and not all(value is not None for value in supplied):
+            raise ValueError("experiment_id, experiment_arm and propensity must be supplied together")
+        return self
 
     @field_validator("feature_snapshot")
     @classmethod
