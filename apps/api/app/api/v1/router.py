@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from apps.api.app.dependencies import require_roles
+from apps.api.app.api.v1.admin.routes import router as admin
 from apps.api.app.api.v1.ai.routes import router as ai
 from apps.api.app.api.v1.applications.routes import router as applications
 from apps.api.app.api.v1.auth.routes import router as auth
@@ -21,6 +22,10 @@ from apps.api.app.api.v1.resumes.routes import router as resumes
 from apps.api.app.api.v1.saved_searches.routes import router as saved_searches
 
 router = APIRouter()
+
+# Administrative APIs use a separate, explicit role boundary.
+router.include_router(admin, prefix="/admin", tags=["administration"],
+                      dependencies=[Depends(require_roles("admin"))])
 
 # Authentication includes explicitly public token/bootstrap routes and account routes
 # that perform their own session checks. Do not apply a router-wide candidate policy.
