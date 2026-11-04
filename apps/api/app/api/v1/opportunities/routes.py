@@ -111,7 +111,7 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=502, detail="The selected job board returned an error") from exc
-    except (httpx.HTTPError, ValueError) as exc:
+    except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail="Unable to reach the selected job board") from exc
     filtered = filter_jobs(discovered, keywords=body.keywords, location=body.location, remote_only=body.remote_only)
     saved, skipped = 0, 0
