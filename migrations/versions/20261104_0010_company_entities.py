@@ -93,6 +93,8 @@ def upgrade():
 
 
 def downgrade():
+    # Remove only migration-created legacy records before dropping their provenance columns.
+    op.execute("DELETE FROM companies WHERE source_provider = 'legacy'")
     op.drop_index("uq_company_user_source_board", table_name="companies")
     op.drop_index("ix_candidate_opportunities_company_id", table_name="candidate_opportunities")
     op.drop_column("candidate_opportunities", "company_id")
