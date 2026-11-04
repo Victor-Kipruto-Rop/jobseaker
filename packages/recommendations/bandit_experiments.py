@@ -36,25 +36,37 @@ def evaluate_experiment(events: Iterable[dict], arms: list[str], min_impressions
                                  "applies": 0, "interviews": 0, "offers": 0,
                                  "dismissals": 0, "weighted_reward": 0.0})
     for event in events:
-        arm = str(event.get("recommendation_source") or event.get("arm") or "")
+        features = event.get("feature_snapshot") or {}
+        arm = str(event.get("experiment_arm") or features.get("experiment_arm")
+                  or event.get("arm") or event.get("recommendation_source") or "")
+        propensity = float(event.get("propensity") or features.get("propensity") or 1.0)
+        if not 0 < propensity <= 1:
+            continue
         kind = str(event.get("event_type") or "")
         if arm not in arms or kind not in VALID_EVENTS:
             continue
         row = stats[arm]
         if kind == "impression":
             row["impressions"] += 1
+            row["ips_impressions"] = row.get("ips_impressions", 0.0) + (1.0 / propensity)
         elif kind == "click":
             row["clicks"] += 1; row["weighted_reward"] += 0.25
+            row["ips_weighted_reward"] = row.get("ips_weighted_reward", 0.0) + 0.25 / propensity
         elif kind == "save":
             row["saves"] += 1; row["weighted_reward"] += 1.0
+            row["ips_weighted_reward"] = row.get("ips_weighted_reward", 0.0) + 1.0 / propensity
         elif kind == "apply":
             row["applies"] += 1; row["weighted_reward"] += 3.0
+            row["ips_weighted_reward"] = row.get("ips_weighted_reward", 0.0) + 3.0 / propensity
         elif kind == "interview":
             row["interviews"] += 1; row["weighted_reward"] += 5.0
+            row["ips_weighted_reward"] = row.get("ips_weighted_reward", 0.0) + 5.0 / propensity
         elif kind == "offer":
             row["offers"] += 1; row["weighted_reward"] += 7.0
+            row["ips_weighted_reward"] = row.get("ips_weighted_reward", 0.0) + 7.0 / propensity
         elif kind == "dismiss":
             row["dismissals"] += 1; row["weighted_reward"] -= 1.0
+            row["ips_weighted_reward"] = row.get("ips_weighted_reward", 0.0) - 1.0 / propensity
     report = {}
     for arm in arms:
         row = dict(stats[arm])
@@ -62,6 +74,10 @@ def evaluate_experiment(events: Iterable[dict], arms: list[str], min_impressions
         row["ctr"] = row["clicks"] / n if n else None
         row["apply_rate"] = row["applies"] / n if n else None
         row["reward_per_impression"] = row["weighted_reward"] / n if n else None
+        ips_n = row.get("ips_impressions", 0.0)
+        row["ips_reward_per_impression"] = (
+            row.get("ips_weighted_reward", 0.0) / ips_n if ips_n else None
+        )
         row["ctr_wilson_95"] = list(_wilson(row["clicks"], n))
         row["eligible_for_decision"] = n >= min_impressions
         report[arm] = row
