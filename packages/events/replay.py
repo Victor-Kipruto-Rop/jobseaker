@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from packages.database.models.career import EventOutbox
 from packages.events.schema_registry import validate_envelope
 
-def replay_published_events(db: Session, producer, *, topic: str,
+async def replay_published_events(db: Session, producer, *, topic: str,
                             event_ids: list[str], confirm: bool = False) -> dict:
     if not confirm:
         raise PermissionError("Replay requires explicit operator confirmation")
@@ -20,7 +20,7 @@ def replay_published_events(db: Session, producer, *, topic: str,
     for row in rows:
         validate_envelope(row.envelope)
         try:
-            producer.send_and_wait(topic, row.envelope,
+            await producer.send_and_wait(topic, row.envelope,
                 key=row.partition_key.encode() if row.partition_key else None)
             published.append(row.event_id)
         except Exception as exc:
