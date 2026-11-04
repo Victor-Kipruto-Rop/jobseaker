@@ -211,6 +211,9 @@ def export_assistant_memory(user: User = Depends(get_current_user), db: Session 
     ).order_by(AssistantMemory.created_at.asc())).all()
     facts = db.scalars(select(AssistantFact).where(
         AssistantFact.user_id == user.id, AssistantFact.active.is_(True))).all()
+    entities = db.scalars(select(AssistantEntity).where(AssistantEntity.user_id == user.id)).all()
+    relations = db.scalars(select(AssistantRelation).where(AssistantRelation.user_id == user.id)).all()
+    preference = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user.id))
     memories = []
     for row in rows:
         content = decrypt_credential(row.content, purpose=f"assistant-memory:{user.id}") if row.content_encrypted else row.content
@@ -219,6 +222,15 @@ def export_assistant_memory(user: User = Depends(get_current_user), db: Session 
                          "expires_at": row.expires_at.isoformat() if row.expires_at else None})
     return {"exported_at": datetime.now(timezone.utc).isoformat(), "memories": memories,
             "preferences": preference_snapshot(db, user.id),
+            "retention_days": preference.memory_retention_days if preference else 365,
+            "knowledge_graph": {
+                "entities": [{"id": entity.id, "type": entity.entity_type, "name": entity.name,
+                              "aliases": entity.aliases, "attributes": entity.attributes}
+                             for entity in entities],
+                "relations": [{"source_entity_id": edge.source_entity_id,
+                               "target_entity_id": edge.target_entity_id,
+                               "type": edge.relation_type, "confidence": edge.confidence}
+                              for edge in relations]},
             "facts": [{"key": item.fact_key, "value": decrypt_credential(item.fact_value, purpose=f"assistant-fact:{user.id}") if item.fact_value_encrypted else item.fact_value,
                        "confidence": item.confidence, "verified": item.verified_by_user}
                       for item in facts]}
