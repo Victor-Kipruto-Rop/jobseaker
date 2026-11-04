@@ -120,6 +120,26 @@ def classify(subject: str, snippet: str) -> tuple[str, float, bool]:
             return category, 0.8, action
     return "unclassified_job_related", 0.25, False
 
+def _plain_text_from_payload(payload: dict) -> str:
+    """Extract bounded text/plain content without persisting full message bodies."""
+    chunks = []
+    def walk(part):
+        if not isinstance(part, dict):
+            return
+        mime = (part.get("mimeType") or "").lower()
+        data = (part.get("body") or {}).get("data")
+        if mime == "text/plain" and data:
+            try:
+                decoded = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+                chunks.append(decoded.decode("utf-8", errors="replace"))
+            except Exception:
+                pass
+        for child in part.get("parts", []) or []:
+            walk(child)
+    walk(payload)
+    return "\n".join(chunks)[:12000]
+
+
 def sync_messages(db: Session, user_id: int, limit: int = 200) -> dict:
     account = db.scalar(select(EmailAccount).where(
         EmailAccount.user_id == user_id, EmailAccount.provider == "gmail"))
