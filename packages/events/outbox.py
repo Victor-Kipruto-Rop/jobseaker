@@ -100,7 +100,7 @@ async def relay_outbox_batch(
                         )
                         row.status = "dead_letter"
                         result["dead_lettered"] += 1
-                    EVENT_DELIVERY.labels("outbox", topic, "dead_letter").inc()
+                        EVENT_DELIVERY.labels("outbox", topic, "dead_letter").inc()
                     except Exception as dlq_exc:
                         row.status = "retry"
                         row.available_at = datetime.now(timezone.utc) + timedelta(minutes=5)
@@ -109,7 +109,7 @@ async def relay_outbox_batch(
                         logger.exception("Could not publish event to DLQ; retaining outbox row",
                                          extra={"event_id": row.event_id})
                         result["retrying"] += 1
-                    EVENT_DELIVERY.labels("outbox", topic, "retry").inc()
+                        EVENT_DELIVERY.labels("outbox", topic, "retry").inc()
                 else:
                     delay = min(3600, 2 ** min(row.attempts, 11))
                     row.status = "retry"
