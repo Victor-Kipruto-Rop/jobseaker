@@ -134,6 +134,36 @@ def _calendar_event(interview: Interview, application: Application | None) -> di
     }
 
 
+
+class CalendarReconcileRequest(BaseModel):
+    limit: int = Field(default=20, ge=1, le=100)
+
+@router.post("/reconcile")
+def reconcile_candidate_interviews(body: CalendarReconcileRequest,
+                                   user: User = Depends(get_current_user),
+                                   db: Session = Depends(get_db)):
+    """Explicitly reconcile upcoming interview records with Google Calendar."""
+    enforce_rate_limit(f"calendar-reconcile:{user.id}", limit=5, window_seconds=3600)
+    now = datetime.now(timezone.utc)
+    rows = db.scalars(select(Interview).where(
+        Interview.user_id == user.id,
+        Interview.scheduled_at.is_not(None),
+        Interview.scheduled_at >= now - timedelta(days=30),
+        Interview.scheduled_at <= now + timedelta(days=365),
+    ).order_by(Interview.scheduled_at.asc()).limit(body.limit)).all()
+    results = []
+    for interview in rows:
+        try:
+            result = sync_interview_to_calendar(interview.id, user, db)
+            results.append({"interview_id": interview.id, "status": result.get("status", "synced")})
+        except HTTPException as exc:
+            results.append({"interview_id": interview.id, "status": "failed",
+                            "http_status": exc.status_code, "reason": str(exc.detail)[:250]})
+    return {"considered": len(rows),
+            "synced": sum(item["status"] == "synced" for item in results),
+            "failed": sum(item["status"] == "failed" for item in results),
+            "results": results}
+
 @router.post("/interviews/{interview_id}/sync")
 def sync_interview_to_calendar(
     interview_id: int,
