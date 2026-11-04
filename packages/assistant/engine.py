@@ -244,7 +244,12 @@ def source_memory_is_active(db: Session, memory_id: int | None) -> bool:
     if memory_id is None:
         return True
     source = db.get(AssistantMemory, memory_id)
-    return bool(source and (source.expires_at is None or source.expires_at > datetime.now(timezone.utc)))
+    if source is None or source.expires_at is None:
+        return source is not None
+    expires_at = source.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return expires_at > datetime.now(timezone.utc)
 
 def build_context(db: Session, user_id: int, query: str, history: list[dict],
                   budget_chars: int = 12000, memories: list[dict] | None = None) -> str:
