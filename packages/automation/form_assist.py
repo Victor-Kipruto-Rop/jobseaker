@@ -84,7 +84,7 @@ def build_form_fill_plan(
     )
 
 
-def _verification_required(page: Any) -> bool:
+async def _verification_required(page: Any) -> bool:
     selectors = (
         'iframe[src*="recaptcha"]', 'iframe[src*="hcaptcha"]',
         '[data-sitekey]', 'input[name*="captcha" i]',
@@ -92,7 +92,7 @@ def _verification_required(page: Any) -> bool:
     )
     for selector in selectors:
         try:
-            if page.locator(selector).count():
+            if await page.locator(selector).count():
                 return True
         except Exception:
             continue
@@ -105,7 +105,7 @@ async def apply_approved_form_plan(
     """Fill high-confidence fields after explicit approval; never submits the form."""
     if not candidate_approved:
         return FormAssistResult(status="approval_required", reason="Candidate approval is required")
-    if _verification_required(page):
+    if await _verification_required(page):
         return FormAssistResult(
             status="paused_for_human",
             unresolved_fields=plan.unresolved_required,
