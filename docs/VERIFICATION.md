@@ -619,3 +619,10 @@ Added source-derived company metadata to the Greenhouse/Lever opportunity import
 - Added mocked connector tests for official board name, metadata extraction and missing-logo fallback.
 
 **Still unverified:** the connector tests, Alembic migration, live Greenhouse/Lever import, frontend lint/build, and browser rendering have not been executed. The feature must not be treated as release-verified until those checks pass against the current branch head.
+
+
+### Final company-branding implementation notes
+
+The company metadata contract also includes a validated public theme color and an HTML image-element logo fallback when Open Graph/Twitter images are absent. Company domain and description are returned to the opportunity and application views. Greenhouse board API names take precedence over generic page-title metadata. Re-discovery backfills missing company fields on previously imported records. Extracted company URLs are HTTPS-only and bounded to their database column sizes.
+
+Current PR head at this documentation update: `8ff103fcc5f55310dbb0682b070e18ba941931fa`. No commit-associated workflow runs were returned for this exact head. The latest observed earlier runs (`41803320382` CI and `41803320060` Secret scan) failed with null step summaries and no retrievable logs. No test/build/migration/browser result is available for this implementation.
