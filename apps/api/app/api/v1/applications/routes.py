@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -10,6 +10,9 @@ from packages.database.models.career import (
 )
 from packages.integrations.url_validation import validate_http_url
 from packages.events.outbox import enqueue_event
+from packages.automation.idempotency import (
+    DispatchConflict, reserve_application_dispatch, complete_application_dispatch,
+)
 
 router = APIRouter()
 STATUSES = {"draft", "ready", "approved", "submitted", "screening", "interview",
@@ -120,7 +123,8 @@ async def create_application(body: ApplicationCreate, user: User = Depends(get_c
 @router.patch("/{application_id}")
 async def update_application(application_id: int, body: ApplicationUpdate,
                        user: User = Depends(get_current_user), db: Session = Depends(get_db),
-                       background_tasks: BackgroundTasks = BackgroundTasks()):
+                       background_tasks: BackgroundTasks = BackgroundTasks(),
+                       idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")):
     row = db.scalar(select(Application).where(
         Application.id == application_id, Application.user_id == user.id))
     if not row:
@@ -132,11 +136,28 @@ async def update_application(application_id: int, body: ApplicationUpdate,
     before = row.status
     if status is not None and status != before and status not in TRANSITIONS.get(before, set()):
         raise HTTPException(status_code=409, detail="Invalid application status transition: " + before + " -> " + status)
+    dispatch_reservation = None
+    if status == "submitted" and before != "submitted":
+        job_key = (
+            f"opportunity:{row.opportunity_id}" if row.opportunity_id
+            else (row.job_url or f"application:{row.id}")
+        )
+        try:
+            dispatch_reservation = reserve_application_dispatch(
+                db, user_id=user.id, application_id=row.id,
+                idempotency_key=idempotency_key or f"application:{row.id}:submitted",
+                payload={"job_key": job_key, "job_url": row.job_url,
+                         "role_title": row.role_title, "company_name": row.company_name},
+            )
+        except DispatchConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
     for key, value in values.items():
         if value is not None:
             setattr(row, key, value)
     if status == "submitted" and row.applied_at is None:
         row.applied_at = datetime.now(timezone.utc)
+    if dispatch_reservation is not None:
+        complete_application_dispatch(db, dispatch_reservation)
     if status == "submitted" and before != "submitted" and row.job_url:
         db.add(RecommendationInteraction(
             user_id=user.id, opportunity_id=row.opportunity_id,
