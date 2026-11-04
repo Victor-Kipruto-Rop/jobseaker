@@ -420,9 +420,29 @@ def rank_opportunities(
         }
         total_weight = sum(weights.values())
         hybrid = sum(features[name] * weight for name, weight in weights.items()) / total_weight
+        # Online preference drift reweights actual observed ranking features. It does
+        # not inject feature names into the candidate's semantic text query.
+        preference_vector = preferences.get("behavioral_preferences") or {}
+        preference_mass = 0.0
+        preference_alignment = 0.0
+        if isinstance(preference_vector, dict):
+            for name, raw_weight in preference_vector.items():
+                if name not in features:
+                    continue
+                try:
+                    preference_weight = max(-1.0, min(1.0, float(raw_weight)))
+                except (TypeError, ValueError):
+                    continue
+                preference_alignment += preference_weight * features[name]
+                preference_mass += abs(preference_weight)
+        if preference_mass:
+            preference_alignment /= preference_mass
+            hybrid = max(0.0, min(1.0, hybrid + 0.12 * preference_alignment))
         learned = ltr_score(model, features)
         score = learned if learned is not None else hybrid
         signals = []
+        if preference_mass and preference_alignment > 0.05:
+            signals.append("Adjusted using your recent interaction preferences")
         if matched:
             signals.append(f"Matches {len(matched)} recorded skills")
         if graph_skill_evidence:
