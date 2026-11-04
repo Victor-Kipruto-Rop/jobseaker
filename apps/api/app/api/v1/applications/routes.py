@@ -47,8 +47,12 @@ class ApplicationUpdate(BaseModel):
     def safe_job_url(cls, value):
         return validate_http_url(value or "")
 
-def _serialize(row):
+def _serialize(row, opportunity=None):
     return {"id": row.id, "role_title": row.role_title, "company_name": row.company_name,
+            "company_logo_url": opportunity.company_logo_url if opportunity else "",
+            "company_favicon_url": opportunity.company_favicon_url if opportunity else "",
+            "company_website": opportunity.company_website if opportunity else "",
+            "company_description": opportunity.company_description if opportunity else "",
             "status": row.status, "job_url": row.job_url, "notes": row.notes,
             "applied_at": row.applied_at, "created_at": row.created_at}
 
@@ -56,7 +60,16 @@ def _serialize(row):
 def list_applications(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(Application).where(Application.user_id == user.id)
                       .order_by(Application.created_at.desc()).limit(500)).all()
-    return [_serialize(row) for row in rows]
+    opportunity_ids = {row.opportunity_id for row in rows if row.opportunity_id is not None}
+    opportunities = {}
+    if opportunity_ids:
+        opportunities = {
+            item.id: item for item in db.scalars(select(CandidateOpportunity).where(
+                CandidateOpportunity.id.in_(opportunity_ids),
+                CandidateOpportunity.user_id == user.id,
+            )).all()
+        }
+    return [_serialize(row, opportunities.get(row.opportunity_id)) for row in rows]
 
 @router.post("", status_code=201)
 def create_application(body: ApplicationCreate, user: User = Depends(get_current_user),
@@ -73,7 +86,7 @@ def create_application(body: ApplicationCreate, user: User = Depends(get_current
                             event_type="application.created", details={"status": "draft"}))
     db.commit()
     db.refresh(row)
-    return _serialize(row)
+    return _serialize(row, owned if body.opportunity_id is not None else None)
 
 @router.patch("/{application_id}")
 def update_application(application_id: int, body: ApplicationUpdate,
