@@ -16,6 +16,7 @@ from packages.database.models.career import ResumeDocument, AuditLog, GeneratedA
 from apps.api.app.core.redis_limits import enforce_rate_limit
 from packages.resumes.tailoring import tailor_resume
 from packages.resumes.cover_letter import build_cover_letter
+from packages.resumes.ocr import ocr_image, ocr_pdf
 
 router = APIRouter()
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -28,6 +29,8 @@ ALLOWED = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".md": "text/markdown", ".markdown": "text/markdown", ".txt": "text/plain",
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".tif": "image/tiff", ".tiff": "image/tiff",
 }
 
 def extract_text(filename: str, data: bytes) -> tuple[str, str]:
@@ -36,6 +39,17 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
         raise HTTPException(status_code=415, detail="Supported formats are PDF, DOCX, Markdown and plain text")
     if not data:
         raise HTTPException(status_code=400, detail="The uploaded document is empty")
+
+    if suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}:
+        try:
+            extracted = ocr_image(data)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail="Image OCR is not configured on this server") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
+        if not extracted.strip():
+            raise HTTPException(status_code=422, detail="No readable text was found in the image")
+        return extracted[:MAX_EXTRACTED_CHARS], ALLOWED[suffix]
 
     if suffix in {".md", ".markdown", ".txt"}:
         try:
@@ -62,7 +76,17 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
                 page_text = page.extract_text() or ""
                 parts.append(page_text[:remaining])
                 total += min(len(page_text), remaining)
-            return " ".join(parts), ALLOWED[suffix]
+            extracted = " ".join(parts)
+            if len(extracted.strip()) < 80:
+                try:
+                    scanned = ocr_pdf(data)
+                    if len(scanned.strip()) > len(extracted.strip()):
+                        extracted = scanned
+                except RuntimeError:
+                    pass
+                except ValueError as exc:
+                    raise HTTPException(status_code=413, detail=str(exc)) from exc
+            return extracted[:MAX_EXTRACTED_CHARS], ALLOWED[suffix]
         except HTTPException:
             raise
         except Exception as exc:
