@@ -14,7 +14,7 @@ from apps.api.app.dependencies import get_current_user, get_db
 from apps.api.app.core.config import get_settings
 from packages.ai.agents.job_matching.agent import score_job
 from packages.database.models.identity import User
-from packages.database.models.career import CandidateOpportunity, CandidateSkill
+from packages.database.models.career import CandidateOpportunity, CandidateSkill, Company
 
 router = APIRouter()
 
@@ -90,7 +90,7 @@ def list_opportunities(user: User = Depends(get_current_user), db: Session = Dep
     skills = db.scalars(select(CandidateSkill).where(CandidateSkill.user_id == user.id)).all()
     candidate_skills = [item.skill_name for item in skills]
     return [{"id": r.id, "title": r.title, "company": r.company, "location": r.location,
-             "company_website": r.company_website, "company_domain": r.company_domain,
+             "company_id": r.company_id, "company_website": r.company_website, "company_domain": r.company_domain,
              "company_logo_url": r.company_logo_url, "company_favicon_url": r.company_favicon_url,
              "company_description": r.company_description, "company_brand_color": r.company_brand_color,
              "company_brand_source": r.company_brand_source,
@@ -141,6 +141,40 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
     profile = await discover_company_profile(body.source, body.board)
     if body.company_name and body.company_name.strip():
         profile["company"] = body.company_name.strip()
+    company = db.scalar(select(Company).where(
+        Company.user_id == user.id,
+        Company.source_provider == body.source,
+        Company.source_board == body.board.lower(),
+    ))
+    if company is None:
+        company = Company(
+            user_id=user.id, name=profile["company"],
+            source_provider=body.source, source_board=body.board.lower(),
+        )
+        db.add(company)
+        db.flush()
+    company.name = profile["company"]
+    company.website = company.website or profile["company_website"]
+    company.domain = company.domain or profile["company_domain"]
+    company.careers_url = company.careers_url or profile["company_brand_source"]
+    company.description = company.description or profile["company_description"]
+    company.logo_url = company.logo_url or profile["company_logo_url"]
+    company.favicon_url = company.favicon_url or profile["company_favicon_url"]
+    company.brand_color = company.brand_color or profile["company_brand_color"]
+    company.source_url = company.source_url or profile["company_brand_source"]
+    company.evidence = {
+        **(company.evidence or {}),
+        "provider": body.source, "board": body.board.lower(),
+        "source_url": profile["company_brand_source"],
+        "last_discovered_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        "published_fields": [key for key in (
+            "company_website", "company_logo_url", "company_favicon_url",
+            "company_description", "company_brand_color",
+        ) if profile.get(key)],
+    }
+    company.last_enriched_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+    if profile["company_brand_source"]:
+        company.verified_at = company.verified_at or company.last_enriched_at
     saved, skipped, refreshed = 0, 0, 0
     results = []
     brand_fields = (
@@ -160,6 +194,9 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
             if existing.company in {"", fallback_name} and profile["company"] != fallback_name:
                 existing.company = profile["company"]
                 changed = True
+            if existing.company_id is None:
+                existing.company_id = company.id
+                changed = True
             for key in brand_fields:
                 if not getattr(existing, key) and profile.get(key):
                     setattr(existing, key, profile[key])
@@ -169,6 +206,7 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
             skipped += 1
             continue
         item["company"] = profile["company"]
+        item["company_id"] = company.id
         item.update({key: profile.get(key, "") for key in (
             "company_website", "company_domain", "company_logo_url",
             "company_favicon_url", "company_description", "company_brand_color", "company_brand_source",
