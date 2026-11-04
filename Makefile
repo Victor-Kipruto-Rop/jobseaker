@@ -7,7 +7,6 @@ WEB_DIR = apps/web
 .PHONY: test lint typecheck web-build migrate python-verify compose-config verify verify-all verify-stack dev compose-up compose-down
 
 test:
-	$(PYTHON) -m mypy apps/api packages --ignore-missing-imports --follow-imports=silent
 	$(PYTHON) -m pytest -q --cov=apps.api.app --cov=packages --cov-report=term-missing
 
 lint:
@@ -26,7 +25,8 @@ python-verify:
 	$(PYTHON) -m compileall -q apps packages tests migrations scripts
 	alembic upgrade head
 	alembic check
-	$(PYTHON) -m pytest -q
+	$(PYTHON) -m mypy apps/api packages --ignore-missing-imports --follow-imports=silent
+	$(PYTHON) -m pytest -q --cov=apps.api.app --cov=packages --cov-report=term-missing
 	ruff check .
 
 compose-config:
