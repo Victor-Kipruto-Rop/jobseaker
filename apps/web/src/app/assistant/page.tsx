@@ -6,10 +6,10 @@ function csrf(){return decodeURIComponent(document.cookie.split("; ").find(x=>x.
 async function api(path:string,init:RequestInit={}){const h=new Headers(init.headers);if(init.method)h.set("X-CSRF-Token",csrf());const r=await fetch(API+path,{...init,headers:h,credentials:"include",cache:"no-store"});if(r.status===401)window.location.assign("/login");return r;}
 type Message={id?:number;role:"user"|"assistant";content:string};
 export default function AssistantPage(){
- const [messages,setMessages]=useState<Message[]>([]),[input,setInput]=useState(""),[conversation,setConversation]=useState<number|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(""),[memory,setMemory]=useState<any>(null),[showMemory,setShowMemory]=useState(false),[uploadStatus,setUploadStatus]=useState("");
+ const [messages,setMessages]=useState<Message[]>([]),[input,setInput]=useState(""),[conversation,setConversation]=useState<number|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(""),[memory,setMemory]=useState<any>(null),[showMemory,setShowMemory]=useState(false),[uploadStatus,setUploadStatus]=useState(""),[isMobile,setIsMobile]=useState(false);
  const bottom=useRef<HTMLDivElement>(null),uploadRef=useRef<HTMLInputElement>(null);
  async function loadMemory(){const r=await api("/api/v1/ai/assistant/memory");if(r.ok)setMemory(await r.json());}
- useEffect(()=>{void loadMemory();},[]);
+ useEffect(()=>{void loadMemory();},[]);\n useEffect(()=>{const query=window.matchMedia("(max-width: 900px)");const update=()=>setIsMobile(query.matches);update();query.addEventListener("change",update);return()=>query.removeEventListener("change",update);},[]);
  useEffect(()=>{bottom.current?.scrollIntoView({behavior:"smooth"});},[messages]);
  async function send(text=input){if(!text.trim()||busy)return;setError("");setInput("");setMessages(m=>[...m,{role:"user",content:text}]);setBusy(true);
   try{const r=await api("/api/v1/ai/assistant/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text,conversation_id:conversation})});const d=await r.json();if(!r.ok)throw new Error(d.detail||"Assistant request failed");setConversation(d.conversation_id);setMessages(m=>[...m,{role:"assistant",content:d.text,id:d.message_id}]);}
@@ -21,8 +21,8 @@ export default function AssistantPage(){
  async function uploadKnowledge(file?:File){if(!file)return;setUploadStatus("Indexing document…");const data=new FormData();data.append("file",file);try{const r=await api("/api/v1/ai/assistant/ingest",{method:"POST",body:data});const d=await r.json();if(!r.ok)throw new Error(d.detail||"Ingestion failed");setUploadStatus("Added "+file.name+" to memory.");await loadMemory();}catch(e){setUploadStatus(e instanceof Error?e.message:"Unable to index file");}}
  async function clearMemory(){if(!confirm("Delete your saved assistant memories and extracted facts? Conversation history will remain."))return;const r=await api("/api/v1/ai/assistant/memory",{method:"DELETE"});if(r.ok)await loadMemory();}
  function newChat(){setMessages([]);setConversation(null);setError("");}
- return <main style={{minHeight:"100vh",background:"#f5f8f6",color:"#17352a",display:"grid",gridTemplateColumns:"minmax(0,1fr) 320px",fontFamily:"Inter,ui-sans-serif,system-ui"}}>
-  <section style={{minWidth:0,display:"flex",flexDirection:"column",height:"100vh"}}>
+ return <main style={{minHeight:"100vh",background:"#f5f8f6",color:"#17352a",display:"grid",gridTemplateColumns:isMobile?"minmax(0,1fr)":"minmax(0,1fr) 320px",fontFamily:"Inter,ui-sans-serif,system-ui"}}>
+  <section style={{minWidth:0,display:"flex",flexDirection:"column",height:isMobile?"75vh":"100vh"}}>
    <header style={{height:76,background:"#fff",borderBottom:"1px solid #e3ebe6",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 28px"}}>
     <div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:40,height:40,borderRadius:13,background:"#e2f5eb",display:"grid",placeItems:"center",color:"#168653"}}><Bot size={22}/></div><div><strong style={{fontSize:16}}>JobSeeker Assistant</strong><div style={{fontSize:12,color:"#71877b"}}>Your personal career intelligence partner</div></div></div>
     <button onClick={newChat} style={outline}><Plus size={15}/> New conversation</button>
@@ -36,7 +36,7 @@ export default function AssistantPage(){
     <button disabled={busy||!input.trim()} style={{...sendButton,opacity:(busy||!input.trim())?0.5:1}} aria-label="Send message"><Send size={17}/></button>
    </form>
   </section>
-  <aside style={{background:"#fff",borderLeft:"1px solid #e3ebe6",padding:22,overflowY:"auto"}}>
+  <aside style={{background:"#fff",borderLeft:isMobile?"0":"1px solid #e3ebe6",borderTop:isMobile?"1px solid #e3ebe6":"0",padding:22,overflowY:"auto"}}>
    <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:22}}><BrainCircuit color="#168653"/><strong>Personal context</strong></div>
    <div style={sideCard}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><strong style={{fontSize:13}}>Memory</strong><span style={{fontSize:11,color:memory?.enabled?"#168653":"#9a6b24"}}>{memory?.enabled?"Enabled":"Paused"}</span></div><p style={{fontSize:12,color:"#71877b",lineHeight:1.6}}>Use relevant conversation memories to personalize career guidance.</p><button style={outline} onClick={()=>void toggleMemory()}>{memory?.enabled?"Pause memory":"Enable memory"}</button></div>
    <div style={{...sideCard,marginTop:14}}><div style={{display:"flex",alignItems:"center",gap:8}}><ShieldCheck size={17} color="#168653"/><strong style={{fontSize:13}}>Privacy & knowledge</strong></div><p style={{fontSize:12,color:"#71877b",lineHeight:1.6}}>Memory is private and opt-in. Add PDF, DOCX, image, Markdown or Python source files to searchable context.</p><input ref={uploadRef} type="file" hidden accept=".pdf,.docx,.txt,.md,.rst,.json,.yaml,.yml,.toml,.csv,.log,.py,image/*" onChange={e=>void uploadKnowledge(e.target.files?.[0])}/><button disabled={!memory?.enabled} onClick={()=>uploadRef.current?.click()} style={{...outline,opacity:memory?.enabled?1:.5}}>Add knowledge file</button>{uploadStatus&&<p role="status" style={{fontSize:11,color:"#557464"}}>{uploadStatus}</p>}<button onClick={()=>void clearMemory()} style={{...outline,color:"#a33",marginTop:8}}><Trash2 size={14}/> Clear saved memory</button></div>
