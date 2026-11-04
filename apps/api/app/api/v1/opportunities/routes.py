@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 from typing import Literal
+from datetime import datetime, timezone
 import httpx
 from apps.api.app.core.redis_limits import enforce_rate_limit
 from packages.integrations.job_boards.connectors import (
@@ -154,25 +155,25 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
         db.add(company)
         db.flush()
     company.name = profile["company"]
-    company.website = company.website or profile["company_website"]
-    company.domain = company.domain or profile["company_domain"]
-    company.careers_url = company.careers_url or profile["company_brand_source"]
-    company.description = company.description or profile["company_description"]
-    company.logo_url = company.logo_url or profile["company_logo_url"]
-    company.favicon_url = company.favicon_url or profile["company_favicon_url"]
-    company.brand_color = company.brand_color or profile["company_brand_color"]
-    company.source_url = company.source_url or profile["company_brand_source"]
+    company.website = profile["company_website"] or company.website
+    company.domain = profile["company_domain"] or company.domain
+    company.careers_url = profile["company_brand_source"] or company.careers_url
+    company.description = profile["company_description"] or company.description
+    company.logo_url = profile["company_logo_url"] or company.logo_url
+    company.favicon_url = profile["company_favicon_url"] or company.favicon_url
+    company.brand_color = profile["company_brand_color"] or company.brand_color
+    company.source_url = profile["company_brand_source"] or company.source_url
     company.evidence = {
         **(company.evidence or {}),
         "provider": body.source, "board": body.board.lower(),
         "source_url": profile["company_brand_source"],
-        "last_discovered_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        "last_discovered_at": datetime.now(timezone.utc).isoformat(),
         "published_fields": [key for key in (
             "company_website", "company_logo_url", "company_favicon_url",
             "company_description", "company_brand_color",
         ) if profile.get(key)],
     }
-    company.last_enriched_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+    company.last_enriched_at = datetime.now(timezone.utc)
     if profile["company_brand_source"]:
         company.verified_at = company.verified_at or company.last_enriched_at
     saved, skipped, refreshed = 0, 0, 0
@@ -197,8 +198,11 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
             if existing.company_id is None:
                 existing.company_id = company.id
                 changed = True
+            if existing.company != profile["company"]:
+                existing.company = profile["company"]
+                changed = True
             for key in brand_fields:
-                if not getattr(existing, key) and profile.get(key):
+                if profile.get(key) and getattr(existing, key) != profile[key]:
                     setattr(existing, key, profile[key])
                     changed = True
             if changed:
