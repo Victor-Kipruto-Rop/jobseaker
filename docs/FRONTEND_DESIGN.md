@@ -144,3 +144,10 @@ The shared light-theme application loads `src/app/motion.css` from the root layo
 Motion timings are centralized as CSS custom properties. Keep transitions short, avoid animating layout-heavy properties within page content, and do not introduce motion that delays or obscures a user action. Page-specific interactions should reuse this system instead of defining competing timing conventions.
 
 The stylesheet is a shared interaction layer, not evidence of browser-level verification. Run the frontend type-check/build, then manually inspect route changes, sidebar collapse/drawer behavior, menus, form feedback, keyboard focus and reduced-motion mode at desktop and mobile breakpoints.
+
+
+## Employer profiles and opportunity lifecycle
+
+The Opportunities workspace resolves public employer identity from supported Greenhouse and Lever boards. Imported roles link to reusable Company profiles; those profiles expose source-backed logos, websites, descriptions, social links and available location/industry details. Missing data uses neutral fallbacks.
+
+Discovery refreshes source listings, preserves duplicate protection, records last-seen time and retains roles marked no longer listed. Application records preserve the job description and employer identity captured at application creation. Company and vacancy APIs remain owner-scoped. See `docs/COMPANY_DATA_ENRICHMENT.md` for supported fields, provenance and source limitations.
