@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from contextlib import nullcontext
 from typing import Callable
 
 from packages.events.contracts import EventEnvelope
@@ -10,6 +11,24 @@ from packages.events.inbox import consume_once
 from packages.ops.metrics import EVENT_DELIVERY, CONSUMER_RETRIES, CONSUMER_DLQ
 
 logger = logging.getLogger(__name__)
+
+
+def _consume_transaction(session_factory, group_id, topic, envelope, handler, partition, offset):
+    try:
+        from opentelemetry import trace
+        tracer = trace.get_tracer(__name__)
+        span_context = tracer.start_as_current_span("jobseeker.kafka.consume")
+    except ImportError:
+        span_context = nullcontext(None)
+    with span_context as span:
+        if span is not None:
+            span.set_attribute("messaging.system", "kafka")
+            span.set_attribute("messaging.destination.name", topic)
+            span.set_attribute("messaging.consumer.group", group_id)
+            span.set_attribute("messaging.kafka.partition", partition)
+            span.set_attribute("messaging.kafka.offset", offset)
+        with session_factory() as db:
+            return consume_once(db, f"{group_id}:{topic}", envelope, handler)
 
 
 async def run_kafka_consumer(
@@ -47,11 +66,11 @@ async def run_kafka_consumer(
                     validated = EventEnvelope.model_validate(envelope)
                     if handler is None:
                         raise ValueError(f"No handler registered for topic {message.topic}")
-                    with session_factory() as db:
-                        consume_once(
-                            db, f"{group_id}:{message.topic}", validated.model_dump(mode="json"),
-                            handler,
-                        )
+                    _consume_transaction(
+                        session_factory, group_id, message.topic,
+                        validated.model_dump(mode="json"), handler,
+                        message.partition, message.offset,
+                    )
                     await consumer.commit()
                     EVENT_DELIVERY.labels("consumer", message.topic, "processed").inc()
                     failure = None
