@@ -41,12 +41,12 @@ Production does not auto-migrate. Run migrations as a controlled release step.
 
 ## Verification
 
-   python scripts/verification/verify_local.py
+   python scripts/verify_local_security.py
    cd apps/web
    pnpm lint
    pnpm build
 
-The verification script runs compileall, Alembic upgrade and schema-drift checks against the configured DATABASE_URL, pytest, and Ruff. The PowerShell workflow also runs frontend type checks/build and validates Compose configuration. It does not start Docker or make live calls to AI or Gmail providers.
+The cross-platform release-gate script validates Compose configuration, starts the local Compose stack, waits for API and web readiness, confirms required services are running, applies Alembic migrations, checks schema drift, runs pytest and Ruff, and runs frontend type-check/build commands. It leaves the stack running if a check fails so logs can be inspected. It does not call live AI, Gmail, or SMTP providers.
 
 ## Gmail
 
