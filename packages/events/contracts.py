@@ -34,7 +34,7 @@ class EventEnvelope(BaseModel):
     @model_validator(mode="after")
     def validate_registered_schema(self):
         from packages.events.schema_registry import validate_envelope
-        validate_envelope(self.model_dump(mode="json"))
+        validate_envelope(self.model_dump(mode="json", exclude_none=True))
         return self
 
     @field_validator("event_type")
