@@ -9,6 +9,7 @@ from apps.api.app.core.config import get_settings
 from packages.database.sessions import SessionLocal
 from packages.events.consumer import run_kafka_consumer
 from packages.events.handlers import handle_email_classified, handle_user_activity
+from packages.ops.observability import configure_worker_telemetry
 
 
 async def main() -> None:
