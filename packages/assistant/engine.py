@@ -184,7 +184,8 @@ def remember(db: Session, user_id: int, content: str, conversation_id: int | Non
             importance=0.25 if source == "assistant_response" else 0.55, source=source)
         db.add(row); db.flush()
         first_id = first_id or row.id
-        index_entities(db, user_id, chunk, row.id)
+        if source in {"conversation", "document"}:
+            index_entities(db, user_id, chunk, row.id)
         for key, value, confidence in (extract_facts(chunk) if source in {"conversation", "document"} else []):
             fact = db.scalar(select(AssistantFact).where(
                 AssistantFact.user_id == user_id, AssistantFact.fact_key == key))
