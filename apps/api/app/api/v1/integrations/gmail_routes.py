@@ -93,7 +93,13 @@ def messages(user: User = Depends(get_current_user), db: Session = Depends(get_d
     return [{"id": row.id, "thread_id": row.gmail_thread_id, "sender": row.sender,
              "recipient": row.recipient, "subject": row.subject, "snippet": row.snippet,
              "classification": row.classification, "confidence": row.confidence,
-             "action_required": row.action_required, "received_at": row.received_at}
+             "action_required": row.action_required, "application_id": row.application_id,
+             "intent": row.intent, "suggested_status": row.suggested_status,
+             "intent_confidence": row.intent_confidence,
+             "interview_proposed_text": row.interview_proposed_text,
+             "classification_evidence": row.classification_evidence,
+             "state_change_requires_confirmation": True,
+             "received_at": row.received_at}
             for row in rows]
 
 @router.delete("/account")
