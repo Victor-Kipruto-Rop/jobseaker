@@ -4,7 +4,7 @@ The baseline works without optional ML dependencies. Sentence-transformer embedd
 and cross-encoder reranking are opportunistic; lexical retrieval remains deterministic.
 """
 from __future__ import annotations
-import hashlib, math, re, os
+import hashlib, math, re, os, json
 from functools import lru_cache
 from collections import Counter
 from datetime import datetime, timedelta, timezone
