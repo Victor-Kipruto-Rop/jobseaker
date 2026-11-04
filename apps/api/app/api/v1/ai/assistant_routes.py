@@ -175,6 +175,7 @@ def assistant_feedback(body: FeedbackInput,user:User=Depends(get_current_user),d
         pref.preferences = encrypt_credential(__import__("json").dumps(updated_preferences, separators=(",", ":")),
                                              purpose=f"assistant-preferences:{user.id}")
         pref.preferences_encrypted = True
+        pref.preference_vector = []
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail="Assistant preference encryption is unavailable.") from exc
     db.commit()
