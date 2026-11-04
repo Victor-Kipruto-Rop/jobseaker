@@ -1,5 +1,5 @@
-import CareerIntelligence from "../../components/workspace/career-intelligence";
+import RecommendationCenter from "../../components/workspace/recommendation-center";
 
 export default function RecommendationsPage() {
-  return <CareerIntelligence mode="recommendations" />;
+  return <RecommendationCenter />;
 }
