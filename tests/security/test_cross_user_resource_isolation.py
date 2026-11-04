@@ -7,7 +7,7 @@ from sqlalchemy.pool import StaticPool
 from packages.database.models import Base
 from packages.database.models.identity import User
 from packages.database.models.career import (
-    Application, AIConversation, AIMessage, Company, EmailAccount, EmailMessage,
+    Application, AIConversation, AIMessage, Company, EmailAccount, EmailMessage, AuditLog,
     Interview, Recruiter, ResumeDocument, CandidateProfile, CandidateOpportunity,
     GeneratedArtifact, SavedSearch, Notification, OAuthState, ApplicationEvent, CandidateSkill,
     UserAIBudget,
@@ -566,3 +566,33 @@ def test_global_workspace_search_rejects_whitespace_only_queries(db, users):
         search_workspace("   ", owner, db)
     assert error.value.status_code == 422
     assert error.value.detail == "Search query must contain at least two non-whitespace characters"
+
+
+def test_workspace_mutations_write_audit_records_and_normalize_titles(db, users):
+    owner, _ = users
+    created = create_item(
+        WorkspaceItemCreate(item_type="task", title="  Prepare portfolio review  "),
+        owner, db,
+    )
+    assert created["title"] == "Prepare portfolio review"
+
+    updated = update_item(
+        created["id"], WorkspaceItemUpdate(title="  Confirm interview time  "), owner, db,
+    )
+    assert updated["title"] == "Confirm interview time"
+
+    actions = db.scalars(
+        select(AuditLog).where(AuditLog.user_id == owner.id)
+        .order_by(AuditLog.created_at.asc(), AuditLog.id.asc())
+    ).all()
+    assert [entry.action for entry in actions] == [
+        "career_workspace.created", "career_workspace.updated",
+    ]
+    assert all(entry.resource_type == "task" for entry in actions)
+
+    delete_item(created["id"], owner, db)
+    assert db.scalar(
+        select(AuditLog).where(
+            AuditLog.user_id == owner.id, AuditLog.action == "career_workspace.deleted",
+        )
+    ) is not None
