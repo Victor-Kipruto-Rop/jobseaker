@@ -38,7 +38,7 @@ from apps.api.app.api.v1.automations.routes import approvals, approval_decision,
 from packages.automation.approvals.service import create_approval
 from packages.database.models.entities import AIUsage
 from packages.integrations.gmail import client as gmail_client
-from packages.automation import tasks\nfrom apps.api.app.api.v1.workspace.routes import (\n    WorkspaceItemCreate, WorkspaceItemUpdate, list_items, create_item, update_item, delete_item,\n)
+from packages.automation import tasks\nfrom apps.api.app.api.v1.workspace.routes import (\n    WorkspaceItemCreate, WorkspaceItemUpdate, list_items, create_item, update_item, delete_item, search_workspace,\n)
 
 
 @pytest.fixture
@@ -537,3 +537,21 @@ def test_interview_update_and_delete_require_record_ownership(db, users):
     assert error.value.status_code == 404
     assert foreign.notes == "Private"
     assert delete_interview(owned.id, owner, db) is None
+
+
+def test_global_workspace_search_only_returns_the_signed_in_users_records(db, users):
+    owner, other = users
+    db.add_all([
+        CandidateOpportunity(user_id=owner.id, title="Data Engineer", company="Owner Labs"),
+        CandidateOpportunity(user_id=other.id, title="Data Engineer", company="Private Labs"),
+        Application(user_id=owner.id, role_title="Analytics Engineer", company_name="Owner Labs"),
+        Application(user_id=other.id, role_title="Analytics Engineer", company_name="Private Labs"),
+        CareerWorkspaceItem(user_id=owner.id, item_type="note", title="Interview preparation"),
+        CareerWorkspaceItem(user_id=other.id, item_type="note", title="Interview private notes"),
+    ])
+    db.flush()
+
+    results = search_workspace("Engineer", owner, db)
+    assert len(results) == 2
+    assert {item["subtitle"] for item in results} == {"Owner Labs"}
+    assert all(item["kind"] in {"OPPORTUNITY", "APPLICATION"} for item in results)
