@@ -96,6 +96,7 @@ def list_opportunities(user: User = Depends(get_current_user), db: Session = Dep
              "company_description": r.company_description, "company_brand_color": r.company_brand_color,
              "company_brand_source": r.company_brand_source,
              "source_name": r.source_name, "source_url": r.source_url, "status": r.status,
+             "availability_status": r.availability_status, "last_seen_at": r.last_seen_at,
              "required_skills": r.required_skills, "salary_min": r.salary_min, "salary_max": r.salary_max,
              "employment_type": r.employment_type, "remote_type": r.remote_type,
              "posted_at": r.posted_at, "application_deadline": r.application_deadline,
@@ -113,6 +114,17 @@ def save_opportunity(body: OpportunityCreate, user: User = Depends(get_current_u
             raise HTTPException(status_code=409, detail="This opportunity is already saved")
     row = CandidateOpportunity(user_id=user.id, **body.model_dump())
     db.add(row)
+    # A complete, under-limit source response is a reliable snapshot. Only then
+    # mark previously imported roles missing from the source as no longer listed.
+    if len(discovered) < body.limit:
+        previously_active = db.scalars(select(CandidateOpportunity).where(
+            CandidateOpportunity.user_id == user.id,
+            CandidateOpportunity.company_id == company.id,
+            CandidateOpportunity.availability_status == "active",
+        )).all()
+        for previous in previously_active:
+            if previous.source_url and previous.source_url not in seen_urls:
+                previous.availability_status = "removed"
     try:
         db.commit()
     except IntegrityError as exc:
@@ -179,6 +191,8 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
         company.verified_at = company.verified_at or company.last_enriched_at
     saved, skipped, refreshed = 0, 0, 0
     results = []
+    seen_urls = {item.get("source_url", "") for item in discovered if item.get("source_url")}
+    checked_at = datetime.now(timezone.utc)
     brand_fields = (
         "company_website", "company_domain", "company_logo_url",
         "company_favicon_url", "company_description", "company_brand_color", "company_brand_source",
@@ -193,6 +207,11 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
             continue
         if existing:
             changed = False
+            if existing.availability_status != "active":
+                existing.availability_status = "active"
+                changed = True
+            if existing.last_seen_at is None or existing.last_seen_at < checked_at:
+                existing.last_seen_at = checked_at
             if existing.company in {"", fallback_name} and profile["company"] != fallback_name:
                 existing.company = profile["company"]
                 changed = True
@@ -212,6 +231,8 @@ async def discover_jobs(body: DiscoveryRequest, user: User = Depends(get_current
             continue
         item["company"] = profile["company"]
         item["company_id"] = company.id
+        item["availability_status"] = "active"
+        item["last_seen_at"] = checked_at
         item.update({key: profile.get(key, "") for key in (
             "company_website", "company_domain", "company_logo_url",
             "company_favicon_url", "company_description", "company_brand_color", "company_brand_source",
