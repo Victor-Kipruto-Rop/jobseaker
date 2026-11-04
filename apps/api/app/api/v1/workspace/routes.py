@@ -64,23 +64,23 @@ def serialize(row: CareerWorkspaceItem) -> dict:
 def search_workspace(q: str = Query(min_length=2, max_length=120),
                      user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Escape SQL LIKE metacharacters so search input is treated as literal text.
-    term = q.strip().replace("\\\\", "\\\\\\\\").replace("%", "\\\\%").replace("_", "\\\\_")
+    term = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     pattern = f"%{term}%"
     opportunities = db.scalars(select(CandidateOpportunity).where(
         CandidateOpportunity.user_id == user.id,
-        or_(CandidateOpportunity.title.ilike(pattern, escape="\\\\"),
-            CandidateOpportunity.company.ilike(pattern, escape="\\\\"),
-            CandidateOpportunity.location.ilike(pattern, escape="\\\\")),
+        or_(CandidateOpportunity.title.ilike(pattern, escape="\\"),
+            CandidateOpportunity.company.ilike(pattern, escape="\\"),
+            CandidateOpportunity.location.ilike(pattern, escape="\\")),
     ).order_by(CandidateOpportunity.created_at.desc()).limit(8)).all()
     applications = db.scalars(select(Application).where(
         Application.user_id == user.id,
-        or_(Application.role_title.ilike(pattern, escape="\\\\"),
-            Application.company_name.ilike(pattern, escape="\\\\")),
+        or_(Application.role_title.ilike(pattern, escape="\\"),
+            Application.company_name.ilike(pattern, escape="\\")),
     ).order_by(Application.created_at.desc()).limit(8)).all()
     items = db.scalars(select(CareerWorkspaceItem).where(
         CareerWorkspaceItem.user_id == user.id,
-        or_(CareerWorkspaceItem.title.ilike(pattern, escape="\\\\"),
-            CareerWorkspaceItem.description.ilike(pattern, escape="\\\\")),
+        or_(CareerWorkspaceItem.title.ilike(pattern, escape="\\"),
+            CareerWorkspaceItem.description.ilike(pattern, escape="\\")),
     ).order_by(CareerWorkspaceItem.updated_at.desc()).limit(12)).all()
     routes = {"task": "/tasks", "note": "/notes", "learning": "/learning",
               "project": "/projects", "contact": "/contacts"}
