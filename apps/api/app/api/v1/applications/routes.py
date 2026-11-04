@@ -10,7 +10,7 @@ from packages.database.models.career import (
 )
 from packages.integrations.url_validation import validate_http_url
 from packages.events.outbox import enqueue_event
-from packages.applications.fsm import STATUSES, TRANSITIONS
+from packages.applications.fsm import STATUSES, TRANSITIONS, can_transition
 from packages.automation.idempotency import (
     DispatchConflict, reserve_application_dispatch, complete_application_dispatch,
 )
@@ -138,7 +138,7 @@ def approve_application(
         raise HTTPException(status_code=400, detail="Candidate approval is required")
     if row.status == "approved":
         return {"status": "already_approved", "application_id": row.id}
-    if not TRANSITIONS.get(row.status, set()).__contains__("approved"):
+    if not can_transition(row.status, "approved"):
         raise HTTPException(status_code=409, detail="Only a ready application can be approved")
     row.status = "approved"
     db.add(ApplicationEvent(
