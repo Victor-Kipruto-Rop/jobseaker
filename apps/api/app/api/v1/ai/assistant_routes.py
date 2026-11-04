@@ -189,7 +189,13 @@ def set_memory(enabled: bool, user:User=Depends(get_current_user),db:Session=Dep
             encrypt_credential("assistant-memory-key-check", purpose=f"assistant-memory:{user.id}")
         except RuntimeError as exc:
             raise HTTPException(status_code=409, detail="Configure JOBSEEKER_CREDENTIAL_KEYRING or JOBSEEKER_CREDENTIAL_KEK before enabling encrypted memory.") from exc
-    pref.memory_enabled=enabled; db.commit()
+    pref.memory_enabled=enabled
+    if not enabled:
+        db.query(AssistantIngestionJob).filter(
+            AssistantIngestionJob.user_id == user.id,
+            AssistantIngestionJob.status.in_(("queued", "processing", "failed"))
+        ).update({"status": "cancelled", "payload_ciphertext": ""}, synchronize_session=False)
+    db.commit()
     return {"memory_enabled":enabled}
 
 @router.delete("/assistant/memory")
