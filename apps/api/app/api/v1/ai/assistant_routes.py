@@ -174,6 +174,9 @@ async def ingest_knowledge_file(
         extracted = parse_document(file.filename or "upload", file.content_type or "", payload)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Assistant document ingestion failed")
+        raise HTTPException(status_code=422, detail="The uploaded file could not be parsed.") from exc
     finally:
         await file.close()
     clean = sanitize(extracted)
