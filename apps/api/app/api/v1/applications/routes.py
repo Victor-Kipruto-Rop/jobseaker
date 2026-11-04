@@ -48,14 +48,17 @@ class ApplicationUpdate(BaseModel):
         return validate_http_url(value or "")
 
 def _serialize(row, opportunity=None):
+    snapshot = row.company_profile_snapshot or {}
     return {"id": row.id, "role_title": row.role_title, "company_name": row.company_name,
             "company_id": opportunity.company_id if opportunity else None,
-            "company_logo_url": opportunity.company_logo_url if opportunity else "",
-            "company_favicon_url": opportunity.company_favicon_url if opportunity else "",
-            "company_website": opportunity.company_website if opportunity else "",
-            "company_domain": opportunity.company_domain if opportunity else "",
-            "company_description": opportunity.company_description if opportunity else "",
-            "company_brand_color": opportunity.company_brand_color if opportunity else "",
+            "company_logo_url": snapshot.get("logo_url") or (opportunity.company_logo_url if opportunity else ""),
+            "company_favicon_url": snapshot.get("favicon_url") or (opportunity.company_favicon_url if opportunity else ""),
+            "company_website": snapshot.get("website") or (opportunity.company_website if opportunity else ""),
+            "company_domain": snapshot.get("domain") or (opportunity.company_domain if opportunity else ""),
+            "company_description": snapshot.get("description") or (opportunity.company_description if opportunity else ""),
+            "company_brand_color": snapshot.get("brand_color") or (opportunity.company_brand_color if opportunity else ""),
+            "job_description_snapshot": row.job_description_snapshot,
+            "company_profile_snapshot": snapshot,
             "status": row.status, "job_url": row.job_url, "notes": row.notes,
             "applied_at": row.applied_at, "created_at": row.created_at}
 
@@ -82,7 +85,23 @@ def create_application(body: ApplicationCreate, user: User = Depends(get_current
             CandidateOpportunity.id == body.opportunity_id, CandidateOpportunity.user_id == user.id))
         if not owned:
             raise HTTPException(status_code=404, detail="Opportunity not found")
-    row = Application(user_id=user.id, **body.model_dump())
+    opportunity = owned if body.opportunity_id is not None else None
+    company_snapshot = ({
+        "name": opportunity.company,
+        "website": opportunity.company_website,
+        "domain": opportunity.company_domain,
+        "logo_url": opportunity.company_logo_url,
+        "favicon_url": opportunity.company_favicon_url,
+        "description": opportunity.company_description,
+        "brand_color": opportunity.company_brand_color,
+        "company_id": opportunity.company_id,
+    } if opportunity else {})
+    row = Application(
+        user_id=user.id,
+        job_description_snapshot=opportunity.description if opportunity else "",
+        company_profile_snapshot=company_snapshot,
+        **body.model_dump(),
+    )
     db.add(row)
     db.flush()
     db.add(ApplicationEvent(user_id=user.id, application_id=row.id,
