@@ -12,6 +12,7 @@ class AssistantIngestionJob(Base):
     __table_args__ = (
         Index("ix_assistant_ingestion_user_created", "user_id", "created_at"),
         Index("ix_assistant_ingestion_status_created", "status", "created_at"),
+        Index("ix_assistant_ingestion_dispatch", "status", "dispatched_at"),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     job_id: Mapped[str] = mapped_column(String(36), unique=True, index=True)
