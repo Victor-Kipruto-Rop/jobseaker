@@ -116,7 +116,7 @@ def search_workspace(q: str = Query(min_length=2, max_length=120),
     results.extend({"id": row.id, "title": row.filename, "subtitle": "CV document",
                     "href": "/profile#resumes", "kind": "CV"} for row in resumes)
     results.extend({"id": row.id, "title": row.name, "subtitle": row.website or "Company record",
-                    "href": "/contacts", "kind": "COMPANY"} for row in companies)
+                    "href": f"/companies/{row.id}", "kind": "COMPANY"} for row in companies)
     results.extend({"id": row.id, "title": row.full_name, "subtitle": row.email or "Recruiter contact",
                     "href": "/contacts", "kind": "RECRUITER"} for row in recruiters)
     results.extend({"id": row.id, "title": row.title, "subtitle": row.artifact_type.replace("_", " "),
