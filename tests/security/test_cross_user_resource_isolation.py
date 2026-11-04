@@ -38,7 +38,10 @@ from apps.api.app.api.v1.automations.routes import approvals, approval_decision,
 from packages.automation.approvals.service import create_approval
 from packages.database.models.entities import AIUsage
 from packages.integrations.gmail import client as gmail_client
-from packages.automation import tasks\nfrom apps.api.app.api.v1.workspace.routes import (\n    WorkspaceItemCreate, WorkspaceItemUpdate, list_items, create_item, update_item, delete_item, search_workspace,\n)
+from packages.automation import tasks
+from apps.api.app.api.v1.workspace.routes import (
+    WorkspaceItemCreate, WorkspaceItemUpdate, list_items, create_item, update_item, delete_item, search_workspace,
+)
 
 
 @pytest.fixture
