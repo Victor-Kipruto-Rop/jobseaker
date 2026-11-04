@@ -3,13 +3,13 @@ import base64
 
 import pytest
 from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from packages.database.models import Base
 from packages.database.models.career import EventInbox, EventOutbox, Application, ApplicationDispatchKey
 from packages.database.models.identity import User
-from packages.events.outbox import enqueue_event
+from packages.events.outbox import enqueue_event, relay_outbox_batch
 from packages.events.inbox import consume_once
 from packages.automation.idempotency import DispatchConflict, reserve_application_dispatch
 from packages.recommendations.skill_graph import expand_skills, skill_match_score
@@ -132,3 +132,60 @@ def test_circuit_breaker_opens_and_recovers():
     assert breaker.state == CircuitState.HALF_OPEN
     breaker.record_success()
     assert breaker.state == CircuitState.CLOSED
+
+
+
+def test_outbox_relay_publishes_stable_event_envelope(db, owner):
+    enqueue_event(db, "user.activity", {"user_id": owner.id}, partition_key=str(owner.id))
+    db.commit()
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+
+    class Producer:
+        def __init__(self):
+            self.sent = []
+        async def send_and_wait(self, topic, value, key=None):
+            self.sent.append((topic, value, key))
+
+    producer = Producer()
+    import asyncio
+    result = asyncio.run(relay_outbox_batch(factory, producer))
+    assert result["published"] == 1
+    assert producer.sent[0][0] == "user.activity"
+    assert producer.sent[0][1]["event_id"]
+    row = db.scalar(select(EventOutbox))
+    assert row.status == "published"
+    assert row.envelope["event_id"] == producer.sent[0][1]["event_id"]
+
+
+def test_outbox_relay_schedules_exponential_retry(db, owner):
+    enqueue_event(db, "user.activity", {"user_id": owner.id})
+    db.commit()
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+
+    class FailingProducer:
+        async def send_and_wait(self, topic, value, key=None):
+            raise RuntimeError("broker unavailable")
+
+    import asyncio
+    result = asyncio.run(relay_outbox_batch(factory, FailingProducer()))
+    assert result["retrying"] == 1
+    row = db.scalar(select(EventOutbox))
+    assert row.status == "retry"
+    assert row.attempts == 1
+    assert "broker unavailable" in row.last_error
+
+
+def test_dispatch_key_prevents_same_job_across_draft_records(db, owner):
+    first = Application(user_id=owner.id, role_title="Data Engineer")
+    second = Application(user_id=owner.id, role_title="Data Engineer")
+    db.add_all([first, second])
+    db.flush()
+    reserve_application_dispatch(
+        db, user_id=owner.id, application_id=first.id,
+        idempotency_key="first", payload={"job_key": "https://jobs.example/role/1"},
+    )
+    with pytest.raises(DispatchConflict):
+        reserve_application_dispatch(
+            db, user_id=owner.id, application_id=second.id,
+            idempotency_key="second", payload={"job_key": "https://jobs.example/role/1"},
+        )
