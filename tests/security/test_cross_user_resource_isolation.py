@@ -14,7 +14,7 @@ from packages.database.models.career import (
 )
 from apps.api.app.api.v1.resumes.routes import list_resumes, resume_text
 from apps.api.app.api.v1.recruiters.routes import RecruiterInput, create_recruiter, list_recruiters
-from apps.api.app.api.v1.interviews.routes import InterviewInput, create_interview, list_interviews
+from apps.api.app.api.v1.interviews.routes import InterviewInput, InterviewUpdate, create_interview, list_interviews, update_interview, delete_interview
 from apps.api.app.api.v1.ai.routes import (
     conversations, conversation_messages, usage, get_budget, update_budget,
     BudgetUpdate, chat, ChatRequest,
@@ -518,3 +518,22 @@ def test_career_workspace_validates_item_lifecycle_and_persists_metadata(db, use
     deleted = delete_item(created["id"], owner, db)
     assert deleted is None
     assert list_items(item_type="project", status=None, user=owner, db=db) == []
+
+
+def test_interview_update_and_delete_require_record_ownership(db, users):
+    owner, other = users
+    owned = Interview(user_id=owner.id, interview_type="technical", notes="Prepare SQL")
+    foreign = Interview(user_id=other.id, interview_type="screening", notes="Private")
+    db.add_all([owned, foreign])
+    db.flush()
+
+    updated = update_interview(owned.id, InterviewUpdate(notes="Prepare SQL and Python"), owner, db)
+    assert updated["notes"] == "Prepare SQL and Python"
+    with pytest.raises(HTTPException) as error:
+        update_interview(foreign.id, InterviewUpdate(notes="Tampered"), owner, db)
+    assert error.value.status_code == 404
+    with pytest.raises(HTTPException) as error:
+        delete_interview(foreign.id, owner, db)
+    assert error.value.status_code == 404
+    assert foreign.notes == "Private"
+    assert delete_interview(owned.id, owner, db) is None
