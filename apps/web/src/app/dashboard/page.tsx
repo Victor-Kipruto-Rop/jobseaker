@@ -17,6 +17,14 @@ type Analytics = { saved_opportunities:number; applications:number; applications
 type Profile = { profile?:{headline?:string;summary?:string;location?:string;target_roles?:string[]}; skills?:{id:number;skill_name:string}[] };
 function csrf(){return decodeURIComponent(document.cookie.split("; ").find(item=>item.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=")||"");}
 async function api(path:string,init:RequestInit={}){const headers=new Headers(init.headers);if(init.method)headers.set("X-CSRF-Token",csrf());const response=await fetch(API+path,{...init,headers,credentials:"include",cache:"no-store"});if(response.status===401)window.location.assign("/login");return response;}
+async function readJson<T>(response:Response,resource:string):Promise<T>{
+  if(!response.ok){
+    let detail="";
+    try{const payload=await response.json();detail=typeof payload.detail==="string"?payload.detail:"";}catch{/* response may not contain JSON */}
+    throw new Error(resource+" could not be loaded"+(detail?": "+detail:"."));
+  }
+  return response.json() as Promise<T>;
+}
 function fmt(value:number){return Number(value||0).toLocaleString();}
 function titleCase(value:string){return value.replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());}
 function date(value?:string|null){if(!value)return "Not recorded";const parsed=new Date(value);return Number.isNaN(parsed.getTime())?"Not recorded":parsed.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"});}
@@ -41,8 +49,15 @@ export default function Dashboard(){
         api("/api/v1/analytics/overview"),api("/api/v1/profile")
       ]);
       if(!u.ok)throw new Error("Your sign-in session could not be verified. Please sign in again.");
-      const [ud,ad,od,nd,pd]=await Promise.all([u.json(),a.ok?a.json():[],o.ok?o.json():[],n.ok?n.json():null,p.ok?p.json():null]);
-      setUser(ud);setApplications(Array.isArray(ad)?ad:[]);setOpportunities(Array.isArray(od)?od:[]);setAnalytics(nd);setProfile(pd);
+      const [ud,ad,od,nd,pd]=await Promise.all([
+        readJson<User>(u,"Account"),readJson<Application[]>(a,"Applications"),
+        readJson<Opportunity[]>(o,"Opportunities"),readJson<Analytics>(n,"Career analytics"),
+        readJson<Profile>(p,"Career profile")
+      ]);
+      if(!Array.isArray(ad)||!Array.isArray(od)||!nd||typeof nd!=="object"||!pd||typeof pd!=="object"){
+        throw new Error("The workspace API returned an unexpected data shape. No demo data has been substituted.");
+      }
+      setUser(ud);setApplications(ad);setOpportunities(od);setAnalytics(nd);setProfile(pd);
     }catch(e){setError(e instanceof Error?e.message:"Your workspace could not be loaded.");}
     finally{setLoading(false);}
   },[]);
