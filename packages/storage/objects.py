@@ -27,10 +27,12 @@ def store_private_object(
         if not (settings.s3_access_key_id and settings.s3_secret_access_key):
             raise RuntimeError("S3 storage credentials are not configured")
         import boto3
+        from botocore.config import Config
         client = boto3.client(
             "s3", endpoint_url=settings.s3_endpoint_url, region_name=settings.s3_region,
             aws_access_key_id=settings.s3_access_key_id,
             aws_secret_access_key=settings.s3_secret_access_key,
+            config=Config(s3={"addressing_style": "path" if settings.s3_force_path_style else "auto"}),
         )
         kwargs = {"Bucket": settings.s3_bucket, "Key": key, "Body": content,
                   "ContentType": content_type or "application/octet-stream"}
@@ -53,10 +55,12 @@ def read_private_object(object_key: str) -> bytes:
     settings = get_settings()
     if settings.storage_backend == "s3":
         import boto3
+        from botocore.config import Config
         client = boto3.client(
             "s3", endpoint_url=settings.s3_endpoint_url, region_name=settings.s3_region,
             aws_access_key_id=settings.s3_access_key_id,
             aws_secret_access_key=settings.s3_secret_access_key,
+            config=Config(s3={"addressing_style": "path" if settings.s3_force_path_style else "auto"}),
         )
         return client.get_object(Bucket=settings.s3_bucket, Key=object_key)["Body"].read()
     root = Path(settings.storage_path).resolve()
