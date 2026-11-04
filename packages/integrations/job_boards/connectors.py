@@ -13,6 +13,7 @@ class _BrandMetadataParser(HTMLParser):
         self.meta = {}
         self.links = {}
         self.title_parts = []
+        self.logo_images = []
         self.in_title = False
 
     def handle_starttag(self, tag, attrs):
@@ -26,6 +27,10 @@ class _BrandMetadataParser(HTMLParser):
             href = values.get("href")
             if href and any(token in rel for token in ("icon", "canonical")):
                 self.links[rel] = href
+        elif tag.lower() == "img":
+            image_hint = " ".join((values.get("alt", ""), values.get("title", ""), values.get("class", ""))).casefold()
+            if values.get("src") and any(word in image_hint for word in ("logo", "brand", "company")):
+                self.logo_images.append(values["src"])
         elif tag.lower() == "title":
             self.in_title = True
 
@@ -82,6 +87,7 @@ async def discover_company_profile(source: str, board: str) -> dict:
         "company_logo_url": "",
         "company_favicon_url": "",
         "company_description": "",
+        "company_brand_color": "",
         "company_brand_source": "",
     }
     try:
@@ -116,7 +122,10 @@ async def discover_company_profile(source: str, board: str) -> dict:
 
         description = meta.get("og:description") or meta.get("description") or ""
         profile["company_description"] = re.sub(r"\s+", " ", description).strip()[:2000]
-        logo = meta.get("og:image") or meta.get("twitter:image") or ""
+        logo = meta.get("og:image") or meta.get("twitter:image") or (parser.logo_images[0] if parser.logo_images else "")
+        theme_color = meta.get("theme-color", "").strip()
+        if re.fullmatch(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?", theme_color):
+            profile["company_brand_color"] = theme_color.lower()
         icon = parser.links.get("icon") or parser.links.get("shortcut icon") or ""
         logo_url = _safe_url(urljoin(page_url, logo)) if logo else ""
         icon_url = _safe_url(urljoin(page_url, icon)) if icon else ""
