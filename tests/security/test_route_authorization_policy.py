@@ -23,6 +23,7 @@ MANUALLY_AUTHENTICATED_ROUTES = {
     "/api/v1/auth/me",
     "/api/v1/auth/logout",
 }
+ADMIN_ROLE_ROUTES = {"/api/v1/admin/users", "/api/v1/admin/audit-logs"}
 STATE_AUTHENTICATED_ROUTES = {
     "/api/v1/integrations/gmail/callback",
 }
@@ -55,7 +56,7 @@ def test_every_candidate_resource_route_enforces_candidate_role_policy():
     for route in app.routes:
         if not isinstance(route, APIRoute) or not route.path.startswith("/api/v1/"):
             continue
-        if route.path in PUBLIC_TOKEN_ROUTES | MANUALLY_AUTHENTICATED_ROUTES | STATE_AUTHENTICATED_ROUTES:
+        if route.path in PUBLIC_TOKEN_ROUTES | MANUALLY_AUTHENTICATED_ROUTES | STATE_AUTHENTICATED_ROUTES | ADMIN_ROLE_ROUTES:
             continue
         if route.path.startswith("/api/v1/auth/"):
             continue
@@ -123,3 +124,31 @@ def test_registration_rejects_privileged_role_mass_assignment():
             "full_name": "Candidate User",
             "role": "admin",
         })
+
+
+
+def test_admin_routes_require_admin_policy():
+    admin_paths = {"/api/v1/admin/users", "/api/v1/admin/audit-logs"}
+    found = set()
+    for route in app.routes:
+        if not isinstance(route, APIRoute) or route.path not in admin_paths:
+            continue
+        calls = _dependency_calls(route.dependant)
+        policies = [getattr(call, "required_roles", None) for call in calls]
+        assert frozenset({"admin"}) in policies
+        found.add(route.path)
+    assert found == admin_paths
+
+
+def test_admin_endpoints_deny_candidates_and_allow_admins(authorization_client):
+    client, active_user, admin, candidate = authorization_client
+    active_user["value"] = candidate
+    denied = client.get("/api/v1/admin/users")
+    assert denied.status_code == 403
+
+    active_user["value"] = admin
+    allowed = client.get("/api/v1/admin/users")
+    assert allowed.status_code == 200
+    assert all("password_hash" not in row for row in allowed.json())
+    logs = client.get("/api/v1/admin/audit-logs")
+    assert logs.status_code == 200
