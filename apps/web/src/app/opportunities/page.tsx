@@ -12,8 +12,7 @@ type Filters={source:"greenhouse"|"lever";board:string;company:string;name:strin
 const initial:Filters={source:"greenhouse",board:"",company:"",name:"",keywords:"",location:"",remote:false};
 function csrf(){return decodeURIComponent(document.cookie.split("; ").find(x=>x.startsWith("jobseeker_csrf="))?.split("=").slice(1).join("=")||"");}
 async function api(path:string,init:RequestInit={}){const headers=new Headers(init.headers);if(init.method)headers.set("X-CSRF-Token",csrf());const r=await fetch(API+path,{...init,headers,credentials:"include",cache:"no-store"});if(r.status===401)window.location.assign("/login");return r;}
-function keywords(value:string){return [...new Set(value.split(/[,
-]/).map(x=>x.trim()).filter(Boolean))].slice(0,20);}
+function keywords(value:string){return [...new Set(value.split(/[,\n]/).map(x=>x.trim()).filter(Boolean))].slice(0,20);}
 function score(item:Opportunity){return Math.round(Number(item.fit?.fit_score||0));}
 
 export default function Opportunities({initialView="all"}:{initialView?:"all"|"saved"}){
