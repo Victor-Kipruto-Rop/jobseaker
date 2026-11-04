@@ -64,3 +64,44 @@ The full local verification gate is recorded separately in the later phases. Do 
 | Alembic migration from empty DB | Local PostgreSQL required | Not run |
 
 No Docker image build or runtime check is claimed as successful. Use the four explicit build commands in `docs/architecture/repository-layout.md` and paste their actual output before marking the Dockerfile build check complete.
+
+
+## Phase 2: runtime and CI verification foundation
+
+**Branch:** `phase-2-runtime-ci-verification`
+
+### Implemented
+
+- Added `.github/workflows/ci.yml` with separate Python, web, and Docker jobs.
+- Python CI provisions PostgreSQL 16 and Redis 7, installs the project with development extras, compiles Python, runs Ruff and mypy, applies Alembic migrations to a clean PostgreSQL service, checks schema drift, runs pytest with coverage output, and runs pip-audit.
+- Web CI installs pnpm dependencies, runs the TypeScript check, builds Next.js, and audits production dependencies.
+- Docker CI validates the canonical Compose file and builds API, web, worker, and scheduler images.
+- Added pytest-cov and mypy to the Python development extras and configured baseline mypy options.
+- Updated the local Compose-backed release gate to run mypy and pytest coverage.
+- Removed three obsolete tests that imported the retired root `app/` package and tested deleted outreach/Gmail legacy functionality.
+
+### Static checks completed in this environment
+
+| Check | Method | Result |
+|---|---|---|
+| CI workflow source | GitHub file inspection | Added; not executed |
+| PostgreSQL and Redis service definitions | Workflow source inspection | Present |
+| Migration and drift steps | Workflow source inspection | Present |
+| Python test/coverage steps | Workflow source inspection | Present |
+| Python type-check step | Workflow source inspection | Present |
+| Web type-check/build/audit steps | Workflow source inspection | Present |
+| Four Docker build steps | Workflow source inspection | Present |
+| Removed legacy test files | Recursive Git tree inspection | Absent from Phase 2 tree |
+| Local release gate command | Source inspection | Updated; not executed |
+
+### Outstanding execution evidence
+
+No GitHub Actions run, Docker build, Compose start, Alembic migration, pytest, Ruff, mypy, frontend build, pip-audit, or pnpm audit has been observed for this branch. Do not treat the workflow definition as a passing workflow.
+
+### Known reproducibility limitation
+
+There is no committed `pnpm-lock.yaml` in the repository. The web CI and Docker build currently use `pnpm install --no-frozen-lockfile`, so transitive frontend dependency resolution is not yet lockfile-reproducible. Generate and commit a pnpm lockfile from a local pnpm 9.15.0 install, then change CI and the web Dockerfile to frozen-lockfile mode.
+
+### Coverage status
+
+Coverage reporting is enabled, but no measured percentage is available yet. The target of 80% for service and authentication code remains unverified and is not represented as achieved.
