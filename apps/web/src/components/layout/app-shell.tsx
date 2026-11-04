@@ -64,6 +64,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
   const loadNotices = useCallback(async () => {
     setNoticeBusy(true);
     try { const response = await api("/api/v1/notifications"); if (response.ok) setNotices(await response.json()); }
+    catch { setNotices([]); }
     finally { setNoticeBusy(false); }
   }, []);
 
