@@ -369,3 +369,24 @@ class ApplicationDispatchKey(Base):
     status: Mapped[str] = mapped_column(String(20), default="reserved")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RecommendationModel(Base):
+    """Immutable model registry record; candidate artifacts are not active by default."""
+    __tablename__ = "recommendation_models"
+    __table_args__ = (
+        UniqueConstraint("model_name", "model_version", name="uq_recommendation_model_version"),
+        Index("ix_recommendation_models_status_trained", "status", "trained_at"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    model_name: Mapped[str] = mapped_column(String(120))
+    model_version: Mapped[str] = mapped_column(String(80))
+    algorithm: Mapped[str] = mapped_column(String(80))
+    artifact_key: Mapped[str] = mapped_column(String(500))
+    artifact_sha256: Mapped[str] = mapped_column(String(64))
+    feature_schema_version: Mapped[int] = mapped_column(Integer, default=1)
+    training_rows: Mapped[int] = mapped_column(Integer, default=0)
+    metrics: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="candidate")
+    trained_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
