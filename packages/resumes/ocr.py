@@ -32,6 +32,8 @@ def ocr_pdf(data: bytes, max_pages: int = MAX_OCR_PAGES) -> str:
     total = 0
     try:
         for page in document:
+            if page.rect.width * page.rect.height * 2.25 > MAX_IMAGE_PIXELS:
+                raise ValueError("PDF page dimensions exceed the OCR pixel limit")
             pixmap = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
             if pixmap.width * pixmap.height > MAX_IMAGE_PIXELS:
                 raise ValueError("Rendered PDF page exceeds the OCR pixel limit")
