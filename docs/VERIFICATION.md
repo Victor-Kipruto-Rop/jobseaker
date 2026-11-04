@@ -674,3 +674,41 @@ No local test runner or checkout is connected to this session. Runtime verificat
 
 
 Latest follow-up after the previous entry: Secret scan run `41807440119` for the subsequent documentation head also reports failure with an empty step list and no downloadable job log. The CI workflow did not return a run for that exact documentation commit. No new source verification evidence is available.
+
+## Infrastructure and career-intelligence stack follow-up (2026-11-04)
+
+Source changes added on the Phase 4 branch:
+
+- Local PostgreSQL image now includes pgvector; first-time database initialization enables vector and pg_trgm extensions. Migration 20261104_0013 already conditionally creates a 384-dimensional vector column and HNSW cosine index when PostgreSQL reports pgvector as available.
+- Redpanda is included as the local Kafka-compatible broker. The versioned event publisher supports job, candidate activity, application lifecycle and classified-email topics.
+- Candidate interaction events, application lifecycle transitions and Gmail classification summaries are sent to the event stream in background tasks after their database writes.
+- MinIO is included as a local private S3-compatible object store with bucket initialization.
+- Resume uploads and deletion now use a storage adapter that supports private S3-compatible storage and local filesystem fallback. Uploaded bytes remain behind authenticated, user-scoped routes.
+- Optional dependency groups expose sentence-transformers, LightGBM, XGBoost, SciPy, NumPy, Pandas, PyArrow, Polars and Playwright without forcing large ML/browser packages into the default install.
+- Added unit tests for private object round trips, traversal rejection, upload bounds and disabled/invalid event publishing.
+- Added the versioned event envelope schema and platform infrastructure guide.
+
+### Important limitations
+
+- The Kafka publisher is currently a best-effort adapter, not a transactional outbox. A database commit can succeed even if event delivery subsequently fails. Production must add outbox/inbox persistence and replay-safe consumers before making the event stream authoritative.
+- The event stream currently publishes candidate interactions, application lifecycle events and Gmail classifications. A complete independent consumer fleet and all downstream topic processors are not yet implemented.
+- The local ML dependencies are optional. A model is not considered trained simply because LightGBM/XGBoost can be installed; labelled data, offline evaluation, model registry and drift/fairness monitoring remain required.
+- Playwright is an optional browser-assistance dependency only. CAPTCHA bypass, stealth evasion, proxy rotation to defeat restrictions and unattended third-party form submission are intentionally excluded.
+- Gmail is still read-only. Classified email events are signals for candidate review; they do not automatically transition applications to offer/rejection.
+- The MinIO credentials in Compose are for local development only. Production must use managed private object storage and secret-managed credentials.
+
+### Verification remains outstanding
+
+No local checkout/runtime is connected to this session. The Compose stack, Alembic migrations, resume upload against MinIO, Kafka broker connectivity, Python tests, Ruff, mypy, frontend build, container image builds and authenticated end-to-end flows have not been executed. The latest workflow run must be inspected on the final branch head; do not infer a pass from source commits or added tests.
+
+Run from repository root:
+
+    python -m pytest -q tests/unit/test_platform_adapters.py
+    python -m pytest -q
+    ruff check .
+    mypy apps packages
+    alembic upgrade head
+    docker compose -f infrastructure/compose/docker-compose.yml config
+    docker compose -f infrastructure/compose/docker-compose.yml up --build
+
+Then verify MinIO resume upload/list/delete, Kafka events for a recommendation interaction and application status transition, Gmail read-only sync and classification events, and a clean-database migration with pgvector enabled.
