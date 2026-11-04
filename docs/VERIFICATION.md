@@ -284,3 +284,61 @@ The jobs were created and queued, then failed before recording a step. This is s
 | Browser responsive/accessibility review | Browser execution required | Not run in this environment |
 
 The GitHub Actions failures above are runner/workflow execution failures with no recorded step output. They do not establish that source checks passed or failed. The latest branch still requires local lint/build, authenticated integration testing and browser verification before merge.
+
+
+## Phase 4: career operations workspace
+
+**Branch:** phase-4-career-operations-workspace  
+**Pull request:** #9 — https://github.com/Victor-Kipruto-Rop/jobseaker/pull/9  
+**Base:** phase-3-frontend-experience
+
+### Implemented source changes
+
+- Expanded the light-mode sidebar into Workspace, Career Development, Intelligence, Productivity and Account groups.
+- Added a collapsible desktop sidebar, mobile drawer, debounced server-backed global search, keyboard command palette, quick-create menu, calendar and AI shortcuts, read-only inbox shortcut, notification panel and account menu.
+- Added a user-owned career_workspace_items model and Alembic migration 20261104_0008.
+- Added candidate-protected CRUD and global search endpoints for career workspace items. The search includes user-owned opportunities, applications, tasks, notes, learning records, projects, contacts, CVs, companies, recruiters, generated career drafts and skills.
+- Added transactional audit-log entries for workspace item creation, updates and deletion.
+- Added interview update and delete endpoints and an interview management page.
+- Added persistent task, note, learning, project and contact pages; a calendar sourced from interview and task dates; account-backed analytics; personal-library market insights; saved-role recommendations; a dedicated saved-opportunities route; and help guidance.
+- Added cross-user isolation, lifecycle validation and global search tests.
+
+### Source inspection completed
+
+| Check | Evidence | Result |
+|---|---|---|
+| New model export | packages/database/models/__init__.py | Confirmed |
+| Migration chain | Revision 20261104_0008 follows 20261103_0007 | Source confirmed; not executed |
+| Candidate authorization | Workspace router included under candidate policy | Source confirmed |
+| User ownership | Queries and mutations filter by current user ID | Source confirmed |
+| Workspace CRUD | GET, POST, PATCH and DELETE endpoints | Source confirmed |
+| Global search | Server-side query across account-owned records | Source confirmed |
+| Interview lifecycle | List/create/update/delete routes | Source confirmed |
+| Dashboard destinations | Source files and route links | Added |
+| Theme | CSS and global theme source | Light-only design preserved |
+
+### GitHub Actions execution attempt
+
+For the PR head commit, GitHub created:
+
+- https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41801169865
+- https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41801169843
+
+Both runs were marked failed. The GitHub Actions jobs API returned zero recorded steps for Python, Web, Docker and Gitleaks. Therefore no lint, type check, test, migration, build, Docker or secret-scan command is evidenced as having run. These results do not establish a source-code pass or failure.
+
+### Required local verification
+
+The current Phase 4 branch has not been verified by a local runtime in this environment. Run the following from the repository root after checking out the branch:
+
+- python -m pytest -q tests/security/test_cross_user_resource_isolation.py
+- python -m pytest -q
+- ruff check .
+- mypy apps packages
+- pnpm --filter web lint
+- pnpm --filter web build
+- docker compose -f infrastructure/compose/docker-compose.yml config
+- docker compose -f infrastructure/compose/docker-compose.yml up --build
+
+Also verify Alembic upgrade from an empty database and from the Phase 3 migration head, authenticated CRUD and global search, desktop/mobile layouts, keyboard operation, reduced-motion behavior, and screen-reader labels. The owner's local shell previously identified was C:\Projects\kenya_data_outreach, which is not this repository, and pnpm was not installed there; do not treat those unrelated local checks as Phase 4 execution.
+
+**Phase status:** implementation committed and draft PR opened; runtime and browser verification remain outstanding. Do not merge or deploy until actual command output and browser evidence are recorded.
