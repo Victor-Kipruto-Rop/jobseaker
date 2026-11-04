@@ -144,7 +144,7 @@ def create_ats_draft(application_id: int, body: ATSDraftRequest,
     db.commit()
     db.refresh(draft)
     return {"id": draft.id, "application_id": application.id, "status": draft.status,
-            "mapping_sha256": digest, "mappings": draft.mappings,
+            "mapping_sha256": digest, "mappings": rows,
             "execution_policy": "candidate_review_required"}
 
 @router.get("/{application_id}/ats-draft")
