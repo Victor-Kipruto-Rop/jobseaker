@@ -22,7 +22,7 @@ local limit = tonumber(ARGV[3])
 redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - window)
 local count = redis.call('ZCARD', KEYS[1])
 if count >= limit then
-    return count
+    return limit + 1
 end
 redis.call('ZADD', KEYS[1], now, ARGV[4])
 redis.call('PEXPIRE', KEYS[1], window + 1000)
