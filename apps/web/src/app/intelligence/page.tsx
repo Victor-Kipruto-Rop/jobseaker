@@ -1,5 +1,7 @@
 "use client";
 
+import AppShell from "../../components/layout/app-shell";
+
 import { useEffect, useState } from "react";
 
 type Provider = { configured: boolean; enabled: boolean; healthy: boolean; default: boolean; model: string };
@@ -72,7 +74,7 @@ export default function IntelligencePage() {
   }
 
   const totals=usage.reduce((a,i)=>({input:a.input+i.input_tokens,output:a.output+i.output_tokens,requests:a.requests+i.requests}),{input:0,output:0,requests:0});
-  return <main style={{maxWidth:1180,margin:"0 auto",padding:"36px 22px",color:"#edf5ef"}}>
+  return <AppShell><main style={{maxWidth:1180,margin:"0 auto",padding:"36px 22px",color:"#edf5ef"}}>
     <nav style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
       <a href="/dashboard" style={{color:"#54d69a",textDecoration:"none"}}>← Career workspace</a>
       <div style={{display:"flex",gap:16,flexWrap:"wrap"}}><a href="/opportunities" style={{color:"#a7b8ad"}}>Opportunities</a><a href="/applications" style={{color:"#a7b8ad"}}>Applications</a><a href="/profile" style={{color:"#a7b8ad"}}>Profile</a></div>
@@ -95,7 +97,7 @@ export default function IntelligencePage() {
       </section>
     </section>
     <section style={{...panel,marginTop:16}}><h2>Usage by model</h2>{usage.length===0?<p style={{color:"#9aaba2"}}>No recorded AI requests yet.</p>:<div style={{overflowX:"auto"}}><table style={{width:"100%",textAlign:"left",borderCollapse:"collapse"}}><thead><tr>{["Provider","Model","Requests","Input tokens","Output tokens"].map(x=><th key={x} style={{padding:10,color:"#9aaba2"}}>{x}</th>)}</tr></thead><tbody>{usage.map((i,n)=><tr key={i.provider+i.model+n}>{[i.provider,i.model,i.requests.toLocaleString(),i.input_tokens.toLocaleString(),i.output_tokens.toLocaleString()].map((x,j)=><td key={j} style={{padding:10,borderTop:"1px solid #25352d"}}>{x}</td>)}</tr>)}</tbody></table></div>}<p style={{fontSize:12,color:"#9aaba2"}}>Costs are intentionally not estimated until verified, versioned provider pricing is configured. Automation remains paused by default.</p></section>
-  </main>;
+  </main></AppShell>;
 }
 const field:React.CSSProperties={background:"#09110d",color:"#edf5ef",padding:12,border:"1px solid #34483c",borderRadius:9};
 const smallButton:React.CSSProperties={background:"#1c3829",color:"#54d69a",padding:"7px 10px",border:"1px solid #345744",borderRadius:8,cursor:"pointer"};
