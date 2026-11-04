@@ -79,7 +79,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
-  const [quickOpen, setQuickOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);\n  const [profileOpen, setProfileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [noticeBusy, setNoticeBusy] = useState(false);
@@ -178,7 +178,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
   const filteredCommands = commandItems.filter(item => (item.label+" "+item.description).toLowerCase().includes(paletteQuery.toLowerCase()));
 
   function navigate(href: string) {
-    setPaletteOpen(false); setQuickOpen(false); setNoticeOpen(false); setMobileOpen(false);
+    setPaletteOpen(false); setQuickOpen(false); setNoticeOpen(false); setProfileOpen(false); setMobileOpen(false);
     router.push(href);
   }
   async function defaultLogout() {
@@ -263,7 +263,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
               {noticeBusy?<p className={styles.noticeEmpty}>Loading updates…</p>:notices.length===0?<p className={styles.noticeEmpty}>You’re all caught up. New account and application updates will appear here.</p>:<div className={styles.noticeList}>{notices.slice(0,8).map(item=><button key={item.id} className={item.read_at?styles.noticeItem:styles.noticeUnread} onClick={()=>void markRead(item)}><span className={styles.noticeDot}/><span><strong>{item.title}</strong><small>{item.body}</small><em>{item.created_at?new Date(item.created_at).toLocaleString():""}</em></span><CheckCheck size={14}/></button>)}</div>}
             </div>}
           </div>
-          <button className={styles.topProfile} onClick={()=>navigate("/settings")} aria-label="Account settings">{initials}</button>
+          <div className={styles.profileWrap}><button className={styles.topProfile} onClick={()=>{setProfileOpen(v=>!v);setQuickOpen(false);setNoticeOpen(false);}} aria-label="Open account menu" aria-expanded={profileOpen}>{initials}</button>{profileOpen&&<div className={styles.profileMenu}><div className={styles.profileMenuHead}><strong>{displayName}</strong><small>{sessionUser?.email||"Signed-in account"}</small></div><button onClick={()=>navigate("/profile")}><UserRound size={14}/> Career profile</button><button onClick={()=>navigate("/settings")}><Settings2 size={14}/> Account settings</button><button onClick={()=>navigate("/settings#privacy")}><ShieldCheck size={14}/> Privacy & security</button><button className={styles.profileSignout} onClick={onLogout||(()=>void defaultLogout())}><LogOut size={14}/> Sign out</button></div>}</div>
         </div>
       </header>
       <main className={styles.content}>{children}</main>
