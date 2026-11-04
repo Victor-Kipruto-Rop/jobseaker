@@ -16,6 +16,8 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any, Iterable
 
+from packages.recommendations.skill_graph import skill_match_score
+
 TOKEN_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9+#.]{1,40}")
 POSITIVE = {"click": 1.0, "view": 0.25, "save": 3.0, "apply": 4.0,
             "interview": 5.0, "offer": 6.0}
@@ -23,7 +25,7 @@ NEGATIVE = {"dismiss": -1.5, "skip": -0.4}
 FEATURE_NAMES = (
     "tfidf", "semantic", "skill_overlap", "role_match", "location_match",
     "remote_match", "salary_match", "company_affinity", "recency",
-    "user_cf", "item_cf", "graph", "bandit",
+    "user_cf", "item_cf", "graph", "bandit", "skill_graph",
 )
 
 
@@ -329,10 +331,20 @@ def rank_opportunities(
     preferences = profile.get("preferences") or {}
     target_roles = profile.get("target_roles") or []
     candidate_location = profile.get("location") or ""
+    # Recent positive interactions contribute job language to the profile query.
+    by_key = {item_key(job): job for job in jobs}
+    recent_profile_terms = []
+    for event in sorted(events, key=lambda row: str(row.get("created_at") or ""), reverse=True)[:300]:
+        if int(event.get("user_id") or 0) != user_id:
+            continue
+        interacted = by_key.get(str(event.get("item_key") or ""))
+        if interacted and _event_weight(event) > 0:
+            recent_profile_terms.extend([document_text(interacted)] * min(3, max(1, round(_event_weight(event)))))
     profile_text = " ".join([
         profile.get("headline") or "", profile.get("summary") or "",
         " ".join(target_roles), " ".join(skills), resume_text[:12000],
         " ".join(str(x) for x in (preferences.get("keywords") or [])),
+        " ".join(recent_profile_terms[:60]),
     ])
     documents = [profile_text] + [document_text(job) for job in jobs]
     vectors = tfidf_vectors(documents)
@@ -360,6 +372,9 @@ def rank_opportunities(
         matched = sorted(candidate & detected)
         missing = sorted(detected - candidate)
         overlap = len(matched) / max(len(detected), 1) if detected else 0.0
+        graph_skill_score, graph_skill_evidence = skill_match_score(
+            skills, job.get("required_skills") or [],
+        )
         role = role_similarity(job.get("title") or "", target_roles)
         location = location_score(job, preferences, candidate_location)
         remote_pref = str(preferences.get("work_mode") or "").lower()
@@ -390,13 +405,14 @@ def rank_opportunities(
             "recency": recency, "user_cf": user_cf.get(key, 0.0),
             "item_cf": item_cf.get(key, 0.0), "graph": graph.get(key, 0.0),
             "bandit": max(bandits.values(), default=0.0),
+            "skill_graph": graph_skill_score,
         }
         weights = {
             "tfidf": 0.16, "semantic": 0.14 if semantic_available else 0.0,
             "skill_overlap": 0.19, "role_match": 0.15, "location_match": 0.10,
             "remote_match": 0.06, "salary_match": 0.04, "company_affinity": 0.03,
             "recency": 0.06, "user_cf": 0.04, "item_cf": 0.04, "graph": 0.04,
-            "bandit": 0.05,
+            "bandit": 0.04, "skill_graph": 0.08,
         }
         total_weight = sum(weights.values())
         hybrid = sum(features[name] * weight for name, weight in weights.items()) / total_weight
@@ -405,6 +421,8 @@ def rank_opportunities(
         signals = []
         if matched:
             signals.append(f"Matches {len(matched)} recorded skills")
+        if graph_skill_evidence:
+            signals.append("Recognizes equivalent or related skills in your career profile")
         if role:
             signals.append("Related to your target roles")
         if location >= 0.8:
@@ -444,6 +462,7 @@ def rank_opportunities(
             "explanation": {
                 "why_recommended": signals or ["Relevant to your saved opportunity and career profile data"],
                 "matched_skills": matched,
+                "related_skill_matches": graph_skill_evidence,
                 "skill_gaps": missing[:12],
                 "data_gaps": missing_fields,
                 "confidence": "learned" if learned is not None else (
@@ -455,4 +474,36 @@ def rank_opportunities(
                 ],
             },
         })
-    return sorted(results, key=lambda row: row["recommendation_score"], reverse=True)
+    ranked = sorted(results, key=lambda row: row["recommendation_score"], reverse=True)
+    # Reserve 18% of the feed for recently published roles with no candidate interaction.
+    interacted = {str(e.get("item_key") or "") for e in events
+                  if int(e.get("user_id") or 0) == user_id}
+    fresh = [row for row in ranked if row["item_key"] not in interacted
+             and recency_score(row) >= math.exp(-14.0 / 21.0)]
+    if len(ranked) >= 5 and fresh:
+        quota = min(len(fresh), max(1, math.ceil(len(ranked) * 0.18)))
+        random.shuffle(fresh)
+        selected = {row["item_key"] for row in fresh[:quota]}
+        explore = [row for row in fresh if row["item_key"] in selected]
+        exploit = [row for row in ranked if row["item_key"] not in selected]
+        merged = []
+        ei = xi = 0
+        interval = max(2, round(1.0 / 0.18))
+        while ei < len(explore) or xi < len(exploit):
+            if ei < len(explore) and len(merged) % interval == interval - 1:
+                row = explore[ei]
+                row["recommendation_exploration"] = True
+                row["recommendation_explanation"] = "Exploration slot: recent role without prior interaction history"
+                merged.append(row)
+                ei += 1
+            elif xi < len(exploit):
+                merged.append(exploit[xi])
+                xi += 1
+            else:
+                row = explore[ei]
+                row["recommendation_exploration"] = True
+                row["recommendation_explanation"] = "Exploration slot: recent role without prior interaction history"
+                merged.append(row)
+                ei += 1
+        ranked = merged
+    return ranked
