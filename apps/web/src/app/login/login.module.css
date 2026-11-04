@@ -1,0 +1,36 @@
+.loginLayout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 520px);
+  background: #07110c;
+  color: #edf5ef;
+}
+
+.heroPanel {
+  padding: clamp(28px, 7vw, 90px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: radial-gradient(circle at 15% 20%, #173b2b 0, transparent 48%), #09140e;
+}
+
+.heroTitle {
+  font-size: clamp(42px, 6vw, 76px);
+  line-height: 1.02;
+  letter-spacing: -2px;
+}
+
+@media (max-width: 760px) {
+  .loginLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .heroPanel {
+    min-height: 260px;
+    padding: 28px;
+  }
+
+  .heroTitle {
+    font-size: 42px;
+  }
+}
