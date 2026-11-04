@@ -3,6 +3,9 @@ from urllib.parse import urljoin, urlsplit
 from html.parser import HTMLParser
 import httpx
 from packages.integrations.url_validation import validate_http_url
+from packages.ops.circuit_breaker import CircuitBreaker
+
+_ATS_BREAKER = CircuitBreaker(failure_threshold=6, recovery_seconds=45.0)
 
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
 
@@ -155,13 +158,13 @@ async def discover_company_profile(source: str, board: str) -> dict:
             headers={"User-Agent": "JobSeeker-Intelligence/0.3"},
         ) as client:
             if source == "greenhouse":
-                board_response = await client.get(f"https://boards-api.greenhouse.io/v1/boards/{board}")
+                board_response = await _ATS_BREAKER.call_async(client.get, f"https://boards-api.greenhouse.io/v1/boards/{board}")
                 if board_response.status_code == 200:
                     board_payload = board_response.json()
                     if isinstance(board_payload, dict) and isinstance(board_payload.get("name"), str) and board_payload["name"].strip():
                         profile["company"] = board_payload["name"].strip()[:250]
 
-            response = await client.get(page_url)
+            response = await _ATS_BREAKER.call_async(client.get, page_url)
             if response.status_code != 200 or "text/html" not in response.headers.get("content-type", "").lower():
                 return profile
             parser = _BrandMetadataParser()
@@ -227,8 +230,10 @@ async def discover_greenhouse(board: str, limit: int = 100) -> list[dict]:
     board = _validate_slug(board)
     async with httpx.AsyncClient(timeout=httpx.Timeout(15, connect=5),
                                  headers={"User-Agent": "JobSeeker-Intelligence/0.3"}) as client:
-        response = await client.get(f"https://boards-api.greenhouse.io/v1/boards/{board}/jobs",
-                                    params={"content": "true"})
+        response = await _ATS_BREAKER.call_async(
+            client.get, f"https://boards-api.greenhouse.io/v1/boards/{board}/jobs",
+            params={"content": "true"},
+        )
         response.raise_for_status()
         payload = response.json()
     jobs = []
@@ -252,8 +257,10 @@ async def discover_lever(site: str, limit: int = 100) -> list[dict]:
     site = _validate_slug(site)
     async with httpx.AsyncClient(timeout=httpx.Timeout(15, connect=5),
                                  headers={"User-Agent": "JobSeeker-Intelligence/0.3"}) as client:
-        response = await client.get(f"https://api.lever.co/v0/postings/{site}",
-                                    params={"mode": "json"})
+        response = await _ATS_BREAKER.call_async(
+            client.get, f"https://api.lever.co/v0/postings/{site}",
+            params={"mode": "json"},
+        )
         response.raise_for_status()
         payload = response.json()
     jobs = []
