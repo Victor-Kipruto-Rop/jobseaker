@@ -1,8 +1,9 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 
+import httpx
 from sqlalchemy import delete, func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from packages.database.sessions import SessionLocal
 from packages.database.models.entities import AIUsageReservation
@@ -36,7 +37,7 @@ async def _fetch_saved_searches(searches, concurrency: int = 5):
                     else await discover_lever(board, 100)
                 )
                 return search_id, user_id, config, items, None
-            except Exception as exc:
+            except (httpx.HTTPError, ValueError) as exc:
                 return search_id, user_id, config, [], exc
 
     return await asyncio.gather(*(fetch(*item) for item in searches))
@@ -104,7 +105,7 @@ def run_saved_search_discovery():
                     )
                 db.commit()
             summary["saved"] += inserted
-        except Exception:
+        except SQLAlchemyError:
             summary["failed"] += 1
     return summary
 
