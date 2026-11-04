@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight, ArrowUpRight, BriefcaseBusiness, CalendarDays, CheckCircle2,
-  CircleAlert, Clock3, FileText, Search, ShieldCheck, Sparkles, Target,
-  TrendingUp, UserRound, WalletCards
+  CircleAlert, FileText, Search, ShieldCheck, Sparkles, Target,
+  TrendingUp, UserRound
 } from "lucide-react";
 import AppShell from "../../components/layout/app-shell";
 import styles from "./dashboard.module.css";
