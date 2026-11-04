@@ -8,7 +8,7 @@ JobSeeker Intelligence is a personal career operations product. The interface is
 - **Opportunities**: Greenhouse and Lever board discovery, reusable saved searches, a private saved-role library, skill-fit evidence and application draft creation.
 - **Applications**: application records, stage transitions, notes, original listing links, explicit submission approval requests and a decision queue.
 - **Career profile**: professional identity, skill proficiency and evidence, private CV library, transparent keyword coverage and an integrated AI career studio for CV tailoring, cover letters, interview preparation and skills roadmaps.
-- **Settings**: account verification, AI token budget controls, Gmail read-only connection and synchronization, disconnect controls and sign-out.
+- **Settings**: account verification, AI token budget controls, Gmail read-only connection, synchronization, recent message summaries, disconnect controls and sign-out.
 
 The notification bell is a contextual control. Approval requests are part of the Applications destination. Former standalone routes redirect to their relevant consolidated destination so existing links do not become dead ends.
 
