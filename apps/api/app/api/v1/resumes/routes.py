@@ -82,8 +82,8 @@ def extract_text(filename: str, data: bytes) -> tuple[str, str]:
                     scanned = ocr_pdf(data)
                     if len(scanned.strip()) > len(extracted.strip()):
                         extracted = scanned
-                except RuntimeError:
-                    pass
+                except RuntimeError as exc:
+                    raise HTTPException(status_code=503, detail="Scanned PDF OCR is not configured on this server") from exc
                 except ValueError as exc:
                     raise HTTPException(status_code=413, detail=str(exc)) from exc
             return extracted[:MAX_EXTRACTED_CHARS], ALLOWED[suffix]
