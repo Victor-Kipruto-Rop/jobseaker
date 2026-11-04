@@ -19,7 +19,7 @@ from packages.ai.agents.job_matching.agent import JOB_SKILL_TAXONOMY
 from packages.database.models.identity import User
 from packages.database.models.career import (
     Application, CandidateOpportunity, CandidateProfile, CandidateSkill,
-    Company, RecommendationInteraction, ResumeDocument,
+    Company, RecommendationInteraction, ResumeDocument, CandidatePreferenceState,
 )
 from packages.recommendations.training import load_active_ranker
 from packages.recommendations.engine import (
@@ -156,6 +156,15 @@ def get_recommendations(
     now = datetime.now(timezone.utc)
     profile_row = db.scalar(select(CandidateProfile).where(CandidateProfile.user_id == user.id))
     profile = _profile_payload(profile_row)
+    preference_state = db.scalar(select(CandidatePreferenceState).where(
+        CandidatePreferenceState.user_id == user.id,
+    ))
+    behavioral_vector = preference_state.preference_vector if preference_state else {}
+    behavioral_terms = [
+        name for name, weight in sorted(
+            behavioral_vector.items(), key=lambda item: float(item[1] or 0), reverse=True,
+        ) if float(weight or 0) >= 0.05
+    ][:20]
     skills_rows = db.scalars(select(CandidateSkill).where(CandidateSkill.user_id == user.id)).all()
     skills = [row.skill_name for row in skills_rows]
     resume = db.scalar(select(ResumeDocument).where(
@@ -239,7 +248,8 @@ def get_recommendations(
     # Generate local 384-dimensional Sentence-Transformer embeddings when the
     # optional ML extra is installed; otherwise use the deterministic TF-IDF path.
     texts = [(" ".join(target_roles) + " " + profile.get("headline", "") + " " +
-              profile.get("summary", "") + " " + " ".join(skills) + " " + resume_text[:12000))]
+              profile.get("summary", "") + " " + " ".join(skills) + " " +
+              " ".join(behavioral_terms) + " " + resume_text[:12000))]
     texts.extend(document_text(job) for job in jobs)
     embeddings = semantic_embeddings(texts)
     semantic_ready = len(embeddings) == len(texts)
@@ -338,6 +348,7 @@ def get_recommendations(
             "labeled_training_events": len(training_samples),
             "profile_skill_count": len(skills), "resume_available": bool(resume),
             "semantic_model_available": semantic_ready,
+            "preference_state_interactions": preference_state.interaction_count if preference_state else 0,
             "registered_ranker_available": registered_ranker is not None,
             "exploration_candidate_count": sum(1 for item in ranked if item.get("recommendation_exploration")),
         },
