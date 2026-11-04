@@ -56,6 +56,8 @@ def test_company_board_metadata_uses_published_name_and_https_brand_assets(monke
                     '<meta property="og:image" content="/brand/logo.svg">'
                     '<link rel="icon" href="/favicon.ico">'
                     '<link rel="canonical" href="https://acme.example/careers">'
+                    '<a href="https://www.linkedin.com/company/acme">LinkedIn</a>'
+                    '<a href="https://github.com/acme">GitHub</a>'
                     '</head><body></body></html>'
                 ),
                 content_type="text/html; charset=utf-8",
@@ -71,6 +73,10 @@ def test_company_board_metadata_uses_published_name_and_https_brand_assets(monke
     assert result["company_favicon_url"] == "https://job-boards.greenhouse.io/favicon.ico"
     assert result["company_description"] == "Payments infrastructure"
     assert result["company_brand_color"] == "#123456"
+    assert result["company_social_links"] == {
+        "linkedin": "https://www.linkedin.com/company/acme",
+        "github": "https://github.com/acme",
+    }
     assert result["company_brand_source"] == "https://job-boards.greenhouse.io/acme"
 
 
