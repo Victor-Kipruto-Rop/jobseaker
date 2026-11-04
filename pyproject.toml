@@ -36,6 +36,7 @@ extend-immutable-calls = [
   "fastapi.Form",
   "fastapi.File",
   "fastapi.Security",
+  "apps.api.app.dependencies.require_roles",
 ]
 [tool.setuptools.packages.find]
 where = ["."]
