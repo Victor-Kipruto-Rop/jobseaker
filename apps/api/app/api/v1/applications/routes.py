@@ -246,6 +246,12 @@ def approve_ats_field_action(application_id: int, field_id: str,
         field_id=field_id, action_digest=digest, status="approved",
     )
     db.add(approval)
+    enqueue_event(db, "ats.action.approved", {
+        "user_id": user.id, "application_id": application_id,
+        "draft_id": draft.id, "field_id": field_id,
+        "action_digest": digest,
+    }, partition_key=str(user.id), schema_version=2,
+       correlation_id=f"application:{application_id}")
     db.add(AuditLog(user_id=user.id, action="ats.field_action_approved",
                     resource_type="application", resource_id=str(application_id),
                     metadata_json={"field_id": field_id, "action_digest": digest}))
