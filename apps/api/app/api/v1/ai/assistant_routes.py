@@ -222,7 +222,7 @@ def export_assistant_memory(user: User = Depends(get_current_user), db: Session 
                          "created_at": row.created_at.isoformat() if row.created_at else None,
                          "expires_at": row.expires_at.isoformat() if row.expires_at else None})
     return {"exported_at": datetime.now(timezone.utc).isoformat(), "memories": memories,
-            "facts": [{"key": item.fact_key, "value": item.fact_value,
+            "facts": [{"key": item.fact_key, "value": decrypt_credential(item.fact_value, purpose=f"assistant-fact:{user.id}") if item.fact_value_encrypted else item.fact_value,
                        "confidence": item.confidence, "verified": item.verified_by_user}
                       for item in facts]}
 
