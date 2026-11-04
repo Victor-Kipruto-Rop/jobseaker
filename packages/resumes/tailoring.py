@@ -13,7 +13,7 @@ def tailor_resume(source_text, job_description, max_chars=30000):
     if not source.strip() or not description.strip():
         raise ValueError("Resume text and job description are required")
     wanted = Counter(terms(description))
-    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\\s+|\\n+", source) if s.strip()]
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+|\n+", source) if s.strip()]
     ranked = []
     for index, sentence in enumerate(sentences):
         counts = Counter(terms(sentence))
@@ -29,7 +29,7 @@ def tailor_resume(source_text, job_description, max_chars=30000):
 
 def validate_grounded_draft(draft, source_text):
     source = source_text or ""
-    numbers = re.findall(r"\\b(?:\\d+(?:\\.\\d+)?%?|20\\d{2}|19\\d{2})\\b", draft or "")
+    numbers = re.findall(r"\b(?:\d+(?:\.\d+)?%?|20\d{2}|19\d{2})\b", draft or "")
     unsupported = [item for item in numbers if item not in source]
     return {"grounded": not unsupported, "unsupported_claims": unsupported,
             "requires_candidate_review": True}
