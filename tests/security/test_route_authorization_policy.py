@@ -155,7 +155,6 @@ def test_admin_endpoints_deny_candidates_and_allow_admins(authorization_client):
 
 
 def test_authenticated_verification_request_requires_candidate_role():
-    path = "/api/v1/auth/verification/request"
     route = next(
         route for route in auth_router.routes
         if isinstance(route, APIRoute) and route.path == "/verification/request"
