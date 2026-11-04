@@ -52,6 +52,7 @@ class AssistantPreference(Base):
     preference_vector: Mapped[list] = mapped_column(JSON, default=list)
     feedback_count: Mapped[int] = mapped_column(Integer, default=0)
     memory_enabled: Mapped[bool] = mapped_column(default=False)
+    memory_retention_days: Mapped[int] = mapped_column(Integer, default=365)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 class AssistantFeedback(Base):
