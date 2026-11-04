@@ -21,3 +21,84 @@ def test_remote_filter_is_explicit_and_excludes_onsite_roles():
 
 def test_empty_filters_preserve_all_normalized_jobs():
     assert filter_jobs(JOBS) == JOBS
+
+
+def test_company_board_metadata_uses_published_name_and_https_brand_assets(monkeypatch):
+    import asyncio
+    from packages.integrations import job_boards
+
+    class Response:
+        def __init__(self, status_code, payload=None, text="", content_type="application/json"):
+            self.status_code = status_code
+            self._payload = payload or {}
+            self.text = text
+            self.headers = {"content-type": content_type}
+
+        def json(self):
+            return self._payload
+
+    class Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url):
+            if "boards-api.greenhouse.io" in url:
+                return Response(200, {"name": "Acme Financial"})
+            return Response(
+                200,
+                text=(
+                    '<html><head><meta property="og:site_name" content="Acme Financial">'
+                    '<meta property="og:description" content="Payments infrastructure">'
+                    '<meta property="og:image" content="/brand/logo.svg">'
+                    '<link rel="icon" href="/favicon.ico">'
+                    '<link rel="canonical" href="https://acme.example/careers">'
+                    '</head><body></body></html>'
+                ),
+                content_type="text/html; charset=utf-8",
+            )
+
+    monkeypatch.setattr(job_boards.connectors.httpx, "AsyncClient", lambda **kwargs: Client())
+    result = asyncio.run(job_boards.connectors.discover_company_profile("greenhouse", "acme"))
+
+    assert result["company"] == "Acme Financial"
+    assert result["company_website"] == "https://acme.example/careers"
+    assert result["company_domain"] == "acme.example"
+    assert result["company_logo_url"] == "https://boards.greenhouse.io/brand/logo.svg"
+    assert result["company_favicon_url"] == "https://boards.greenhouse.io/favicon.ico"
+    assert result["company_description"] == "Payments infrastructure"
+    assert result["company_brand_source"] == "https://boards.greenhouse.io/acme"
+
+
+def test_company_profile_does_not_invent_missing_brand_assets(monkeypatch):
+    import asyncio
+    from packages.integrations import job_boards
+
+    class Response:
+        status_code = 200
+        headers = {"content-type": "text/html"}
+        text = "<html><head><title>Careers</title></head></html>"
+
+        def json(self):
+            return {}
+
+    class Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, url):
+            return Response()
+
+    monkeypatch.setattr(job_boards.connectors.httpx, "AsyncClient", lambda **kwargs: Client())
+    result = asyncio.run(job_boards.connectors.discover_company_profile("lever", "acme"))
+
+    assert result["company"] == "Acme"
+    assert result["company_logo_url"] == ""
+    assert result["company_favicon_url"] == ""
+    assert result["company_website"] == ""
+    assert result["company_brand_source"] == ""
