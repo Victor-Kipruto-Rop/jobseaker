@@ -28,7 +28,7 @@ def upgrade():
     op.create_table(
         "assistant_ingestion_jobs",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("job_id", sa.String(36), nullable=False, unique=True),
+        sa.Column("job_id", sa.String(36), nullable=False),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("filename", sa.String(255), nullable=False),
         sa.Column("content_type", sa.String(160), nullable=False),
@@ -44,7 +44,7 @@ def upgrade():
     op.add_column("assistant_ingestion_jobs", sa.Column("dispatch_attempts", sa.Integer(), nullable=False, server_default="0"))
     op.add_column("assistant_ingestion_jobs", sa.Column("dispatched_at", sa.DateTime(timezone=True), nullable=True))
     op.add_column("assistant_ingestion_jobs", sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()))
-    op.create_index("ix_assistant_ingestion_jobs_job_id", "assistant_ingestion_jobs", ["job_id"])
+    op.create_index("ix_assistant_ingestion_jobs_job_id", "assistant_ingestion_jobs", ["job_id"], unique=True)
     op.create_index("ix_assistant_ingestion_jobs_user_id", "assistant_ingestion_jobs", ["user_id"])
     op.create_index("ix_assistant_ingestion_user_created", "assistant_ingestion_jobs", ["user_id", "created_at"])
     op.create_index("ix_assistant_ingestion_status_created", "assistant_ingestion_jobs", ["status", "created_at"])
