@@ -145,9 +145,9 @@ async def capture_failure_evidence(page: Any, *, owner_scope: str) -> dict[str, 
     screenshot = await page.screenshot(full_page=True, animations="disabled")
     html = await page.content()
     # Do not retain scripts or values from form controls in the DOM evidence.
-    html = re.sub(r"(?is)<script\\b[^>]*>.*?</script>", "<script>[redacted]</script>", html)
-    html = re.sub(r'(?is)\\svalue=(["\']).*?\\1', ' value="[redacted]"', html)
-    html = re.sub(r"(?is)(<textarea\\b[^>]*>).*?(</textarea>)", r"\\1[redacted]\\2", html)
+    html = re.sub(r"(?is)<script\b[^>]*>.*?</script>", "<script>[redacted]</script>", html)
+    html = re.sub(r'(?is)\svalue=(["\']).*?\1', ' value="[redacted]"', html)
+    html = re.sub(r"(?is)(<textarea\b[^>]*>).*?(</textarea>)", r"\1[redacted]\2", html)
     screenshot_obj = store_private_object(
         screenshot, "browser-failure.png", "image/png", owner_scope=owner_scope,
     )
