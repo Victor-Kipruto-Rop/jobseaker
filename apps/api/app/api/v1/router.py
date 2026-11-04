@@ -17,6 +17,7 @@ from apps.api.app.api.v1.integrations.gmail_routes import (
 from apps.api.app.api.v1.notifications.routes import router as notifications
 from apps.api.app.api.v1.opportunities.routes import router as opportunities
 from apps.api.app.api.v1.profile.routes import router as profile
+from apps.api.app.api.v1.recommendations.routes import router as recommendations
 from apps.api.app.api.v1.recruiters.routes import router as recruiters
 from apps.api.app.api.v1.resumes.routes import router as resumes
 from apps.api.app.api.v1.saved_searches.routes import router as saved_searches
@@ -97,5 +98,10 @@ router.include_router(
 
 router.include_router(
     workspace, prefix="/workspace/items", tags=["career workspace"],
+    dependencies=candidate_policy,
+)
+
+router.include_router(
+    recommendations, prefix="/recommendations", tags=["personalized recommendations"],
     dependencies=candidate_policy,
 )
