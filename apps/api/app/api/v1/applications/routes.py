@@ -10,6 +10,7 @@ from packages.database.models.career import (
 )
 from packages.integrations.url_validation import validate_http_url
 from packages.events.outbox import enqueue_event
+from packages.applications.email_intent import classify_email
 from packages.applications.fsm import STATUSES, TRANSITIONS, can_transition
 from packages.automation.idempotency import (
     DispatchConflict, reserve_application_dispatch, complete_application_dispatch,
@@ -68,6 +69,27 @@ def _serialize(row, opportunity=None):
             "company_profile_snapshot": snapshot,
             "status": row.status, "job_url": row.job_url, "notes": row.notes,
             "applied_at": row.applied_at, "created_at": row.created_at}
+
+
+class EmailIntentPreview(BaseModel):
+    subject: str = Field(default="", max_length=1000)
+    body: str = Field(min_length=1, max_length=30000)
+    application_id: int | None = None
+
+@router.post("/email-intent-preview")
+def preview_email_intent(body: EmailIntentPreview,
+                         user: User = Depends(get_current_user),
+                         db: Session = Depends(get_db)):
+    """Classify candidate-supplied email text; never advances application state."""
+    if body.application_id is not None:
+        owned = db.scalar(select(Application).where(
+            Application.id == body.application_id, Application.user_id == user.id))
+        if not owned:
+            raise HTTPException(status_code=404, detail="Application not found")
+    result = classify_email(body.subject, body.body)
+    result["application_id"] = body.application_id
+    result["candidate_action_required"] = True
+    return result
 
 @router.get("")
 def list_applications(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
