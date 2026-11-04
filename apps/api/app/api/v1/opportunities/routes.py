@@ -74,7 +74,7 @@ def list_opportunities(user: User = Depends(get_current_user), db: Session = Dep
     candidate_skills = [item.skill_name for item in skills]
     return [{"id": r.id, "title": r.title, "company": r.company, "location": r.location,
              "source_name": r.source_name, "source_url": r.source_url, "status": r.status,
-             "required_skills": r.required_skills, "fit": score_job(r.title, r.description + " " + " ".join(r.required_skills or []), candidate_skills),
+             "required_skills": r.required_skills, "salary_min": r.salary_min, "salary_max": r.salary_max,\n             "employment_type": r.employment_type, "remote_type": r.remote_type,\n             "posted_at": r.posted_at, "application_deadline": r.application_deadline,\n             "fit": score_job(r.title, r.description + " " + " ".join(r.required_skills or []), candidate_skills),
              "created_at": r.created_at} for r in rows]
 
 @router.post("", status_code=201)
