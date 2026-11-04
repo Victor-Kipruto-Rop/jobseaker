@@ -138,6 +138,22 @@ services:
       redpanda: {condition: service_healthy}
       migrate: {condition: service_completed_successfully}
     restart: unless-stopped
+  event-consumer:
+    build: {context: ../.., dockerfile: apps/worker/Dockerfile}
+    env_file: ../../.env
+    environment:
+      APP_ENV: local
+      DATABASE_URL: postgresql+psycopg://jobseeker:jobseeker_local@postgres:5432/jobseeker
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_ENABLED: "true"
+      KAFKA_CLIENT_ID: jobseeker-event-consumer
+      KAFKA_CONSUMER_GROUP_ID: jobseeker-career-intelligence-v1
+    command: ["python", "-m", "apps.worker.event_consumer"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redpanda: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
   scheduler:
     build: {context: ../.., dockerfile: apps/scheduler/Dockerfile}
     env_file: ../../.env
