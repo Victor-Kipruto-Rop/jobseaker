@@ -13,16 +13,22 @@ htmlcov/
 *.sqlite
 *.sqlite3
 *.db
+
+# Runtime and private data. Only synthetic, reviewed fixtures are committed.
 data/
+!data/samples/
+!data/samples/**
+data/private/
 backups/
 exports/
 logs/
+
+# Credentials and local OAuth material.
 credentials.json
 client_secret*.json
 token.json
 *resume*.pdf
 *cv*.pdf
-
-# Local OAuth credentials and client secrets
 secrets/*
 !secrets/.gitkeep
+!secrets/README.md
