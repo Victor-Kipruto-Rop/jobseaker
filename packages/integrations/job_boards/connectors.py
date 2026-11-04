@@ -107,6 +107,10 @@ def infer_remote_type(location: str, description: str = "", published_type: str 
 def _epoch_datetime(value):
     try:
         from datetime import datetime, timezone
+        if isinstance(value, str) and not value.strip().replace(".", "", 1).isdigit():
+            from datetime import datetime, timezone
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
         numeric = float(value)
         if numeric > 10_000_000_000:
             numeric /= 1000
