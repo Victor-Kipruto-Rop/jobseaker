@@ -21,6 +21,7 @@ def dispatch_pending_ingestion_jobs(redis_url: str, batch_size: int = 20) -> int
     now = datetime.now(timezone.utc)
     queued_cutoff = now - timedelta(minutes=15)
     processing_cutoff = now - timedelta(minutes=20)
+    failed_cutoff = now - timedelta(minutes=6)
     db = SessionLocal()
     dispatches = []
     try:
@@ -29,10 +30,13 @@ def dispatch_pending_ingestion_jobs(redis_url: str, batch_size: int = 20) -> int
             ((AssistantIngestionJob.dispatched_at.is_(None)) |
              (AssistantIngestionJob.dispatched_at < queued_cutoff)),
             (AssistantIngestionJob.status == "processing") &
-            (AssistantIngestionJob.updated_at < processing_cutoff)
+            (AssistantIngestionJob.updated_at < processing_cutoff),
+            (AssistantIngestionJob.status == "failed") &
+            (AssistantIngestionJob.attempts < 3) &
+            (AssistantIngestionJob.updated_at < failed_cutoff)
         )).order_by(AssistantIngestionJob.created_at.asc()).limit(batch_size).with_for_update(skip_locked=True)).all()
         for row in rows:
-            if row.status == "processing":
+            if row.status in {"processing", "failed"}:
                 row.status = "queued"
             row.dispatch_attempts = int(row.dispatch_attempts or 0) + 1
             row.dispatched_at = now
