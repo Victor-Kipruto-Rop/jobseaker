@@ -5,6 +5,7 @@ import os
 import threading
 import time
 from redis import Redis
+from prometheus_client import start_http_server
 from rq import Queue, Worker
 from packages.assistant.jobs import dispatch_pending_ingestion_jobs, purge_expired_assistant_memory
 from packages.database.sessions import SessionLocal
@@ -58,6 +59,8 @@ def _assistant_dispatch_loop(redis_url: str) -> None:
         time.sleep(15)
 
 def main():
+    metrics_port = int(os.getenv("WORKER_METRICS_PORT", "9101"))
+    start_http_server(metrics_port, addr=os.getenv("WORKER_METRICS_HOST", "0.0.0.0"))
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     conn = Redis.from_url(redis_url)
     dispatcher = threading.Thread(target=_assistant_dispatch_loop, args=(redis_url,),
