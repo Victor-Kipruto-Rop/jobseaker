@@ -97,7 +97,7 @@ docker compose -f infrastructure/compose/docker-compose.yml up --build
 
 Also verify migration upgrades from the Phase 3 revision and a clean database, relay crash/replay behavior, DLQ recovery, active model promotion and rollback, authenticated Gmail sync, ATS form approval, storage redaction, cross-account isolation, load behavior, restore drills and accessibility.
 
-OpenTelemetry distributed traces, production schema-registry compatibility enforcement, full downstream Kafka consumer fleet, managed secret/KMS rotation, calendar OAuth/write sync, malware scanning, provider-wide circuit-breaker wiring and production SLOs remain incomplete. Do not describe the platform as production-ready until these gates have evidence.
+OpenTelemetry API/SQLAlchemy tracing and Prometheus API/outbox/consumer metrics are implemented as opt-in instrumentation. Distributed trace propagation through Kafka and worker processes, a managed external schema-registry service, the full downstream job-processing consumer fleet, managed KMS integration, malware scanning, provider-wide circuit-breaker wiring and production SLOs remain incomplete. Google Calendar OAuth and candidate-triggered event sync are implemented but remain opt-in and require live OAuth verification. Do not describe the platform as production-ready until these gates have evidence.
 
 ## Additional master-spec implementation notes
 
@@ -130,3 +130,27 @@ OpenTelemetry distributed traces, production schema-registry compatibility enfor
 
 ### Release status
 The implementation is committed to the existing Phase 4 branch and PR #9. It is NOT production-verified. The latest observed head has no associated PR workflow runs. Local Compose startup, database migration execution, full tests, static checks, frontend build, integration OAuth tests and real ATS browser review must still pass before merge or deployment.
+## Credential key rotation operations
+
+The credential vault now writes versioned AES-256-GCM envelopes with a key identifier. Configure a JSON keyring containing both the current and previous keys, then set the active key ID. Keep old keys available until rewrapping and backup-restore checks complete.
+
+Example environment configuration (use generated 32-byte random keys; never commit real values):
+- JOBSEEKER_CREDENTIAL_KEYRING: JSON map of key IDs to URL-safe-base64 keys
+- JOBSEEKER_CREDENTIAL_ACTIVE_KEY_ID: key ID used for new ciphertext
+
+Run an inventory first, then rotate:
+
+```powershell
+python -m apps.worker.rotate_credentials --dry-run
+python -m apps.worker.rotate_credentials
+```
+
+The worker rewraps supported Gmail and Calendar ciphertext without changing OAuth token contents. Historical Gmail Fernet records are intentionally skipped by this worker and are upgraded by the next successful Gmail sync. Remove a retired key only after a fresh inventory shows no records depend on it and a recovery test confirms backups remain decryptable.
+
+## Event schema validation
+
+packages/events/schema_registry.py validates envelopes against the registered JSON Schema version and exposes backward-compatibility checks. Additive optional fields are allowed; required-field additions, property removal, type narrowing and enum narrowing are rejected. The current repository registers envelope v1 only. Deploying a managed registry service, subject naming strategy, compatibility policy and schema rollout pipeline remains a production infrastructure task.
+
+## Operational metrics
+
+The API exposes Prometheus metrics at /metrics. HTTP request totals and latency use route templates to avoid high-cardinality path labels. Outbox delivery, backlog, consumer retries and DLQ outcomes are also instrumented. Configure the OTLP endpoint to enable API and SQLAlchemy tracing; worker and Kafka trace propagation still need end-to-end instrumentation. Protect metrics endpoints with network policy or an authenticated metrics gateway in production.
