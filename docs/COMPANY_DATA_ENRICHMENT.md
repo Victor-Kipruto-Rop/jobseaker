@@ -27,6 +27,7 @@ Migration: `20261104_0009_company_branding.py`.
 - Opportunity and saved-role cards display the imported logo or favicon when available.
 - Application records inherit company branding from their linked, user-owned opportunity.
 - Discovery shows the resolved employer identity, website/domain evidence and whether a published brand asset was found.
+- Re-running a board search backfills missing company metadata on previously imported roles without overwriting non-empty user/company fields.
 - Missing company assets use a neutral visual fallback. No generated or guessed logo is substituted.
 
 ## Data quality and limitations
