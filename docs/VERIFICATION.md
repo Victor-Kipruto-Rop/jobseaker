@@ -129,3 +129,42 @@ Additional latest-commit attempts:
 - [Secret scan run 41775916387](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41775916387): failed with zero recorded steps.
 
 The runner did not execute a workflow step in either run. This does not establish whether application checks pass or fail.
+
+
+### Local frontend verification reported by repository owner
+
+**Environment:** Windows PowerShell, Node/pnpm workspace, pnpm 9.15.0.  
+**Source:** command output supplied by the repository owner after pulling the login CSS Module fix.
+
+| Check | Command | Result |
+|---|---|---|
+| Frozen dependency installation | `pnpm install --frozen-lockfile` | Passed; workspace dependencies installed and lockfile was reported up to date |
+| Frontend TypeScript check | `pnpm --filter web lint` | Passed; `tsc --noEmit` exited without diagnostics |
+| Next.js production build | `pnpm --filter web build` | Passed; compilation, type validation, page-data collection, static generation (24/24), trace collection, and optimization completed |
+| Static routes | Next.js build output | 22 routes listed, including login, dashboard, applications, discovery, and settings |
+
+The login page's responsive styles were moved into `apps/web/src/app/login/login.module.css`; `page.tsx` imports and uses the CSS Module. The reported lint and build output was clean.
+
+These results are owner-reported local execution evidence, not GitHub Actions evidence. Python, database migrations, pytest, Ruff, mypy, dependency audits, Compose validation, and Docker image builds remain unverified. The pnpm lockfile must still be committed before CI and Docker installs can safely switch to frozen-lockfile mode.
+
+
+### Database initialization consolidation
+
+- Consolidated database engine/session creation and Alembic lifecycle handling into `packages/database/sessions/__init__.py`, which is the module resolved by all active `packages.database.sessions` imports.
+- Removed the shadowed sibling module `packages/database/sessions.py` to eliminate competing initialization behavior.
+- Local, development, and test environments call `alembic upgrade head`. Production verifies that the database has exactly the migration revision represented by the checked-out code and fails closed when the migration table is missing, the revision differs, or the migration graph has no single head. Production startup does not apply migrations.
+- Added `tests/unit/test_database_sessions.py` for Alembic path/URL configuration, local and test migration invocation, unsupported environments, production revision match/mismatch, missing migration metadata, and ambiguous migration heads.
+- Expanded the CI and local release-gate mypy command to check both `apps` and `packages`, matching the repository-owner's local command.
+- Added frontend/Python build-artifact exclusions to Git and Docker build contexts.
+
+**Execution status:** These database changes and tests have been committed to the Phase 2 branch but have not yet been run in a local environment or by GitHub Actions. They are implementation changes, not passing verification evidence. The repository owner must run the targeted test, Ruff, mypy, migrations, full pytest suite, Compose validation, and Docker builds after pulling.
+
+
+### Latest Phase 2 follow-up workflow attempt
+
+The Phase 2 follow-up PR triggered:
+
+- [CI run 41785435566](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41785435566): Python, web, and Docker jobs were marked failed. GitHub returned zero recorded steps for all three jobs.
+- [Secret scan run 41785435571](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41785435571): failed with zero recorded steps.
+
+No workflow command executed according to the available job metadata. These failures do not provide test, build, migration, audit, or secret-scan results. The repository owner must verify locally until the GitHub runner issue is resolved.

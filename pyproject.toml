@@ -24,12 +24,27 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI parameter declarations are immutable dependency/validation descriptors.
+extend-immutable-calls = [
+  "fastapi.Depends",
+  "fastapi.Query",
+  "fastapi.Path",
+  "fastapi.Body",
+  "fastapi.Header",
+  "fastapi.Cookie",
+  "fastapi.Form",
+  "fastapi.File",
+  "fastapi.Security",
+  "apps.api.app.dependencies.require_roles",
+]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["apps*", "packages*"]
 
 [tool.mypy]
 python_version = "3.12"
+explicit_package_bases = true
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_redundant_casts = true

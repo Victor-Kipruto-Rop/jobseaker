@@ -1,4 +1,8 @@
+from typing import Literal, cast
+
 import anthropic
+from anthropic.types import MessageParam
+
 from apps.api.app.core.config import get_settings
 from packages.ai.providers.base import AIProvider, GenerationRequest, GenerationResult
 
@@ -6,7 +10,7 @@ from packages.ai.providers.base import AIProvider, GenerationRequest, Generation
 class AnthropicProvider(AIProvider):
     name = "anthropic"
 
-    def __init__(self):
+    def __init__(self) -> None:
         settings = get_settings()
         if not settings.anthropic_api_key:
             raise RuntimeError("ANTHROPIC_API_KEY is missing")
@@ -18,14 +22,31 @@ class AnthropicProvider(AIProvider):
         self.model = settings.anthropic_default_model
 
     async def generate(self, request: GenerationRequest) -> GenerationResult:
+        messages: list[MessageParam] = []
+        for message in request.messages:
+            role = message.get("role")
+            content = message.get("content")
+            if role not in {"user", "assistant"} or not isinstance(content, str):
+                raise ValueError(
+                    "Anthropic messages require user or assistant roles and string content"
+                )
+            messages.append(
+                {
+                    "role": cast(Literal["user", "assistant"], role),
+                    "content": content,
+                }
+            )
+
         response = await self.client.messages.create(
             model=request.model or self.model,
             system=request.system or "",
-            messages=request.messages,
+            messages=messages,
             max_tokens=request.max_tokens,
         )
         text = "\n".join(
-            block.text for block in response.content if getattr(block, "type", None) == "text"
+            block.text
+            for block in response.content
+            if isinstance(block, anthropic.types.TextBlock)
         )
         return GenerationResult(
             text=text,

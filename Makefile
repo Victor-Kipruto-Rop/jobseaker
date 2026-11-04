@@ -25,7 +25,7 @@ python-verify:
 	$(PYTHON) -m compileall -q apps packages tests migrations scripts
 	alembic upgrade head
 	alembic check
-	$(PYTHON) -m mypy apps/api packages --ignore-missing-imports --follow-imports=silent
+	$(PYTHON) -m mypy apps packages
 	$(PYTHON) -m pytest -q --cov=apps.api.app --cov=packages --cov-report=term-missing
 	ruff check .
 

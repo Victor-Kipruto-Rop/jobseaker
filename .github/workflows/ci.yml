@@ -69,7 +69,7 @@ jobs:
       - name: Ruff
         run: ruff check .
       - name: Python type check
-        run: mypy apps/api packages --ignore-missing-imports --follow-imports=silent
+        run: mypy apps packages
       - name: Apply migrations to clean PostgreSQL
         run: alembic upgrade head
       - name: Check migration drift

@@ -32,3 +32,9 @@ token.json
 secrets/*
 !secrets/.gitkeep
 !secrets/README.md
+
+# Frontend and Python build artifacts.
+node_modules/
+.next/
+*.tsbuildinfo
+*.egg-info/
