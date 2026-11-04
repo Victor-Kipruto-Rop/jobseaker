@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowUpRight, Check, CircleAlert, ExternalLink, Gauge, LockKeyhole, LogOut, Mail, RefreshCw, ShieldCheck, SlidersHorizontal, WalletCards } from "lucide-react";
+import { Check, CircleAlert, ExternalLink, Gauge, LockKeyhole, LogOut, Mail, RefreshCw, ShieldCheck, SlidersHorizontal, WalletCards } from "lucide-react";
 import AppShell from "../../components/layout/app-shell";
 import styles from "./settings.module.css";
 
