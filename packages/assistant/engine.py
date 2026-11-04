@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib, math, re, os
 from functools import lru_cache
 from collections import Counter
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -179,7 +180,7 @@ def remember(db: Session, user_id: int, content: str, conversation_id: int | Non
             memory_kind="episodic",
             content=encrypt_credential(chunk, purpose=f"assistant-memory:{user_id}"),
             summary=encrypt_credential(extractive_summary(chunk), purpose=f"assistant-memory:{user_id}"),
-            content_encrypted=True, embedding=embedding(chunk), embedding_vector=embedding(chunk), keywords=list(dict.fromkeys(tokens(chunk)))[:40],
+            content_encrypted=True, embedding=embedding(chunk), embedding_vector=embedding(chunk), expires_at=datetime.now(timezone.utc) + timedelta(days=365), keywords=list(dict.fromkeys(tokens(chunk)))[:40],
             importance=0.25 if source == "assistant_response" else 0.55, source=source)
         db.add(row); db.flush()
         first_id = first_id or row.id
@@ -198,7 +199,7 @@ def remember(db: Session, user_id: int, content: str, conversation_id: int | Non
 def retrieve(db: Session, user_id: int, query: str, limit: int = 8) -> list[dict[str, Any]]:
     qvec = embedding(query)
     rows = db.scalars(select(AssistantMemory).where(
-        AssistantMemory.user_id == user_id).order_by(AssistantMemory.created_at.desc()).limit(600)).all()
+        AssistantMemory.user_id == user_id, (AssistantMemory.expires_at.is_(None) | (AssistantMemory.expires_at > datetime.now(timezone.utc)))).order_by(AssistantMemory.created_at.desc()).limit(600)).all()
     ranked = []
     for row in rows:
         dense = cosine(qvec, row.embedding or [])
