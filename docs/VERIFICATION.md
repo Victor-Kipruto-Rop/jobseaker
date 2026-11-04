@@ -650,3 +650,17 @@ Actions associated with commit `0b63e35d270ad9ab91b39553cb3761afad547498` return
 
 
 Final provenance refinement: resolved Greenhouse employer names now retain the public board page as their source even when the board does not publish any logo, favicon, description or theme color. Latest source commit: `a448d3e5477529217528e3f9b0e04065af93a690`. No Actions run was returned for this commit. Release verification remains pending.
+
+
+## Employer identity and lifecycle follow-up (2026-11-04)
+
+The implementation now normalizes employer data into reusable user-scoped Company records and adds:
+- Migration `20261104_0010`: company profile fields, opportunity relationship and a data backfill for existing imported roles.
+- Migration `20261104_0011`: vacancy availability and last-seen timestamps.
+- Migration `20261104_0012`: original job-description and employer-profile snapshots on applications.
+- Greenhouse/Lever metadata extraction for public employer logos, favicons, websites, domains, descriptions, social links, industry, headquarters and theme color where published.
+- Saved-search worker refresh, duplicate protection, removed/reappearing vacancy handling and notifications for newly imported roles.
+- Best-effort company enrichment so a missing employer page does not prevent valid vacancy ingestion.
+- Additional tests for metadata extraction, skill/work-mode parsing, timestamps, and employer-profile fetch failures.
+
+**Still not runtime-verified.** This environment has updated source files through the connected GitHub repository, but it has not run the Python suite, Ruff, mypy, Alembic against a real database, frontend lint/build, Docker services, or authenticated live-board tests. CI must be inspected on the latest commit. Keep PR #9 draft and unmerged until those checks pass.
