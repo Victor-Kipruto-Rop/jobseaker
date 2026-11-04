@@ -104,3 +104,10 @@ builds the API, worker, scheduler, and web containers from their dedicated Docke
 The local release gate uses the host Python and pnpm installations for tests, linting,
 Python and frontend type checks, and frontend build verification. The CI workflow also
 runs dependency audits and builds all four container images.
+
+
+## Career intelligence infrastructure
+
+The local development stack includes PostgreSQL with pgvector, Redis, Redpanda (Kafka API), and MinIO for private object storage. See [Platform Infrastructure](docs/PLATFORM_INFRASTRUCTURE.md) for service endpoints, event contracts, configuration and production gates. Resume files are stored through the private object-storage adapter; authenticated ownership checks remain in the API.
+
+Optional ML dependencies are installed with `pip install -e ".[ml]"`. Optional Playwright support is installed with `pip install -e ".[browser]"`. Browser assistance is human-approved and respects site automation rules. It does not bypass CAPTCHAs or anti-bot protections.
