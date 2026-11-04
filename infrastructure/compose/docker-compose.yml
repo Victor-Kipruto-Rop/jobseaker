@@ -132,6 +132,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       KAFKA_ENABLED: "true"
       KAFKA_CLIENT_ID: jobseeker-outbox-relay
+      METRICS_PORT: "9101"
+    ports: ["127.0.0.1:9101:9101"]
     command: ["python", "-m", "apps.worker.outbox_relay"]
     depends_on:
       postgres: {condition: service_healthy}
@@ -148,6 +150,8 @@ services:
       KAFKA_ENABLED: "true"
       KAFKA_CLIENT_ID: jobseeker-event-consumer
       KAFKA_CONSUMER_GROUP_ID: jobseeker-career-intelligence-v1
+      METRICS_PORT: "9102"
+    ports: ["127.0.0.1:9102:9102"]
     command: ["python", "-m", "apps.worker.event_consumer"]
     depends_on:
       postgres: {condition: service_healthy}
