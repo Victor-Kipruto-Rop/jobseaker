@@ -153,4 +153,4 @@ packages/events/schema_registry.py validates envelopes against the registered JS
 
 ## Operational metrics
 
-The API exposes Prometheus metrics at /metrics. HTTP request totals and latency use route templates to avoid high-cardinality path labels. Outbox delivery, backlog, consumer retries and DLQ outcomes are also instrumented. Configure the OTLP endpoint to enable API and SQLAlchemy tracing; worker and Kafka trace propagation still need end-to-end instrumentation. Protect metrics endpoints with network policy or an authenticated metrics gateway in production.
+The API exposes Prometheus metrics at /metrics. HTTP request totals and latency use route templates to avoid high-cardinality path labels. The outbox relay and event consumer expose independent scrape endpoints at localhost:9101/metrics and localhost:9102/metrics in local Compose; these export outbox delivery/backlog and consumer retry/DLQ metrics respectively. Configure the OTLP endpoint to enable API and SQLAlchemy tracing; worker and Kafka trace propagation still need end-to-end instrumentation. Protect metrics endpoints with network policy or an authenticated metrics gateway in production.
