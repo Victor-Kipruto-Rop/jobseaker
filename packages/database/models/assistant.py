@@ -60,3 +60,26 @@ class AssistantFeedback(Base):
     correction: Mapped[str] = mapped_column(Text, default="")
     signals: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class AssistantEntity(Base):
+    __tablename__ = "assistant_entities"
+    __table_args__ = (UniqueConstraint("user_id", "entity_type", "normalized_name", name="uq_assistant_entity_user_type_name"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    entity_type: Mapped[str] = mapped_column(String(40))
+    name: Mapped[str] = mapped_column(String(240))
+    normalized_name: Mapped[str] = mapped_column(String(240))
+    attributes: Mapped[dict] = mapped_column(JSON, default=dict)
+    source_memory_id: Mapped[int | None] = mapped_column(ForeignKey("assistant_memories.id", ondelete="SET NULL"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+class AssistantRelation(Base):
+    __tablename__ = "assistant_relations"
+    __table_args__ = (UniqueConstraint("user_id", "source_entity_id", "target_entity_id", "relation_type", name="uq_assistant_relation_edge"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    source_entity_id: Mapped[int] = mapped_column(ForeignKey("assistant_entities.id", ondelete="CASCADE"), index=True)
+    target_entity_id: Mapped[int] = mapped_column(ForeignKey("assistant_entities.id", ondelete="CASCADE"), index=True)
+    relation_type: Mapped[str] = mapped_column(String(60))
+    confidence: Mapped[float] = mapped_column(default=0.7)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
