@@ -2,8 +2,6 @@ import re
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from uuid import uuid4
-import os
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
