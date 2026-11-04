@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     kafka_enabled: bool = False
     kafka_bootstrap_servers: str = "localhost:9092"
     kafka_client_id: str = "jobseeker-api"
+    kafka_consumer_group_id: str = "jobseeker-career-intelligence-v1"
     gmail_enabled: bool = False
     credential_kek: str | None = None
     otel_exporter_otlp_endpoint: str | None = None
