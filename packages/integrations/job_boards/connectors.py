@@ -76,6 +76,44 @@ def _safe_url(value: str) -> str:
     except ValueError:
         return ""
 
+
+_SKILLS = (
+    "Python", "SQL", "PostgreSQL", "MySQL", "Snowflake", "BigQuery", "Redshift",
+    "Databricks", "Spark", "PySpark", "Kafka", "Airflow", "Dagster", "dbt",
+    "Docker", "Kubernetes", "AWS", "Azure", "GCP", "Terraform", "Flink",
+    "Java", "Scala", "Go", "Pandas", "NumPy", "Power BI", "Tableau", "Looker",
+    "Git", "Linux", "REST APIs", "FastAPI", "Flask",
+)
+
+
+def extract_required_skills(description: str) -> list[str]:
+    """Extract only known technology mentions; this is evidence, not an inferred requirement."""
+    text = (description or "").casefold()
+    return [skill for skill in _SKILLS
+            if re.search(r"(?<![a-z0-9])" + re.escape(skill.casefold()) + r"(?![a-z0-9])", text)]
+
+
+def infer_remote_type(location: str, description: str = "", published_type: str = "") -> str:
+    value = " ".join((location or "", description or "", published_type or "")).casefold()
+    if "hybrid" in (published_type or "").casefold() or "hybrid" in value:
+        return "hybrid"
+    if any(term in value for term in ("remote", "distributed", "work from home", "work-from-home")):
+        return "remote"
+    if any(term in (published_type or "").casefold() for term in ("on-site", "onsite", "office")):
+        return "onsite"
+    return "unspecified"
+
+
+def _epoch_datetime(value):
+    try:
+        from datetime import datetime, timezone
+        numeric = float(value)
+        if numeric > 10_000_000_000:
+            numeric /= 1000
+        return datetime.fromtimestamp(numeric, tz=timezone.utc)
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
+
 def _validate_slug(slug: str) -> str:
     slug = slug.strip().lower()
     if not _SLUG.fullmatch(slug):
@@ -190,7 +228,9 @@ async def discover_greenhouse(board: str, limit: int = 100) -> list[dict]:
             "source_url": _safe_url(item.get("absolute_url", "")),
             "location": location,
             "employment_type": "unspecified",
-            "remote_type": "unspecified",
+            "remote_type": infer_remote_type(location, plain_text(item.get("content", ""))),
+            "required_skills": extract_required_skills(plain_text(item.get("content", ""))),
+            "posted_at": _epoch_datetime(item.get("updated_at")),
         })
     return jobs
 
@@ -211,9 +251,16 @@ async def discover_lever(site: str, limit: int = 100) -> list[dict]:
             "description": (item.get("descriptionPlain") or plain_text(item.get("description", "")))[:30000],
             "source_name": "lever",
             "source_url": _safe_url(item.get("hostedUrl") or item.get("applyUrl", "")),
-            "location": categories.get("location", ""),
+            "location": categories.get("allLocations") or categories.get("location", ""),
             "employment_type": categories.get("commitment", "unspecified"),
-            "remote_type": "unspecified",
+            "remote_type": infer_remote_type(
+                categories.get("location", ""), item.get("descriptionPlain") or item.get("description", ""),
+                categories.get("workplaceType", ""),
+            ),
+            "required_skills": extract_required_skills(
+                item.get("descriptionPlain") or plain_text(item.get("description", ""))
+            ),
+            "posted_at": _epoch_datetime(item.get("createdAt")),
         })
     return jobs
 
