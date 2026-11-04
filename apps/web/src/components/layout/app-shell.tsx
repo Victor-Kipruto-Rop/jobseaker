@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, KeyboardEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Activity, Bell, BriefcaseBusiness, CalendarDays, CheckCheck, ChevronDown, Inbox,
+  Activity, Bell, BriefcaseBusiness, Building2, CalendarDays, CheckCheck, ChevronDown, Inbox,
   CircleHelp, Command, Compass, FileText, FolderKanban, GraduationCap, BookOpen,
   LayoutDashboard, LogOut, Menu, Plus, Search, Settings2, ShieldCheck,
   Sparkles, StickyNote, Target, TrendingUp, UserRound, WandSparkles, X,
