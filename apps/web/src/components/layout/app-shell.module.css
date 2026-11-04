@@ -119,3 +119,15 @@
 @media(max-width:760px){.sidebar,.sidebarOpen{width:min(300px,88vw);padding:22px 16px 14px}.sidebarCollapsed{display:none}.frame:has(.sidebarCollapsed) .main{width:100%;margin-left:0}.topbar{height:60px;flex-basis:60px;padding:0 12px;gap:8px}.globalSearch{width:min(44vw,220px);height:34px}.globalSearch input{font-size:9px}.globalSearch input::placeholder{font-size:0}.globalSearch input::placeholder:after{content:"Search";font-size:9px}.quickCreate{width:34px;height:34px;justify-content:center;padding:0}.quickCreate span,.quickCreate>svg:last-child{display:none}.topActions{gap:3px}.topIcon{display:none}.paletteBackdrop{padding-top:9vh}.footer{font-size:8px}}
 @media(max-width:430px){.breadcrumb span:first-child,.crumbDivider{display:none}.breadcrumb strong{font-size:10px}.globalSearch{width:37vw}.globalSearch kbd{display:none}.topProfile{width:29px;height:29px}}
 @media(prefers-reduced-motion:reduce){.sidebarCollapsed,.quickMenu,.commandPalette{transition:none}}
+
+.profileWrap{position:relative}
+.profileWrap .topProfile{border:1px solid #dce7dc;cursor:pointer}
+.profileMenu{position:absolute;right:0;top:43px;z-index:95;width:218px;padding:6px;border:1px solid #e3e9e1;border-radius:9px;background:#fff;box-shadow:0 14px 40px #23392b1c}
+.profileMenuHead{display:grid;gap:4px;padding:11px 10px;border-bottom:1px solid #edf0eb;margin-bottom:5px}
+.profileMenuHead strong{font-size:10px;color:#34483a}
+.profileMenuHead small{font-size:8px;color:#89958b;overflow:hidden;text-overflow:ellipsis}
+.profileMenu>button{width:100%;display:flex;align-items:center;gap:9px;padding:9px 10px;border:0;border-radius:5px;background:#fff;color:#66766a;text-align:left;font-size:9px;cursor:pointer}
+.profileMenu>button:hover{background:#f5f8f4;color:#315b40}
+.profileMenu>.profileSignout{margin-top:5px;border-top:1px solid #edf0eb;border-radius:0;color:#9b6256}
+.profileMenu>.profileSignout:hover{background:#fff8f5;color:#a4574c}
+@media(max-width:430px){.profileMenu{right:-2px}}
