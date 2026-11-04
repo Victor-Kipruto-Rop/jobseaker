@@ -1,12 +1,13 @@
-"""Authenticated asynchronous document ingestion and job status API."""
+"""Authenticated durable document ingestion API.
+
+The database job row is the outbox. A worker-side dispatcher publishes it to RQ,
+so an API process restart cannot lose an accepted upload between DB commit and enqueue.
+"""
 from __future__ import annotations
 import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from redis import Redis
-from rq import Queue, Retry
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from apps.api.app.core.config import get_settings
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
 from packages.database.models.assistant import AssistantPreference
@@ -39,15 +40,6 @@ async def enqueue_ingestion(file: UploadFile = File(...), user: User = Depends(g
         content_type=content_type, payload_ciphertext=ciphertext, status="queued")
     db.add(job)
     db.commit()
-    try:
-        queue = Queue("assistant", connection=Redis.from_url(get_settings().redis_url))
-        queue.enqueue("packages.assistant.jobs.process_ingestion_job", job_id,
-            job_id=f"assistant-ingest-{job_id}", job_timeout=900, result_ttl=86400, failure_ttl=604800,
-            retry=Retry(max=2, interval=[60, 300]))
-    except Exception as exc:
-        db.delete(job)
-        db.commit()
-        raise HTTPException(status_code=503, detail="Assistant ingestion queue is unavailable. Retry shortly.") from exc
     return {"job_id": job_id, "status": "queued", "filename": filename}
 
 @router.get("/assistant/ingestion/{job_id}")
@@ -65,10 +57,10 @@ def ingestion_status(job_id: str, user: User = Depends(get_current_user),
 def cancel_ingestion(job_id: str, user: User = Depends(get_current_user),
                      db: Session = Depends(get_db)):
     job = db.scalar(select(AssistantIngestionJob).where(
-        AssistantIngestionJob.job_id == job_id, AssistantIngestionJob.user_id == user.id))
+        AssistantIngestionJob.job_id == job_id, AssistantIngestionJob.user_id == user.id).with_for_update())
     if not job:
         raise HTTPException(status_code=404, detail="Ingestion job not found.")
-    if job.status in {"queued", "failed"}:
+    if job.status != "completed":
         job.status = "cancelled"
         job.payload_ciphertext = ""
         db.commit()
