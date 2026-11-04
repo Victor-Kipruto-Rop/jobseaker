@@ -7,19 +7,22 @@ from apps.api.app.core.config import get_settings
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
-def _key(filename: str) -> str:
+def _key(filename: str, owner_scope: str | None = None) -> str:
     name = Path(filename).name
     safe = _SAFE_NAME.sub("-", name).strip(".-")[:120] or "upload"
-    return f"{uuid4().hex}/{safe}"
+    prefix = _SAFE_NAME.sub("", owner_scope or "").strip(".-")[:80]
+    return f"{prefix + '/' if prefix else ''}{uuid4().hex}/{safe}"
 
-def store_private_object(content: bytes, filename: str, content_type: str) -> dict[str, str]:
+def store_private_object(
+    content: bytes, filename: str, content_type: str, *, owner_scope: str | None = None
+) -> dict[str, str]:
     """Persist bytes privately and return an opaque object key, never a public URL."""
     if not content:
         raise ValueError("Cannot store an empty object")
     if len(content) > 25 * 1024 * 1024:
         raise ValueError("Object exceeds the 25 MiB upload limit")
     settings = get_settings()
-    key = _key(filename)
+    key = _key(filename, owner_scope)
     if settings.storage_backend == "s3":
         if not (settings.s3_access_key_id and settings.s3_secret_access_key):
             raise RuntimeError("S3 storage credentials are not configured")
@@ -61,3 +64,23 @@ def read_private_object(object_key: str) -> bytes:
     if root not in path.parents or not path.is_file():
         raise FileNotFoundError("Stored object not found")
     return path.read_bytes()
+
+def delete_private_object(object_key: str) -> None:
+    """Delete a private object by opaque key."""
+    if not object_key or ".." in Path(object_key).parts or Path(object_key).is_absolute():
+        raise ValueError("Invalid object key")
+    settings = get_settings()
+    if settings.storage_backend == "s3":
+        import boto3
+        client = boto3.client(
+            "s3", endpoint_url=settings.s3_endpoint_url, region_name=settings.s3_region,
+            aws_access_key_id=settings.s3_access_key_id,
+            aws_secret_access_key=settings.s3_secret_access_key,
+        )
+        client.delete_object(Bucket=settings.s3_bucket, Key=object_key)
+        return
+    root = Path(settings.storage_path).resolve()
+    path = (root / object_key).resolve()
+    if root not in path.parents:
+        raise ValueError("Invalid storage key")
+    path.unlink(missing_ok=True)
