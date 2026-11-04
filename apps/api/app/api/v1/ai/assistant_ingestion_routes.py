@@ -5,8 +5,10 @@ so an API process restart cannot lose an accepted upload between DB commit and e
 """
 from __future__ import annotations
 import uuid
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
@@ -24,6 +26,21 @@ async def enqueue_ingestion(file: UploadFile = File(...), user: User = Depends(g
     pref = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user.id))
     if not pref or not pref.memory_enabled:
         raise HTTPException(status_code=409, detail="Enable assistant memory before adding personal documents.")
+    allowed_extensions = {".pdf", ".docx", ".txt", ".md", ".rst", ".json", ".yaml", ".yml",
+                          ".toml", ".csv", ".log", ".py", ".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
+    suffix = Path((file.filename or "").replace("\\\\", "/").split("/")[-1]).suffix.lower()
+    if suffix not in allowed_extensions:
+        raise HTTPException(status_code=415, detail="Unsupported file type.")
+    active_jobs = db.scalar(select(func.count(AssistantIngestionJob.id)).where(
+        AssistantIngestionJob.user_id == user.id,
+        AssistantIngestionJob.status.in_(("queued", "processing")))) or 0
+    if active_jobs >= 3:
+        raise HTTPException(status_code=429, detail="You already have three active document indexing jobs.")
+    recent_jobs = db.scalar(select(func.count(AssistantIngestionJob.id)).where(
+        AssistantIngestionJob.user_id == user.id,
+        AssistantIngestionJob.created_at >= datetime.now(timezone.utc) - timedelta(hours=24))) or 0
+    if recent_jobs >= 20:
+        raise HTTPException(status_code=429, detail="Daily assistant document upload limit reached.")
     payload = await file.read(MAX_BYTES + 1)
     await file.close()
     if not payload:
