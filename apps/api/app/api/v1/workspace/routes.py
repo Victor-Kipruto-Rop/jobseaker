@@ -7,7 +7,10 @@ from sqlalchemy.orm import Session
 
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
-from packages.database.models.career import CareerWorkspaceItem, AuditLog, Application, CandidateOpportunity
+from packages.database.models.career import (
+    CareerWorkspaceItem, AuditLog, Application, CandidateOpportunity, ResumeDocument,
+    Company, Recruiter, GeneratedArtifact, CandidateSkill,
+)
 
 router = APIRouter()
 ItemType = Literal["task", "note", "learning", "project", "contact"]
@@ -82,6 +85,22 @@ def search_workspace(q: str = Query(min_length=2, max_length=120),
         or_(CareerWorkspaceItem.title.ilike(pattern, escape="\\"),
             CareerWorkspaceItem.description.ilike(pattern, escape="\\")),
     ).order_by(CareerWorkspaceItem.updated_at.desc()).limit(12)).all()
+    resumes = db.scalars(select(ResumeDocument).where(
+        ResumeDocument.user_id == user.id, ResumeDocument.filename.ilike(pattern, escape="\\")
+    ).order_by(ResumeDocument.created_at.desc()).limit(5)).all()
+    companies = db.scalars(select(Company).where(
+        Company.user_id == user.id, Company.name.ilike(pattern, escape="\\")
+    ).order_by(Company.name.asc()).limit(5)).all()
+    recruiters = db.scalars(select(Recruiter).where(
+        Recruiter.user_id == user.id,
+        or_(Recruiter.full_name.ilike(pattern, escape="\\"), Recruiter.email.ilike(pattern, escape="\\")),
+    ).order_by(Recruiter.full_name.asc()).limit(5)).all()
+    artifacts = db.scalars(select(GeneratedArtifact).where(
+        GeneratedArtifact.user_id == user.id, GeneratedArtifact.title.ilike(pattern, escape="\\")
+    ).order_by(GeneratedArtifact.created_at.desc()).limit(5)).all()
+    skills = db.scalars(select(CandidateSkill).where(
+        CandidateSkill.user_id == user.id, CandidateSkill.skill_name.ilike(pattern, escape="\\")
+    ).order_by(CandidateSkill.skill_name.asc()).limit(5)).all()
     routes = {"task": "/tasks", "note": "/notes", "learning": "/learning",
               "project": "/projects", "contact": "/contacts"}
     results = []
@@ -91,6 +110,16 @@ def search_workspace(q: str = Query(min_length=2, max_length=120),
                     "href": "/applications", "kind": "APPLICATION"} for row in applications)
     results.extend({"id": row.id, "title": row.title, "subtitle": row.item_type.replace("_", " "),
                     "href": routes.get(row.item_type, "/dashboard"), "kind": row.item_type.upper()} for row in items)
+    results.extend({"id": row.id, "title": row.filename, "subtitle": "CV document",
+                    "href": "/profile#resumes", "kind": "CV"} for row in resumes)
+    results.extend({"id": row.id, "title": row.name, "subtitle": row.website or "Company record",
+                    "href": "/contacts", "kind": "COMPANY"} for row in companies)
+    results.extend({"id": row.id, "title": row.full_name, "subtitle": row.email or "Recruiter contact",
+                    "href": "/contacts", "kind": "RECRUITER"} for row in recruiters)
+    results.extend({"id": row.id, "title": row.title, "subtitle": row.artifact_type.replace("_", " "),
+                    "href": "/profile#career-tools", "kind": "CAREER DRAFT"} for row in artifacts)
+    results.extend({"id": row.id, "title": row.skill_name, "subtitle": row.proficiency.replace("_", " "),
+                    "href": "/profile#skills", "kind": "SKILL"} for row in skills)
     return results[:20]
 
 
