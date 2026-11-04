@@ -4,7 +4,7 @@ import asyncio, logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from apps.api.app.core.config import get_settings
@@ -267,7 +267,9 @@ def set_memory_retention(days: int, user: User = Depends(get_current_user),
         db.add(preference)
     else:
         preference.memory_retention_days = days
-    db.query(AssistantMemory).filter(AssistantMemory.user_id == user.id).update(
-        {"expires_at": expiry}, synchronize_session=False)
+    db.query(AssistantMemory).filter(
+        AssistantMemory.user_id == user.id,
+        or_(AssistantMemory.expires_at.is_(None), AssistantMemory.expires_at > datetime.now(timezone.utc))
+    ).update({"expires_at": expiry}, synchronize_session=False)
     db.commit()
     return {"retention_days": days, "expires_at": expiry.isoformat()}
