@@ -18,6 +18,7 @@ class EventEnvelope(BaseModel):
     occurred_at: datetime
     producer: str = Field(min_length=1, max_length=120)
     data: dict[str, Any]
+    trace_context: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("event_id")
     @classmethod
