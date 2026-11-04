@@ -228,7 +228,6 @@ def store_preferences(db: Session, user_id: int, value: dict) -> AssistantPrefer
     serialized = json.dumps(value or {}, separators=(",", ":"), ensure_ascii=False)
     row.preferences = encrypt_credential(serialized, purpose=f"assistant-preferences:{user_id}")
     row.preferences_encrypted = True
-    row.preference_vector = embedding(serialized)
     return row
 
 def adapt_preferences(current: dict, rating: int, correction: str) -> dict:
