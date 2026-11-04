@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowDownUp, ArrowUpRight, Bookmark, BriefcaseBusiness, Building2, Check, ChevronDown, ExternalLink, Filter, MapPin, Plus, RefreshCw, Search, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
+import { ArrowDownUp, ArrowUpRight, Bookmark, BriefcaseBusiness, Building2, Check, ExternalLink, MapPin, Plus, RefreshCw, Search, Sparkles, Trash2 } from "lucide-react";
 import AppShell from "../../components/layout/app-shell";
 import styles from "./opportunities.module.css";
 
@@ -90,7 +90,7 @@ export default function Opportunities(){
       <label>Location<input maxLength={120} placeholder="Nairobi, Remote, Africa…" value={filters.location} onChange={e=>update("location",e.target.value)}/></label>
      </div>
      <label className={styles.fullField}>Skills and role keywords<input placeholder="Data Engineer, Python, SQL, dbt, Spark" value={filters.keywords} onChange={e=>update("keywords",e.target.value)}/><small>Separate terms with commas. Listings are filtered against their available title and description.</small></label>
-     <div className={styles.formBottom}><label className={styles.checkLabel}><input type="checkbox" checked={filters.remote} onChange={e=>update("remote",e.target.checked)}/><span>Remote or distributed roles only</span></label><div className={styles.formActions}><button type="button" className={styles.secondaryButton} disabled={savingSearch} onClick={()=>void saveSearch()}><Bookmark size={14}/>{savingSearch?"Saving…":"Save search"}</button><button className={styles.primaryButton} disabled={searching}>{searching?<RefreshCw size={14} className={styles.spin}/>:<Search size={14}/ >}{searching?"Searching…":"Find matching roles"}</button></div></div>
+     <div className={styles.formBottom}><label className={styles.checkLabel}><input type="checkbox" checked={filters.remote} onChange={e=>update("remote",e.target.checked)}/><span>Remote or distributed roles only</span></label><div className={styles.formActions}><button type="button" className={styles.secondaryButton} disabled={savingSearch} onClick={()=>void saveSearch()}><Bookmark size={14}/>{savingSearch?"Saving…":"Save search"}</button><button className={styles.primaryButton} disabled={searching}>{searching?<RefreshCw size={14} className={styles.spin}/>:<Search size={14}/>}{searching?"Searching…":"Find matching roles"}</button></div></div>
     </form>
     {error&&<p className={styles.error} role="alert">{error}</p>}{notice&&<p className={styles.notice} role="status"><Check size={14}/>{notice}</p>}
     {discoverySummary&&<div className={styles.resultSummary}><div><strong>{discoverySummary.fetched}</strong><small>found on board</small></div><div><strong>{discoverySummary.matched_filters}</strong><small>matched filters</small></div><div><strong>{discoverySummary.saved}</strong><small>newly saved</small></div><div><strong>{discoverySummary.duplicates_or_invalid}</strong><small>duplicates skipped</small></div></div>}
