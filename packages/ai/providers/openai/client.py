@@ -1,4 +1,8 @@
+from typing import Literal, cast
+
 from openai import AsyncOpenAI
+from openai.types.responses import EasyInputMessageParam
+
 from apps.api.app.core.config import get_settings
 from packages.ai.providers.base import AIProvider, GenerationRequest, GenerationResult
 
@@ -6,7 +10,7 @@ from packages.ai.providers.base import AIProvider, GenerationRequest, Generation
 class OpenAIProvider(AIProvider):
     name = "openai"
 
-    def __init__(self):
+    def __init__(self) -> None:
         settings = get_settings()
         if not settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY is missing")
@@ -18,10 +22,26 @@ class OpenAIProvider(AIProvider):
         self.model = settings.openai_default_model
 
     async def generate(self, request: GenerationRequest) -> GenerationResult:
+        messages: list[EasyInputMessageParam] = []
+        allowed_roles = {"user", "assistant", "system", "developer"}
+        for message in request.messages:
+            role = message.get("role")
+            content = message.get("content")
+            if role not in allowed_roles or not isinstance(content, str):
+                raise ValueError("AI messages require a supported role and string content")
+            messages.append(
+                {
+                    "role": cast(
+                        Literal["user", "assistant", "system", "developer"], role
+                    ),
+                    "content": content,
+                }
+            )
+
         response = await self.client.responses.create(
             model=request.model or self.model,
             instructions=request.system or "",
-            input=request.messages,
+            input=messages,
             max_output_tokens=request.max_tokens,
         )
         usage = response.usage
