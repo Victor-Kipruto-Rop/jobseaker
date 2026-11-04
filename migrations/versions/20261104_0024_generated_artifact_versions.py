@@ -17,8 +17,15 @@ def upgrade():
     op.add_column("generated_artifacts", sa.Column("job_description_sha256", sa.String(64), nullable=False, server_default=""))
     op.add_column("generated_artifacts", sa.Column("parent_artifact_id", sa.Integer(), sa.ForeignKey("generated_artifacts.id", ondelete="SET NULL"), nullable=True))
     op.create_index("ix_generated_artifact_user_type_version", "generated_artifacts", ["user_id", "artifact_type", "version_number"])
+    op.create_index(
+        "uq_tailored_resume_version", "generated_artifacts",
+        ["user_id", "source_resume_id", "job_description_sha256", "version_number"],
+        unique=True, sqlite_where=sa.text("artifact_type = 'tailored_resume'"),
+        postgresql_where=sa.text("artifact_type = 'tailored_resume'"),
+    )
 
 def downgrade():
+    op.drop_index("uq_tailored_resume_version", table_name="generated_artifacts")
     op.drop_index("ix_generated_artifact_user_type_version", table_name="generated_artifacts")
     op.drop_column("generated_artifacts", "parent_artifact_id")
     op.drop_column("generated_artifacts", "job_description_sha256")
