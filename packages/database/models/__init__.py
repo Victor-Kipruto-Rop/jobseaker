@@ -6,9 +6,9 @@ from packages.database.models.career import (
     Application, ApplicationEvent, AIConversation, AIMessage, UserAIBudget,
     ProviderPricing, AuditLog, Interview, Notification, SavedSearch, RecommendationInteraction, OAuthState, EmailAccount, EmailMessage, AccountToken, GeneratedArtifact, CareerWorkspaceItem, EventOutbox, EventInbox, ApplicationDispatchKey, RecommendationModel, CandidatePreferenceState, CalendarAccount, CalendarOAuthState,
 )
-from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference, AssistantFeedback
+from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference, AssistantFeedback, AssistantEntity, AssistantRelation
 __all__ = ["Base", "Opportunity", "Approval", "AIUsage", "AIUsageReservation", "User", "UserSession",
 "CandidateProfile", "CandidateSkill", "ResumeDocument", "Company", "Recruiter", "CandidateOpportunity",
 "Application", "ApplicationEvent", "AIConversation", "AIMessage", "UserAIBudget",
 "ProviderPricing", "AuditLog", "Interview", "Notification", "SavedSearch", "RecommendationInteraction", "OAuthState", "EmailAccount", "EmailMessage", "AccountToken", "GeneratedArtifact", "CareerWorkspaceItem", "EventOutbox", "EventInbox", "ApplicationDispatchKey", "RecommendationModel", "CandidatePreferenceState", "CalendarAccount", "CalendarOAuthState",
-"AssistantMemory", "AssistantFact", "AssistantPreference", "AssistantFeedback"]
+"AssistantMemory", "AssistantFact", "AssistantPreference", "AssistantFeedback", "AssistantEntity", "AssistantRelation"]
