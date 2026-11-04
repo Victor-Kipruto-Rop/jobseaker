@@ -69,7 +69,42 @@ def upgrade():
     )
     op.create_index("ix_assistant_feedback_user_id", "assistant_feedback", ["user_id"])
 
+
+    op.create_table(
+        "assistant_entities",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("entity_type", sa.String(40), nullable=False),
+        sa.Column("name", sa.String(240), nullable=False),
+        sa.Column("normalized_name", sa.String(240), nullable=False),
+        sa.Column("attributes", sa.JSON(), nullable=False, server_default="{}"),
+        sa.Column("source_memory_id", sa.Integer(), sa.ForeignKey("assistant_memories.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.UniqueConstraint("user_id", "entity_type", "normalized_name", name="uq_assistant_entity_user_type_name"),
+    )
+    op.create_index("ix_assistant_entities_user_id", "assistant_entities", ["user_id"])
+    op.create_table(
+        "assistant_relations",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("source_entity_id", sa.Integer(), sa.ForeignKey("assistant_entities.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("target_entity_id", sa.Integer(), sa.ForeignKey("assistant_entities.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("relation_type", sa.String(60), nullable=False),
+        sa.Column("confidence", sa.Float(), nullable=False, server_default="0.7"),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.UniqueConstraint("user_id", "source_entity_id", "target_entity_id", "relation_type", name="uq_assistant_relation_edge"),
+    )
+    op.create_index("ix_assistant_relations_user_id", "assistant_relations", ["user_id"])
+    op.create_index("ix_assistant_relations_source_entity_id", "assistant_relations", ["source_entity_id"])
+    op.create_index("ix_assistant_relations_target_entity_id", "assistant_relations", ["target_entity_id"])
+
 def downgrade():
+    op.drop_index("ix_assistant_relations_target_entity_id", table_name="assistant_relations")
+    op.drop_index("ix_assistant_relations_source_entity_id", table_name="assistant_relations")
+    op.drop_index("ix_assistant_relations_user_id", table_name="assistant_relations")
+    op.drop_table("assistant_relations")
+    op.drop_index("ix_assistant_entities_user_id", table_name="assistant_entities")
+    op.drop_table("assistant_entities")
     op.drop_index("ix_assistant_feedback_user_id", table_name="assistant_feedback")
     op.drop_table("assistant_feedback")
     op.drop_index("ix_assistant_preferences_user_id", table_name="assistant_preferences")
