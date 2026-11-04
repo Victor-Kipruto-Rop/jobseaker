@@ -32,7 +32,7 @@ export default function AssistantPage(){
    </div>
    <form onSubmit={e=>{e.preventDefault();void send();}} style={{maxWidth:900,width:"calc(100% - 40px)",margin:"0 auto 24px",display:"flex",gap:10,background:"#fff",padding:10,border:"1px solid #dce8e0",borderRadius:18,boxShadow:"0 8px 30px rgba(22,70,46,.06)"}}>
     <textarea value={input} onChange={e=>setInput(e.target.value)} rows={2} placeholder="Ask your career assistant anything…" style={{flex:1,border:0,outline:0,resize:"none",padding:10,font: "inherit",color:"#17352a"}}/>
-    <button disabled={busy||!input.trim()} style={{...sendButton,opacity:busy||!input.trim()?.5:1}} aria-label="Send message"><Send size={17}/></button>
+    <button disabled={busy||!input.trim()} style={{...sendButton,opacity:(busy||!input.trim())?0.5:1}} aria-label="Send message"><Send size={17}/></button>
    </form>
   </section>
   <aside style={{background:"#fff",borderLeft:"1px solid #e3ebe6",padding:22,overflowY:"auto"}}>
