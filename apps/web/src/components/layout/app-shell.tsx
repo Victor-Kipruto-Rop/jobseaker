@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
@@ -43,7 +43,26 @@ const accountNav: NavigationItem[] = [
 export default function AppShell({ children, user, onLogout }: AppShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const displayName = user?.full_name?.trim() || user?.email?.split("@")[0] || "Your account";
+  const [sessionUser, setSessionUser] = useState(user ?? null);
+  useEffect(() => {
+    if (user !== undefined) { setSessionUser(user); return; }
+    let active = true;
+    void fetch(API + "/api/v1/auth/me", { credentials: "include", cache: "no-store" })
+      .then(async response => {
+        if (response.status === 401) { window.location.assign("/login"); return null; }
+        if (!response.ok) throw new Error("Unable to verify account session");
+        return response.json();
+      })
+      .then(data => { if (active && data) setSessionUser(data); })
+      .catch(() => { if (active) window.location.assign("/login"); });
+    return () => { active = false; };
+  }, [user]);
+  async function defaultLogout() {
+    await fetch(API + "/api/v1/auth/logout", { method: "POST", credentials: "include", headers: { "X-CSRF-Token": csrf() }, cache: "no-store" });
+    window.location.assign("/login");
+  }
+  const displayUser = sessionUser ?? user;
+  const displayName = displayUser?.full_name?.trim() || displayUser?.email?.split("@")[0] || "Your account";
   const initials = displayName.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join("") || "JS";
 
   function navGroup(title: string, items: NavigationItem[]) {
@@ -81,8 +100,8 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
         <div className={styles.securityNote}><ShieldCheck size={16} /><span>Private by design<br/><small>External actions require approval</small></span></div>
         <div className={styles.userRow}>
           <span className={styles.avatar}>{initials}</span>
-          <span className={styles.userIdentity}><strong>{displayName}</strong><small>{user?.email || "Signed-in account"}</small></span>
-          {onLogout && <button className={styles.logoutButton} onClick={onLogout} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button>}
+          <span className={styles.userIdentity}><strong>{displayName}</strong><small>{displayUser?.email || "Signed-in account"}</small></span>
+          <button className={styles.logoutButton} onClick={onLogout || (() => void defaultLogout())} aria-label="Sign out" title="Sign out"><LogOut size={17} /></button>
         </div>
       </div>
     </aside>
@@ -96,7 +115,7 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
           <a href="/profile" className={styles.topAvatar} aria-label="Profile">{initials}</a>
         </div>
       </header>
-      <main className={styles.content}>{children}</main>
+      <div className={styles.content}>{children}</div>
     </div>
   </div>;
 }
