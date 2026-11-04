@@ -21,6 +21,7 @@ def upgrade():
     else:
         op.add_column("assistant_memories", sa.Column("embedding_vector", sa.JSON(), nullable=True))
     op.add_column("assistant_memories", sa.Column("content_encrypted", sa.Boolean(), nullable=False, server_default=sa.false()))
+    op.add_column("assistant_facts", sa.Column("fact_value_encrypted", sa.Boolean(), nullable=False, server_default=sa.false()))
     op.add_column("assistant_entities", sa.Column("aliases", sa.JSON(), nullable=False, server_default="[]"))
     op.create_table(
         "assistant_ingestion_jobs",
@@ -50,6 +51,7 @@ def downgrade():
     op.drop_index("ix_assistant_ingestion_jobs_job_id", table_name="assistant_ingestion_jobs")
     op.drop_table("assistant_ingestion_jobs")
     op.drop_column("assistant_entities", "aliases")
+    op.drop_column("assistant_facts", "fact_value_encrypted")
     op.drop_column("assistant_memories", "content_encrypted")
     if op.get_bind().dialect.name == "postgresql":
         op.execute("DROP INDEX IF EXISTS ix_assistant_memory_embedding_hnsw")
