@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import CareerIntelligence from "../../components/workspace/career-intelligence";
 
-export default function LegacyWorkspaceRoute() {
-  redirect("/dashboard");
+export default function AnalyticsPage() {
+  return <CareerIntelligence mode="analytics" />;
 }
