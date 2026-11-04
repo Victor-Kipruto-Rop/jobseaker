@@ -2,6 +2,7 @@ from collections import defaultdict
 from functools import lru_cache
 from threading import Lock
 from time import monotonic, time
+from uuid import uuid4
 from typing import cast
 
 from fastapi import HTTPException
@@ -14,12 +15,18 @@ from apps.api.app.core.config import get_settings
 _local_events: dict[str, list[float]] = defaultdict(list)
 _local_lock = Lock()
 _last_local_prune = 0.0
-_INCREMENT_WITH_EXPIRY = """
-local current = redis.call('INCR', KEYS[1])
-if current == 1 then
-    redis.call('EXPIRE', KEYS[1], ARGV[1])
+_SLIDING_WINDOW = """
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now - window)
+local count = redis.call('ZCARD', KEYS[1])
+if count >= limit then
+    return count
 end
-return current
+redis.call('ZADD', KEYS[1], now, ARGV[4])
+redis.call('PEXPIRE', KEYS[1], window + 1000)
+return count + 1
 """
 
 
@@ -57,13 +64,16 @@ def enforce_rate_limit(key: str, limit: int = 60, window_seconds: int = 60) -> N
     settings = get_settings()
     try:
         client = _redis_client(settings.redis_url)
-        bucket = int(time() // window_seconds)
-        redis_key = f"jobseeker:rate:{window_seconds}:{bucket}:{key}"
+        now_ms = int(time() * 1000)
+        redis_key = f"jobseeker:rate:sliding:{key}"
         result = client.eval(
-            _INCREMENT_WITH_EXPIRY,
+            _SLIDING_WINDOW,
             1,
             redis_key,
-            str(window_seconds + 2),
+            str(now_ms),
+            str(window_seconds * 1000),
+            str(limit),
+            f"{now_ms}:{uuid4().hex}",
         )
         count = int(cast(str, result))
         if count > limit:
