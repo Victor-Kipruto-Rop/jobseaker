@@ -278,7 +278,7 @@ def create_tailored_artifact(resume_id: int, body: TailoredArtifactRequest,
     """Create a versioned, reviewable resume variant without modifying its source."""
     enforce_rate_limit(f"resume-version:{user.id}", limit=15, window_seconds=3600)
     resume = db.scalar(select(ResumeDocument).where(
-        ResumeDocument.id == resume_id, ResumeDocument.user_id == user.id))
+        ResumeDocument.id == resume_id, ResumeDocument.user_id == user.id).with_for_update())
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
     opportunity = None
