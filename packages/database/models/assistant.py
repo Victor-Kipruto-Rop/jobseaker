@@ -37,6 +37,7 @@ class AssistantFact(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     fact_key: Mapped[str] = mapped_column(String(160))
     fact_value: Mapped[str] = mapped_column(Text)
+    fact_value_encrypted: Mapped[bool] = mapped_column(Boolean, default=False)
     confidence: Mapped[float] = mapped_column(default=0.7)
     source_memory_id: Mapped[int | None] = mapped_column(ForeignKey("assistant_memories.id", ondelete="SET NULL"), nullable=True)
     verified_by_user: Mapped[bool] = mapped_column(default=False)
