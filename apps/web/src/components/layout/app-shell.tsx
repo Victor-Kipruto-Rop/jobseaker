@@ -31,7 +31,7 @@ const navGroups = [
   { heading: "WORKSPACE", items: [
     { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
     { label: "Discover jobs", href: "/opportunities", icon: Compass },
-    { label: "Saved opportunities", href: "/opportunities?view=saved", icon: Bookmark },
+    { label: "Saved opportunities", href: "/saved-opportunities", icon: Bookmark },
     { label: "Applications", href: "/applications", icon: BriefcaseBusiness },
     { label: "Interviews", href: "/interviews", icon: CalendarCheck },
   ]},
