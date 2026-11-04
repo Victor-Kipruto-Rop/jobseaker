@@ -1,7 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 
-import httpx
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
