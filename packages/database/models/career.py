@@ -203,6 +203,9 @@ class CandidateOpportunity(Base):
     salary_min: Mapped[float | None] = mapped_column(Float, nullable=True)
     salary_max: Mapped[float | None] = mapped_column(Float, nullable=True)
     required_skills: Mapped[list] = mapped_column(JSON, default=list)
+    semantic_embedding: Mapped[list] = mapped_column(JSON, default=list)
+    embedding_model: Mapped[str] = mapped_column(String(120), default="")
+    embedding_text_hash: Mapped[str] = mapped_column(String(64), default="")
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     application_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(40), default="discovered", index=True)
@@ -291,3 +294,25 @@ class CareerWorkspaceItem(Base):
     metadata_json: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class RecommendationInteraction(Base):
+    """User-owned behavioral events used for recommendations and bandit feedback."""
+    __tablename__ = "recommendation_interactions"
+    __table_args__ = (
+        Index("ix_recommendation_interactions_user_created", "user_id", "created_at"),
+        Index("ix_recommendation_interactions_item_event", "item_key", "event_type"),
+        Index("ix_recommendation_interactions_source_event", "recommendation_source", "event_type"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    opportunity_id: Mapped[int | None] = mapped_column(
+        ForeignKey("candidate_opportunities.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    item_key: Mapped[str] = mapped_column(String(2200), index=True)
+    event_type: Mapped[str] = mapped_column(String(32), index=True)
+    recommendation_source: Mapped[str] = mapped_column(String(40), default="")
+    position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dwell_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    feature_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
