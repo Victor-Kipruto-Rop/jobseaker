@@ -629,3 +629,21 @@ Current PR head at this documentation update: `8ff103fcc5f55310dbb0682b070e18ba9
 
 
 Final company-enrichment hardening commit: `c00154fb6c6d52d82cc54f7fef6d42d4823d8d40`. The commit-associated workflow lookup returned no runs for this exact head. No tests or builds have been executed by this environment.
+
+
+## Final review follow-up (2026-11-04)
+
+Source review found and fixed two issues before handoff:
+
+- Application updates now re-load the linked opportunity under the current user's ownership boundary before serializing the response, so employer logo, favicon, domain, description and brand color remain present after editing notes or status.
+- Removed an unused Python import and corrected literal escaped-newline characters in the opportunity page, including preserving the intended newline-delimited keyword regex.
+
+The latest source commits include:
+- `0b63e35d270ad9ab91b39553cb3761afad547498` — preserve company branding after application updates.
+- `836c4a7736b0f1d74f26eaa23ef15fb6197e39c5` — normalize escaped newlines in the opportunities page.
+- `3698bf952fabfd1e24c88773767f39e6fbfc4bdb` — restore the escaped newline keyword delimiter.
+- `510b6e948dbd9d805faf4ac73c9a2cdc23cfce6f` — remove unused connector import.
+
+Actions associated with commit `0b63e35d270ad9ab91b39553cb3761afad547498` returned CI run [41803989173](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41803989173) and Secret scan run [41803989168](https://github.com/Victor-Kipruto-Rop/jobseaker/actions/runs/41803989168). The CI jobs (Python, Web and Docker) and Gitleaks job are marked failed, but the GitHub integration returned `steps: null` and no job-log URLs for all of them. These results do not reveal whether setup, source checks or the runner failed. No subsequent workflow run was returned for commit `510b6e948dbd9d805faf4ac73c9a2cdc23cfce6f`.
+
+**Release decision: NOT VERIFIED.** Do not merge or deploy based on source review alone. Execute the full CI workflow and the local authenticated discovery/application flow, including migration `20261104_0009`, against the current branch head. Validate actual Greenhouse and Lever boards with and without published brand assets. Company details are intentionally limited to public metadata exposed by the two supported ATS sources; broad web-wide company enrichment and other ATS providers are not implemented.
