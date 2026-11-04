@@ -46,7 +46,8 @@ def account(user: User = Depends(get_current_user), db: Session = Depends(get_db
             "scopes": row.scopes, "read_only": True}
 
 @router.post("/sync")
-def sync(background_tasks: BackgroundTasks, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def sync(user: User = Depends(get_current_user), db: Session = Depends(get_db),
+         background_tasks: BackgroundTasks = BackgroundTasks()):
     enforce_rate_limit(f"gmail-sync:{user.id}", limit=10, window_seconds=3600)
     try:
         result = sync_messages(db, user.id, limit=200)
