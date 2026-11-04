@@ -31,6 +31,7 @@ def enqueue_event(
     envelope = {
         "event_id": identifier, "event_type": topic, "schema_version": schema_version,
         "occurred_at": now.isoformat(), "producer": producer, "data": payload,
+        "trace_context": inject_trace_context(),
     }
     db.add(EventOutbox(
         event_id=identifier, topic=topic, partition_key=partition_key,
