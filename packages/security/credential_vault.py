@@ -128,3 +128,9 @@ def credential_key_id(token: str) -> str:
         if len(parts) == 3 and parts[1]:
             return parts[1]
     raise ValueError("Unsupported or malformed credential ciphertext")
+
+
+def credential_needs_rotation(token: str) -> bool:
+    """Return whether a versioned ciphertext should be rewrapped with the active key."""
+    _, active_id = _keyring()
+    return credential_key_id(token) != active_id
