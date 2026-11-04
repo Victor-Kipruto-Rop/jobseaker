@@ -45,7 +45,9 @@ The assistant cannot submit applications, send email, change application lifecyc
 - Memory starts disabled. Enabling it requires a configured encryption keyring.
 - Configure `JOBSEEKER_CREDENTIAL_KEYRING` and `JOBSEEKER_CREDENTIAL_ACTIVE_KEY_ID`, or the supported legacy `JOBSEEKER_CREDENTIAL_KEK`, in the deployment secret manager. Do not commit key material.
 - Retain old key IDs during key rotation until stored ciphertext has been rewrapped.
-- New episodic memories receive a 365-day expiry by default; the owner's 30-to-730-day retention setting is persisted and applied to future memories as well as existing ones.
+- New episodic memories receive a 365-day expiry by default; the owner's 30-to-730-day retention setting is persisted and applied to future memories and still-active existing memories. Expired memories are never revived by increasing retention.
+- The worker periodically purges expired episodic rows and dependent extracted facts/graph nodes. Expired derived facts and graph nodes are excluded from context and export even before the cleanup pass.
+- Searchable embeddings remain derived query vectors rather than ciphertext; protect them with the same database network, access-control and storage-encryption boundary. Raw content, summaries, facts, preferences, feedback corrections and upload payloads are encrypted.
 - Users can export their memory and facts, pause memory, cancel queued ingestion, or delete memories, facts and graph relations. Deletion disables memory and clears pending encrypted ingestion payloads.
 - Graph entity labels and selected operational metadata remain structured database fields. Protect the database with TLS, encrypted storage, restricted service credentials and managed backups.
 
