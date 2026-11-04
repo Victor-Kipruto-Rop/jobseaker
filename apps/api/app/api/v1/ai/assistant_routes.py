@@ -2,7 +2,7 @@
 from __future__ import annotations
 import asyncio, logging
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -15,7 +15,6 @@ from packages.database.models.assistant_jobs import AssistantIngestionJob
 from packages.assistant.orchestration import plan_agent_steps, execute_plan, plan_trace
 from packages.security.credential_vault import encrypt_credential, decrypt_credential
 from packages.assistant.engine import sanitize, remember, retrieve, build_context, plan_tools, adapt_preferences, embedding
-from packages.assistant.ingestion import parse_document, MAX_BYTES
 from packages.ai.providers.base import GenerationRequest
 from packages.ai.providers.router import generate_with_fallback
 from packages.ai.budget import AIQuotaExceeded, reserve_ai_tokens, finish_ai_reservation, record_ai_usage
@@ -123,7 +122,10 @@ async def assistant_chat(body: AssistantChat, user: User = Depends(get_current_u
 @router.get("/assistant/memory")
 def memory_overview(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     facts = db.scalars(select(AssistantFact).where(AssistantFact.user_id==user.id,AssistantFact.active.is_(True)).order_by(AssistantFact.updated_at.desc()).limit(100)).all()
-    count = db.scalar(select(func.count(AssistantMemory.id)).where(AssistantMemory.user_id==user.id)) or 0
+    count = db.scalar(select(func.count(AssistantMemory.id)).where(
+        AssistantMemory.user_id == user.id,
+        (AssistantMemory.expires_at.is_(None) | (AssistantMemory.expires_at > datetime.now(timezone.utc)))
+    )) or 0
     pref = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id==user.id))
     return {"enabled":pref.memory_enabled if pref else False,"episodic_count":int(count),
         "retention_days":pref.memory_retention_days if pref else 365,
@@ -186,34 +188,6 @@ def delete_memory(user:User=Depends(get_current_user),db:Session=Depends(get_db)
         preference.feedback_count = 0
     db.commit()
     return {"deleted":True}
-
-@router.post("/assistant/ingest")
-async def ingest_knowledge_file(
-    file: UploadFile = File(...),
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    pref = db.scalar(select(AssistantPreference).where(AssistantPreference.user_id == user.id))
-    if not pref or not pref.memory_enabled:
-        raise HTTPException(status_code=409, detail="Enable assistant memory before adding personal documents.")
-    payload = await file.read(MAX_BYTES + 1)
-    try:
-        extracted = parse_document(file.filename or "upload", file.content_type or "", payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.exception("Assistant document ingestion failed")
-        raise HTTPException(status_code=422, detail="The uploaded file could not be parsed.") from exc
-    finally:
-        await file.close()
-    clean = sanitize(extracted)
-    if len(clean.strip()) < 20:
-        raise HTTPException(status_code=422, detail="No usable text could be extracted from this file.")
-    memory_id = remember(db, user.id, clean, source="document")
-    db.commit()
-    return {"ingested": True, "memory_id": memory_id, "characters_indexed": len(clean),
-            "filename": (file.filename or "upload")[:255], "source_type": "document"}
-
 
 @router.get("/assistant/memory/export")
 def export_assistant_memory(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
