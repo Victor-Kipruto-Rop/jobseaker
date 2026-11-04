@@ -12,11 +12,14 @@ def ocr_image(data: bytes) -> str:
     except ImportError as exc:
         raise RuntimeError('Install document OCR dependencies and the Tesseract binary') from exc
     Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
-    with Image.open(BytesIO(data)) as image:
-        if image.width * image.height > MAX_IMAGE_PIXELS:
-            raise ValueError("Image exceeds the OCR pixel limit")
-        image = ImageOps.exif_transpose(image).convert("RGB")
-        return pytesseract.image_to_string(image, timeout=30)[:500_000]
+    try:
+        with Image.open(BytesIO(data)) as image:
+            if image.width * image.height > MAX_IMAGE_PIXELS:
+                raise ValueError("Image exceeds the OCR pixel limit")
+            image = ImageOps.exif_transpose(image).convert("RGB")
+            return pytesseract.image_to_string(image, timeout=30)[:500_000]
+    except Image.DecompressionBombError as exc:
+        raise ValueError("Image exceeds the OCR pixel limit") from exc
 
 def ocr_pdf(data: bytes, max_pages: int = MAX_OCR_PAGES) -> str:
     try:
