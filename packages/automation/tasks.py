@@ -37,9 +37,27 @@ async def _fetch_saved_searches(searches, concurrency: int = 5):
                     if source == "greenhouse"
                     else discover_lever(board, 100)
                 )
-                items, profile = await asyncio.gather(
-                    jobs_task, discover_company_profile(source, board)
+                items, profile_result = await asyncio.gather(
+                    jobs_task,
+                    discover_company_profile(source, board),
+                    return_exceptions=True,
                 )
+                # Job ingestion must not fail just because an employer's public
+                # branding page is unavailable. The job-board feed is the source
+                # of truth for vacancies; enrichment is best-effort.
+                if isinstance(items, BaseException):
+                    raise items
+                if isinstance(profile_result, BaseException):
+                    profile = {
+                        "company": config.get("company_name") or board.replace("-", " ").title(),
+                        "company_website": "", "company_domain": "", "company_logo_url": "",
+                        "company_favicon_url": "", "company_description": "",
+                        "company_brand_color": "", "company_brand_source": "",
+                        "company_social_links": {}, "company_industry": "",
+                        "company_headquarters": "",
+                    }
+                else:
+                    profile = profile_result
                 enriched_config = {**config, "_company_profile": profile}
                 return search_id, user_id, enriched_config, items, None
             except Exception as exc:  # noqa: BLE001 - isolate failures per external job-board source
