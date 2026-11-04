@@ -2,12 +2,12 @@ import { Activity, ArrowRight, BriefcaseBusiness, ChartNoAxesCombined, FileText,
 import styles from "./home.module.css";
 
 const features = [
-  { icon: Target, title: "Opportunity intelligence", description: "Discover roles from supported job boards, preserve original listings and compare skill evidence." },
+  { icon: Target, title: "Opportunity discovery", description: "Discover roles from supported job boards, preserve original listings and compare skill evidence." },
   { icon: Sparkles, title: "Explainable AI assistance", description: "Turn profile evidence into useful role insights and editable career drafts, with you in control." },
   { icon: BriefcaseBusiness, title: "Application operations", description: "Track every opportunity through a clear lifecycle, from first review to final outcome." },
   { icon: FileText, title: "CV and career studio", description: "Keep your source documents organized and create role-specific drafts you can review and edit." },
-  { icon: Users, title: "Recruiter workspace", description: "Organize employer research, recruiter conversations and interview preparation in one place." },
-  { icon: ChartNoAxesCombined, title: "Career analytics", description: "Understand your own pipeline and activity using account-linked records, not invented benchmarks." },
+  { icon: Users, title: "Career profile", description: "Keep your professional profile, skills, CV documents and preparation materials together." },
+  { icon: ChartNoAxesCombined, title: "Career overview", description: "See your own application pipeline and activity using account-linked records." },
 ];
 
 export default function Home() {
@@ -27,10 +27,10 @@ export default function Home() {
       <div className={styles.preview} aria-label="Illustrative dashboard preview">
         <div className={styles.previewTop}><span>CAREER WORKSPACE / OVERVIEW</span><span className={styles.live}>PRODUCT PREVIEW</span></div>
         <div className={styles.previewBody}>
-          <div className={styles.previewCard}><div className={styles.previewLabel}>OPPORTUNITY DISCOVERY</div><div className={styles.previewNumber}>01</div><div className={styles.previewHint}>Find roles with evidence</div></div>
-          <div className={styles.previewCard}><div className={styles.previewLabel}>APPLICATION CONTROL</div><div className={styles.previewNumber}>02</div><div className={styles.previewHint}>Keep every next step visible</div></div>
-          <div className={styles.chartCard}><div className={styles.chartHead}><strong>Career activity</strong><span className={styles.chartLegend}>Discovery · Applications</span></div><svg className={styles.chart} viewBox="0 0 520 142" role="img" aria-label="Illustrative career activity chart"><path d="M0 112H520M0 78H520M0 44H520M0 10H520" stroke="#26372c" strokeWidth="1" strokeDasharray="3 5" fill="none"/><path d="M0 108 C45 105 55 83 100 90 S155 70 200 79 S260 44 300 60 S365 29 405 43 S470 18 520 25" stroke="#75d99d" strokeWidth="3" fill="none" strokeLinecap="round"/><path d="M0 123 C45 120 55 110 100 114 S155 94 200 102 S260 85 300 93 S365 75 405 81 S470 65 520 72" stroke="#527d60" strokeWidth="2" fill="none" strokeLinecap="round"/><path d="M0 108 C45 105 55 83 100 90 S155 70 200 79 S260 44 300 60 S365 29 405 43 S470 18 520 25V142H0Z" fill="#5fc887" opacity=".08"/></svg></div>
-          <div className={styles.pipelineCard}><div className={styles.chartHead}><strong>Application lifecycle</strong><span className={styles.chartLegend}>Illustrative workflow</span></div>{[["Discover",92],["Review",72],["Prepare",48],["Interview",26]].map(([label,width])=><div className={styles.pipelineLine} key={String(label)}><span>{label}</span><div className={styles.track}><div className={styles.bar} style={{width:String(width)+"%"}}/></div><span>→</span></div>)}</div>
+          <div className={styles.previewCard}><div className={styles.previewLabel}>OPPORTUNITY LIBRARY</div><div className={styles.previewNumber}>Discover</div><div className={styles.previewHint}>Company feeds · Skill evidence · Saved roles</div></div>
+          <div className={styles.previewCard}><div className={styles.previewLabel}>APPLICATION MANAGER</div><div className={styles.previewNumber}>Track</div><div className={styles.previewHint}>Stages · Notes · Approval requests</div></div>
+          <div className={styles.chartCard}><div className={styles.chartHead}><strong>Career activity</strong><span className={styles.chartLegend}>Illustrative workspace view</span></div><svg className={styles.chart} viewBox="0 0 520 142" role="img" aria-label="Illustrative career activity chart"><path d="M0 112H520M0 78H520M0 44H520M0 10H520" stroke="#26372c" strokeWidth="1" strokeDasharray="3 5" fill="none"/><path d="M0 108 C45 105 55 83 100 90 S155 70 200 79 S260 44 300 60 S365 29 405 43 S470 18 520 25" stroke="#75d99d" strokeWidth="3" fill="none" strokeLinecap="round"/><path d="M0 123 C45 120 55 110 100 114 S155 94 200 102 S260 85 300 93 S365 75 405 81 S470 65 520 72" stroke="#527d60" strokeWidth="2" fill="none" strokeLinecap="round"/><path d="M0 108 C45 105 55 83 100 90 S155 70 200 79 S260 44 300 60 S365 29 405 43 S470 18 520 25V142H0Z" fill="#5fc887" opacity=".08"/></svg></div>
+          <div className={styles.pipelineCard}><div className={styles.chartHead}><strong>Career workspace</strong><span className={styles.chartLegend}>Illustrative layout · not live data</span></div><div className={styles.previewLinks}><span>Profile & skills</span><span>CV library</span><span>Next actions</span><span>Career drafts</span></div></div>
         </div>
       </div>
     </section>
