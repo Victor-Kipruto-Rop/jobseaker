@@ -51,6 +51,6 @@ def reserve_application_dispatch(
 
 
 def complete_application_dispatch(db: Session, row: ApplicationDispatchKey) -> None:
-    row.status = "completed"
+    row.status = "candidate_confirmed"
     row.completed_at = datetime.now(timezone.utc)
     db.flush()
