@@ -4,9 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import {
-  Activity, Bell, BriefcaseBusiness, ChevronDown,
-  FileText, LayoutDashboard, LogOut, Menu, Search, Settings2, ShieldCheck,
-  Target, X, CheckCheck
+  Activity, Bell, BriefcaseBusiness, ChevronDown, FileText, LayoutDashboard,
+  LogOut, Menu, Search, Settings2, ShieldCheck, Target, X, CheckCheck, WandSparkles
 } from "lucide-react";
 import styles from "./app-shell.module.css";
 
@@ -23,14 +22,28 @@ async function api(path: string, init: RequestInit = {}) {
   if (init.method) headers.set("X-CSRF-Token", csrf());
   return fetch(API + path, { ...init, headers, credentials: "include", cache: "no-store" });
 }
-const nav = [
-  { label: "Overview", href: "/dashboard", icon: LayoutDashboard, section: "YOUR WORKSPACE" },
-  { label: "Opportunities", href: "/opportunities", icon: Target, section: "YOUR WORKSPACE" },
-  { label: "Applications", href: "/applications", icon: BriefcaseBusiness, section: "YOUR WORKSPACE" },
-  { label: "Career profile", href: "/profile", icon: FileText, section: "YOUR WORKSPACE" },
-  { label: "Settings", href: "/settings", icon: Settings2, section: "ACCOUNT" },
+
+const navGroups = [
+  {
+    heading: "WORKSPACE",
+    items: [
+      { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Opportunities", href: "/opportunities", icon: Target },
+      { label: "Applications", href: "/applications", icon: BriefcaseBusiness },
+    ],
+  },
+  {
+    heading: "CAREER DEVELOPMENT",
+    items: [
+      { label: "Career profile", href: "/profile", icon: FileText },
+      { label: "Career studio", href: "/career-studio", icon: WandSparkles },
+    ],
+  },
+  {
+    heading: "ACCOUNT",
+    items: [{ label: "Settings", href: "/settings", icon: Settings2 }],
+  },
 ];
-const labels: Record<string,string> = { "/dashboard":"Overview", "/opportunities":"Opportunities", "/applications":"Applications", "/profile":"Career profile", "/settings":"Settings" };
 
 export default function AppShell({ children, user, onLogout }: AppShellProps) {
   const pathname = usePathname();
@@ -63,14 +76,22 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
 
   const loadNotices = useCallback(async () => {
     setNoticeBusy(true);
-    try { const response = await api("/api/v1/notifications"); if (response.ok) setNotices(await response.json()); }
-    catch { setNotices([]); }
+    try {
+      const response = await api("/api/v1/notifications");
+      if (!response.ok) throw new Error("Notifications are unavailable.");
+      const data = await response.json();
+      setNotices(Array.isArray(data) ? data : []);
+    } catch { setNotices([]); }
     finally { setNoticeBusy(false); }
   }, []);
 
   const unread = useMemo(() => notices.filter(item => !item.read_at).length, [notices]);
   const displayName = sessionUser?.full_name?.trim() || sessionUser?.email?.split("@")[0] || "Your account";
   const initials = displayName.split(/[\s._-]+/).filter(Boolean).slice(0,2).map(part => part[0]?.toUpperCase()).join("") || "JS";
+  const activeItem = navGroups.flatMap(group => group.items).find(item =>
+    pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"))
+  );
+  const activeLabel = activeItem?.label || "Workspace";
 
   async function defaultLogout() {
     try { await api("/api/v1/auth/logout", { method: "POST" }); }
@@ -87,32 +108,31 @@ export default function AppShell({ children, user, onLogout }: AppShellProps) {
     if (next) await loadNotices();
   }
 
-  const activeLabel = labels[pathname] || "Overview";
   return <div className={styles.frame}>
     {mobileOpen && <button className={styles.scrim} aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
     <aside className={mobileOpen ? styles.sidebarOpen : styles.sidebar}>
       <a href="/dashboard" className={styles.brand}>
         <span className={styles.brandSymbol}><Activity size={18} strokeWidth={2.2}/></span>
-        <span className={styles.brandName}>jobseeker<span>.</span><small>INTELLIGENCE</small></span>
+        <span className={styles.brandName}>jobseeker<span>.</span><small>CAREER INTELLIGENCE</small></span>
       </a>
       <div className={styles.workspaceCard}>
         <span className={styles.workspaceAvatar}>{initials.slice(0,1)}</span>
-        <span className={styles.workspaceMeta}><strong>Career workspace</strong><small>Personal account</small></span>
+        <span className={styles.workspaceMeta}><strong>Personal workspace</strong><small>Private career records</small></span>
         <ChevronDown size={15}/>
       </div>
       <nav className={styles.navigation} aria-label="Main navigation">
-        <p className={styles.navHeading}>YOUR WORKSPACE</p>
-        {nav.slice(0,4).map(({label,href,icon:Icon}) => {
-          const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href + "/"));
-          return <a key={href} href={href} onClick={() => setMobileOpen(false)} className={active ? styles.navActive : styles.navLink} aria-current={active ? "page" : undefined}>
-            <Icon size={17} strokeWidth={1.8}/><span>{label}</span>{label === "Applications" && approvalCount > 0 && <em className={styles.navCount}>{approvalCount}</em>}
-          </a>;
-        })}
-        <p className={styles.navHeading}>ACCOUNT</p>
-        <a href="/settings" onClick={() => setMobileOpen(false)} className={pathname === "/settings" ? styles.navActive : styles.navLink} aria-current={pathname === "/settings" ? "page" : undefined}><Settings2 size={17}/><span>Settings</span></a>
+        {navGroups.map(group => <div className={styles.navGroup} key={group.heading}>
+          <p className={styles.navHeading}>{group.heading}</p>
+          {group.items.map(({label,href,icon:Icon}) => {
+            const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href + "/"));
+            return <a key={href} href={href} onClick={() => setMobileOpen(false)} className={active ? styles.navActive : styles.navLink} aria-current={active ? "page" : undefined}>
+              <Icon size={17} strokeWidth={1.8}/><span>{label}</span>{label === "Applications" && approvalCount > 0 && <em className={styles.navCount}>{approvalCount}</em>}
+            </a>;
+          })}
+        </div>)}
       </nav>
       <div className={styles.sidebarBottom}>
-        <div className={styles.assurance}><ShieldCheck size={16}/><span><strong>Your actions stay yours</strong><small>External actions need your approval</small></span></div>
+        <div className={styles.assurance}><ShieldCheck size={16}/><span><strong>Your actions stay yours</strong><small>External actions always require your approval</small></span></div>
         <div className={styles.accountRow}>
           <span className={styles.userAvatar}>{initials}</span>
           <span className={styles.accountDetails}><strong>{displayName}</strong><small>{sessionUser?.email || "Signed-in account"}</small></span>
