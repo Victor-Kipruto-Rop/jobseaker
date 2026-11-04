@@ -1,0 +1,67 @@
+.page{max-width:1380px;margin:0 auto;display:grid;gap:19px;color:#293a30}
+.header{display:flex;align-items:flex-end;justify-content:space-between;gap:22px}
+.eyebrow,.microLabel{font-size:8px;font-weight:800;letter-spacing:1.65px;color:#879487}
+.header h1{max-width:760px;margin:10px 0 8px;color:#2e4034;font-family:Georgia,"Times New Roman",serif;font-size:clamp(29px,3vw,39px);font-weight:500;letter-spacing:-1.1px;line-height:1.12}
+.header p{max-width:740px;margin:0;color:#79877c;font-size:12px;line-height:1.7}
+.refresh,.trackButton,.saveButton,.openButton,.quietButton{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid transparent;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;transition:transform .16s ease,background .16s ease,border-color .16s ease}
+.refresh{height:38px;padding:0 13px;border-color:#dfe8de;background:#fff;color:#41674b;white-space:nowrap}
+.refresh:hover,.saveButton:hover,.quietButton:hover,.openButton:hover{transform:translateY(-1px);border-color:#b9cdb9}
+.refresh:disabled,.trackButton:disabled,.saveButton:disabled{opacity:.55;cursor:wait}
+.spinning,.loader{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.error,.notice{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:7px;font-size:11px}
+.error{border:1px solid #f0d2c9;background:#fff9f7;color:#9a4837}.notice{border:1px solid #d8e9d9;background:#f7fbf6;color:#416c49}
+.error button,.notice button{margin-left:auto;border:0;background:transparent;color:inherit;font-weight:700;cursor:pointer}
+.profileBand{display:flex;align-items:center;gap:22px;padding:16px 18px;border:1px solid #e3eae1;border-radius:9px;background:#fff}
+.profileIdentity{display:flex;align-items:center;gap:12px;flex:1;min-width:220px}
+.profileIcon{display:grid;place-items:center;width:38px;height:38px;border-radius:8px;background:#eef5ed;color:#47744e}
+.profileIdentity>div{display:grid;gap:4px}.profileIdentity strong{font-size:12px;color:#344b39}.profileIdentity p{margin:0;color:#879387;font-size:10px}
+.profileStat{display:grid;gap:5px;min-width:95px;border-left:1px solid #edf0eb;padding-left:18px}
+.profileStat span{font-size:9px;color:#899589}.profileStat strong{font-size:12px;color:#3d5c43}
+.profileLink{display:inline-flex;align-items:center;gap:5px;color:#47744e;text-decoration:none;font-size:10px;font-weight:700;white-space:nowrap}
+.intelligenceStrip{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.intelligenceStrip>div{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid #e7ece5;border-radius:7px;background:#fbfcfa;color:#789078;font-size:10px}
+.intelligenceStrip strong{color:#385b40;font-size:12px}
+.feedHeading{display:flex;align-items:flex-end;justify-content:space-between;gap:15px;margin-top:5px}
+.feedHeading h2,.algorithmPanel h2{margin:7px 0 5px;font-family:Georgia,"Times New Roman",serif;font-size:24px;font-weight:500;color:#304436}
+.feedHeading p,.algorithmPanel p{margin:0;color:#849084;font-size:10px;line-height:1.6}
+.resultCount{padding:6px 10px;border:1px solid #e5ebe3;border-radius:20px;color:#6c806f;font-size:9px;background:#fff}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.filters button{padding:8px 11px;border:1px solid #e3e9e1;border-radius:5px;background:#fff;color:#748176;font-size:9px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.filters button:hover{border-color:#b9cdb8;color:#42684a}.filters .filterActive{border-color:#557b5b;background:#edf5ec;color:#3d6644}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.jobCard{display:grid;align-content:start;gap:12px;padding:17px;border:1px solid #e4eae2;border-radius:9px;background:#fff;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.jobCard:hover{transform:translateY(-2px);border-color:#cbdac9;box-shadow:0 8px 24px rgba(42,72,46,.06)}
+.cardTop{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.companyIdentity{display:flex;align-items:center;gap:10px;min-width:0}
+.logo,.monogram{width:37px;height:37px;flex:0 0 37px;border:1px solid #edf0eb;border-radius:8px;object-fit:contain;background:#fff}
+.monogram{display:grid;place-items:center;background:#f0f5ef;color:#456b4a;font-size:15px;font-weight:700}
+.companyIdentity>div{display:grid;gap:4px;min-width:0}.companyIdentity strong{overflow:hidden;color:#45594a;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.companyIdentity span{color:#929d92;font-size:9px}
+.matchScore{display:grid;justify-items:end;gap:2px;min-width:57px}.matchScore strong{color:#3d7048;font-size:20px;font-variant-numeric:tabular-nums}.matchScore span{color:#91a092;font-size:8px}
+.jobCard h3{margin:0;color:#2f4135;font-size:16px;font-weight:700;letter-spacing:-.2px;line-height:1.35}
+.meta{display:flex;align-items:center;gap:8px 13px;flex-wrap:wrap;color:#7e8a7f;font-size:9px}.meta span{display:inline-flex;align-items:center;gap:4px}
+.reasonBlock{padding:10px 11px;border-left:2px solid #83a184;background:#f8faf7}
+.reasonLabel{font-size:8px;font-weight:800;letter-spacing:1.2px;color:#80927f}
+.reasonBlock ul{display:grid;gap:4px;margin:7px 0 0;padding-left:14px;color:#566a58;font-size:9px;line-height:1.5}
+.skillLine,.gapLine{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.skillLine>span,.gapLine>span{margin-right:3px;color:#879287;font-size:8px;font-weight:700}
+.skillLine i,.gapLine i{padding:4px 6px;border-radius:4px;background:#eef5ed;color:#547256;font-size:8px;font-style:normal}
+.gapLine i{background:#f5f3eb;color:#8b7b51}.dataGap{margin:0;color:#9a8c6a;font-size:8px}
+.cardFooter{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:10px;border-top:1px solid #eff2ed}
+.sourceTag{color:#8a9689;font-size:8px;text-transform:capitalize}.actions{display:flex;align-items:center;gap:5px}
+.quietButton{padding:7px 8px;background:#fff;color:#879186;border-color:#e7ece5;font-size:8px}
+.saveButton{padding:7px 9px;background:#fff;color:#55765a;border-color:#dce7da;font-size:8px}
+.trackButton{padding:8px 10px;background:#466d4d;color:#fff;font-size:8px}.trackButton:hover{background:#355b3d;transform:translateY(-1px)}
+.openButton{width:29px;height:28px;background:#fff;color:#66806a;border-color:#e4ebe2}
+.empty,.loading{display:grid;justify-items:center;gap:10px;padding:42px 20px;border:1px dashed #dce6da;border-radius:9px;background:#fbfcfa;color:#829083;text-align:center}
+.empty strong,.loading strong{color:#425846;font-size:13px}.empty p,.loading p{margin:0;color:#89958a;font-size:10px}
+.empty a{display:inline-flex;align-items:center;gap:5px;color:#4e7754;text-decoration:none;font-size:10px;font-weight:700}
+.loader{width:22px;height:22px;border:2px solid #e1e9df;border-top-color:#5b825f;border-radius:50%}
+.algorithmPanel{display:grid;gap:15px;padding:18px;border:1px solid #e3eae1;border-radius:9px;background:#fbfcfa}
+.algorithmGrid{display:flex;gap:7px;flex-wrap:wrap}
+.algorithm{display:inline-flex;align-items:center;gap:6px;padding:7px 9px;border:1px solid #e5ebe3;border-radius:5px;background:#fff;color:#6e7f70;font-size:8px}
+.algorithm i{width:6px;height:6px;border-radius:50%;background:#76a17b}.algorithm b{color:#4f7454;font-size:8px;font-weight:700}
+.algorithmWarming i{background:#c2a56b}.algorithmWarming b{color:#947e52}
+.algorithmPanel small{color:#929d91;font-size:8px;line-height:1.6}
+@media(max-width:1050px){.profileBand{flex-wrap:wrap}.profileIdentity{flex-basis:100%}.profileStat{flex:1}.profileLink{margin-left:auto}}
+@media(max-width:760px){.header{align-items:flex-start;flex-direction:column}.refresh{height:35px}.intelligenceStrip{grid-template-columns:1fr}.cards{grid-template-columns:1fr}.profileBand{gap:13px}.profileStat{min-width:40%;padding-left:10px}.cardFooter{align-items:flex-start;flex-direction:column}.actions{width:100%;flex-wrap:wrap}.trackButton{flex:1}.feedHeading h2{font-size:22px}}
+@media(prefers-reduced-motion:reduce){.jobCard,.refresh,.saveButton,.quietButton,.openButton,.trackButton{transition:none}.spinning,.loader{animation:none}}
