@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import pickle
 from datetime import datetime, timezone
 from typing import Any
+
+import pandas as pd
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -83,8 +84,10 @@ def train_and_register_ranker(db: Session, *, min_rows: int = 100) -> dict[str, 
     x_train = [[item["features"][name] for name in FEATURE_NAMES] for item in train]
     x_valid = [[item["features"][name] for name in FEATURE_NAMES] for item in validation]
     y_valid = [item["label"] for item in validation]
-    model.fit(x_train, y_train)
-    scores = [float(value) for value in model.predict_proba(x_valid)[:, 1]]
+    model.fit(pd.DataFrame(x_train, columns=FEATURE_NAMES), y_train)
+    scores = [float(value) for value in model.predict_proba(
+        pd.DataFrame(x_valid, columns=FEATURE_NAMES)
+    )[:, 1]]
     metrics = {
         "validation_auc": _auc(y_valid, scores),
         "validation_ndcg_at_10": _ndcg_at_k(y_valid, scores),
