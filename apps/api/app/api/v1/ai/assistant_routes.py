@@ -13,7 +13,7 @@ from packages.database.models.career import AIConversation, AIMessage, Applicati
 from packages.database.models.assistant import AssistantMemory, AssistantFact, AssistantPreference, AssistantFeedback, AssistantEntity, AssistantRelation
 from packages.database.models.assistant_jobs import AssistantIngestionJob
 from packages.assistant.orchestration import plan_agent_steps, execute_plan, plan_trace
-from packages.security.credential_vault import encrypt_credential
+from packages.security.credential_vault import encrypt_credential, decrypt_credential
 from packages.assistant.engine import sanitize, remember, retrieve, build_context, plan_tools, adapt_preferences, embedding
 from packages.assistant.ingestion import parse_document, MAX_BYTES
 from packages.ai.providers.base import GenerationRequest
@@ -207,3 +207,33 @@ async def ingest_knowledge_file(
     db.commit()
     return {"ingested": True, "memory_id": memory_id, "characters_indexed": len(clean),
             "filename": (file.filename or "upload")[:255], "source_type": "document"}
+
+
+@router.get("/assistant/memory/export")
+def export_assistant_memory(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    rows = db.scalars(select(AssistantMemory).where(
+        AssistantMemory.user_id == user.id).order_by(AssistantMemory.created_at.asc())).all()
+    facts = db.scalars(select(AssistantFact).where(
+        AssistantFact.user_id == user.id, AssistantFact.active.is_(True))).all()
+    memories = []
+    for row in rows:
+        content = decrypt_credential(row.content, purpose=f"assistant-memory:{user.id}") if row.content_encrypted else row.content
+        memories.append({"id": row.id, "source": row.source, "content": content,
+                         "created_at": row.created_at.isoformat() if row.created_at else None,
+                         "expires_at": row.expires_at.isoformat() if row.expires_at else None})
+    return {"exported_at": datetime.now(timezone.utc).isoformat(), "memories": memories,
+            "facts": [{"key": item.fact_key, "value": item.fact_value,
+                       "confidence": item.confidence, "verified": item.verified_by_user}
+                      for item in facts]}
+
+@router.patch("/assistant/memory/retention")
+def set_memory_retention(days: int, user: User = Depends(get_current_user),
+                         db: Session = Depends(get_db)):
+    if days < 30 or days > 730:
+        raise HTTPException(status_code=422, detail="Retention must be between 30 and 730 days.")
+    from datetime import timedelta
+    expiry = datetime.now(timezone.utc) + timedelta(days=days)
+    db.query(AssistantMemory).filter(AssistantMemory.user_id == user.id).update(
+        {"expires_at": expiry}, synchronize_session=False)
+    db.commit()
+    return {"retention_days": days, "expires_at": expiry.isoformat()}
