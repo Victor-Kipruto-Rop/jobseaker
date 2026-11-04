@@ -1,76 +1,48 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { Activity, ArrowRight, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import styles from "./login.module.css";
 
-const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-function cookie(name: string) {
-  return document.cookie.split("; ").find(item => item.startsWith(name + "="))?.split("=").slice(1).join("=") || "";
+const API=process.env.NEXT_PUBLIC_API_BASE_URL||"http://localhost:8000";
+function cookie(name:string){return document.cookie.split("; ").find(item=>item.startsWith(name+"="))?.split("=").slice(1).join("=")||"";}
+
+export default function LoginPage(){
+ const [mode,setMode]=useState<"login"|"register">("login");
+ const [email,setEmail]=useState("");const [password,setPassword]=useState("");const [fullName,setFullName]=useState("");
+ const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [showPassword,setShowPassword]=useState(false);
+ useEffect(()=>{void fetch(API+"/api/v1/auth/csrf",{credentials:"include",cache:"no-store"});},[]);
+ async function submit(event:FormEvent){
+  event.preventDefault();setBusy(true);setError("");
+  try{if(!cookie("jobseeker_csrf")){const r=await fetch(API+"/api/v1/auth/csrf",{credentials:"include",cache:"no-store"});if(!r.ok)throw new Error("Unable to initialize secure sign-in. Refresh and try again.");}
+   const token=decodeURIComponent(cookie("jobseeker_csrf"));if(!token)throw new Error("Secure sign-in token is missing. Refresh and try again.");
+   const endpoint=mode==="login"?"login":"register";
+   const response=await fetch(API+"/api/v1/auth/"+endpoint,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json","X-CSRF-Token":token},body:JSON.stringify(mode==="login"?{email,password}:{email,password,full_name:fullName})});
+   const data=await response.json();if(!response.ok)throw new Error(data.detail||"Authentication failed.");window.location.assign("/dashboard");
+  }catch(e){setError(e instanceof Error?e.message:"Unable to authenticate.");}finally{setBusy(false);}
+ }
+ return <main className={styles.layout}>
+  <section className={styles.story}>
+   <a href="/" className={styles.brand}><span><Activity size={18}/></span>jobseeker<span className={styles.brandDot}>.</span></a>
+   <div className={styles.storyCopy}><div className={styles.eyebrow}>A MORE DELIBERATE WAY TO MOVE FORWARD</div><h1>Make your next career move <em>count.</em></h1><p>Bring opportunity discovery, application tracking and your professional evidence into one considered workspace.</p>
+    <div className={styles.storyPoints}><div><CheckCircle2 size={15}/><span>Roles matched against your recorded skills</span></div><div><CheckCircle2 size={15}/><span>Applications tracked through a clear lifecycle</span></div><div><CheckCircle2 size={15}/><span>AI-assisted drafts remain yours to review</span></div></div>
+   </div>
+   <div className={styles.storyFoot}>PRIVATE BY DESIGN <span>·</span> EXPLICIT APPROVAL FOR EXTERNAL ACTIONS</div>
+  </section>
+  <section className={styles.formSide}><div className={styles.formWrap}>
+   <div className={styles.mobileBrand}><span><Activity size={17}/></span>jobseeker<span>.</span></div>
+   <div className={styles.formEyebrow}>{mode==="login"?"YOUR CAREER WORKSPACE":"START WITH YOUR PROFILE"}</div><h2>{mode==="login"?"Welcome back.":"Create your account."}</h2><p className={styles.formIntro}>{mode==="login"?"Sign in to continue where you left off.":"Set up a private workspace for your career search."}</p>
+   <form onSubmit={submit}>
+    {mode==="register"&&<label>Full name<input required minLength={2} maxLength={160} value={fullName} onChange={e=>setFullName(e.target.value)} autoComplete="name" placeholder="Your full name"/></label>}
+    <label>Email address<span className={styles.inputWrap}><Mail size={15}/><input required type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com"/></span></label>
+    <label>Password<span className={styles.inputWrap}><LockKeyhole size={15}/><input required minLength={mode==="register"?12:1} maxLength={128} type={showPassword?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)} autoComplete={mode==="login"?"current-password":"new-password"} placeholder={mode==="register"?"At least 12 characters":"Enter your password"}/><button type="button" onClick={()=>setShowPassword(x=>!x)} aria-label={showPassword?"Hide password":"Show password"}>{showPassword?<EyeOff size={15}/>:<Eye size={15}/>}</button></span></label>
+    {mode==="register"&&<small className={styles.helper}>Use at least 12 characters. Your password is never shown again.</small>}
+    {error&&<p className={styles.error} role="alert">{error}</p>}
+    {mode==="login"&&<div className={styles.forgot}><a href="/forgot-password">Forgot password?</a></div>}
+    <button className={styles.submit} disabled={busy}>{busy?"Please wait…":mode==="login"?"Sign in to workspace":"Create secure account"}<ArrowRight size={15}/></button>
+   </form>
+   <div className={styles.switchMode}>{mode==="login"?"New to JobSeeker?":"Already have an account?"}<button onClick={()=>{setMode(mode==="login"?"register":"login");setError("");}}>{mode==="login"?"Create an account":"Sign in"}</button></div>
+   <div className={styles.formFoot}><LockKeyhole size={12}/> Protected by secure sessions and account-scoped access.</div>
+  </div></section>
+ </main>;
 }
-
-export default function LoginPage() {
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => { void fetch(API + "/api/v1/auth/csrf", { credentials: "include" }); }, []);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      if (!cookie("jobseeker_csrf")) {
-        const csrfResponse = await fetch(API + "/api/v1/auth/csrf", { credentials: "include", cache: "no-store" });
-        if (!csrfResponse.ok) throw new Error("Unable to initialize secure sign-in. Refresh and try again.");
-      }
-      const csrfToken = decodeURIComponent(cookie("jobseeker_csrf"));
-      if (!csrfToken) throw new Error("Secure sign-in token is missing. Refresh and try again.");
-      const endpoint = mode === "login" ? "login" : "register";
-      const response = await fetch(API + "/api/v1/auth/" + endpoint, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
-        body: JSON.stringify(mode === "login" ? { email, password } : { email, password, full_name: fullName }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || "Authentication failed");
-      window.location.assign("/dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to authenticate");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return <main className={styles.loginLayout}>
-    <section className={styles.heroPanel}>
-      <a href="/" style={{color:"#54d69a",fontWeight:800,fontSize:22,textDecoration:"none"}}>JobSeeker<span style={{color:"#edf5ef"}}>.</span></a>
-      <div style={{maxWidth:620}}>
-        <p style={{color:"#54d69a",letterSpacing:3,fontSize:12}}>CAREER OPERATIONS INTELLIGENCE</p>
-        <h1 className={styles.heroTitle}>Build a more intentional career.</h1>
-        <p style={{color:"#a7b8ad",fontSize:18,lineHeight:1.8}}>Discover opportunities, understand your strengths and organize every application in one secure workspace.</p>
-      </div>
-      <small style={{color:"#708579"}}>Your data stays tied to your account. External actions remain approval-gated.</small>
-    </section>
-    <section style={{display:"grid",placeItems:"center",padding:28}}>
-      <form onSubmit={submit} style={{width:"100%",maxWidth:400,background:"#111a16",border:"1px solid #25352d",borderRadius:20,padding:28}}>
-        <p style={{color:"#54d69a",fontSize:12,letterSpacing:2}}>{mode === "login" ? "WELCOME BACK" : "CREATE YOUR ACCOUNT"}</p>
-        <h2 style={{fontSize:30,margin:"8px 0 24px"}}>{mode === "login" ? "Sign in" : "Get started"}</h2>
-        {mode === "register" && <label style={{display:"block",fontSize:13,color:"#a7b8ad",marginBottom:14}}>Full name<input required minLength={2} maxLength={160} value={fullName} onChange={e=>setFullName(e.target.value)} autoComplete="name" style={field}/></label>}
-        <label style={{display:"block",fontSize:13,color:"#a7b8ad",marginBottom:14}}>Email address<input required type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" style={field}/></label>
-        <label style={{display:"block",fontSize:13,color:"#a7b8ad",marginBottom:8}}>Password<input required minLength={mode === "register" ? 12 : 1} maxLength={128} type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} style={field}/></label>
-        {mode === "register" && <small style={{color:"#81958a"}}>Use at least 12 characters.</small>}
-        {error && <p role="alert" style={{color:"#ff9b87",fontSize:13}}>{error}</p>}
-        {mode === "login" && <p style={{textAlign:"right",fontSize:12}}><a href="/forgot-password" style={{color:"#54d69a"}}>Forgot password?</a></p>}
-        <button disabled={busy} type="submit" style={{width:"100%",marginTop:20,padding:14,background:"#54d69a",border:0,borderRadius:10,fontWeight:800,color:"#07110c",cursor:"pointer"}}>{busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}</button>
-        <p style={{textAlign:"center",fontSize:13,color:"#a7b8ad",marginTop:22}}>{mode === "login" ? "New to JobSeeker?" : "Already have an account?"} <button type="button" onClick={()=>{setMode(mode==="login"?"register":"login");setError("");}} style={{background:"none",border:0,color:"#54d69a",cursor:"pointer",fontWeight:700}}>{mode==="login"?"Create account":"Sign in"}</button></p>
-      </form>
-    </section>
-  </main>;
-}
-
-const field: React.CSSProperties = {display:"block",width:"100%",marginTop:7,padding:12,background:"#09110d",color:"#edf5ef",border:"1px solid #34483c",borderRadius:9,outline:"none"};
