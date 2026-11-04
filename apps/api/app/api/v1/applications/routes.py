@@ -6,12 +6,13 @@ from sqlalchemy.orm import Session
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.database.models.identity import User
 from packages.database.models.career import (
-    Application, ApplicationEvent, CandidateOpportunity, RecommendationInteraction, ATSApplicationDraft, AuditLog,
+    Application, ApplicationEvent, CandidateOpportunity, RecommendationInteraction, ATSApplicationDraft, ATSActionApproval, AuditLog,
 )
 from packages.integrations.url_validation import validate_http_url
 from packages.events.outbox import enqueue_event
 from packages.applications.email_intent import classify_email
 from packages.automation.ats_mapping import build_mapping
+from packages.automation.browser_adapter import action_digest
 from packages.security.credential_vault import encrypt_credential, decrypt_credential
 import hashlib
 import json
@@ -203,6 +204,55 @@ def approve_ats_draft(application_id: int, body: ATSDraftApproval,
             "mapping_sha256": digest, "candidate_confirmed": True,
             "external_submission_performed": False,
             "next_step": "Review and manually enter the approved values in the external ATS"}
+
+
+class ATSActionApprovalRequest(BaseModel):
+    confirm: bool = False
+
+@router.post("/{application_id}/ats-draft/actions/{field_id}/approve")
+def approve_ats_field_action(application_id: int, field_id: str,
+                             body: ATSActionApprovalRequest,
+                             user: User = Depends(get_current_user),
+                             db: Session = Depends(get_db)):
+    """Approve exactly one immutable ATS field fill, not the whole external submission."""
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail="Explicit per-action confirmation is required")
+    draft = db.scalar(select(ATSApplicationDraft).where(
+        ATSApplicationDraft.application_id == application_id,
+        ATSApplicationDraft.user_id == user.id).with_for_update())
+    if not draft or draft.status != "approved" or not draft.candidate_confirmed:
+        raise HTTPException(status_code=409, detail="Approve the complete ATS mapping before approving field actions")
+    mapping = next((dict(item) for item in (draft.mappings or [])
+                    if str(item.get("field_id")) == field_id), None)
+    if not mapping or mapping.get("status") != "proposed":
+        raise HTTPException(status_code=404, detail="Approved field mapping not found")
+    ciphertext = mapping.get("value_ciphertext")
+    if not ciphertext:
+        raise HTTPException(status_code=409, detail="Field value is not available for secure execution")
+    value = decrypt_credential(ciphertext, purpose="ats-field-value")
+    digest = action_digest(application_id, draft.mapping_sha256, field_id,
+                           str(mapping.get("label") or ""), value)
+    existing = db.scalar(select(ATSActionApproval).where(
+        ATSActionApproval.user_id == user.id,
+        ATSActionApproval.application_id == application_id,
+        ATSActionApproval.field_id == field_id).with_for_update())
+    if existing:
+        if existing.action_digest != digest:
+            raise HTTPException(status_code=409, detail="Field value changed; regenerate and review the ATS draft")
+        return {"status": existing.status, "field_id": field_id,
+                "action_digest": digest, "idempotent": True}
+    approval = ATSActionApproval(
+        user_id=user.id, application_id=application_id, draft_id=draft.id,
+        field_id=field_id, action_digest=digest, status="approved",
+    )
+    db.add(approval)
+    db.add(AuditLog(user_id=user.id, action="ats.field_action_approved",
+                    resource_type="application", resource_id=str(application_id),
+                    metadata_json={"field_id": field_id, "action_digest": digest}))
+    db.commit()
+    return {"status": "approved", "field_id": field_id, "action_digest": digest,
+            "external_action_executed": False,
+            "execution_policy": "one_approved_fill_action_only"}
 
 @router.get("")
 def list_applications(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
