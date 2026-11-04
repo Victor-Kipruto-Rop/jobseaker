@@ -262,6 +262,7 @@ def test_approval_requests_are_private_to_the_requesting_user(db, users):
 
 def test_gmail_oauth_state_is_owner_bound_and_single_use(db, users, monkeypatch):
     owner, other = users
+    owner.is_verified = True
     raw_state = "state-for-owner-account-123456789"
     import hashlib
     from datetime import datetime, timedelta, timezone
@@ -450,3 +451,20 @@ async def test_ai_chat_and_cv_tailoring_cannot_use_another_users_sources(db, use
             db,
         )
     assert cv_error.value.status_code == 404
+
+
+
+def test_gmail_authorization_does_not_persist_state_when_provider_config_is_invalid(db, users, monkeypatch):
+    owner, _ = users
+    owner.is_verified = True
+    db.flush()
+    monkeypatch.setattr(
+        gmail_client,
+        "_flow",
+        lambda state: (_ for _ in ()).throw(RuntimeError("OAuth configuration unavailable")),
+    )
+
+    with pytest.raises(RuntimeError):
+        gmail_client.create_authorization(db, owner.id)
+
+    assert db.scalars(select(OAuthState).where(OAuthState.user_id == owner.id)).all() == []
