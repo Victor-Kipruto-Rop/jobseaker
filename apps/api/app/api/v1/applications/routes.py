@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -81,7 +81,7 @@ def list_applications(user: User = Depends(get_current_user), db: Session = Depe
     return [_serialize(row, opportunities.get(row.opportunity_id)) for row in rows]
 
 @router.post("", status_code=201)
-async def create_application(body: ApplicationCreate, user: User = Depends(get_current_user),
+async def create_application(body: ApplicationCreate, background_tasks: BackgroundTasks, user: User = Depends(get_current_user),
                        db: Session = Depends(get_db)):
     if body.opportunity_id is not None:
         owned = db.scalar(select(CandidateOpportunity).where(
@@ -111,13 +111,14 @@ async def create_application(body: ApplicationCreate, user: User = Depends(get_c
                             event_type="application.created", details={"status": "draft"}))
     db.commit()
     db.refresh(row)
-    await publish_event("application.status_changed", {
+    background_tasks.add_task(publish_event, "application.status_changed", {
         "user_id": user.id, "application_id": row.id, "from": None, "to": "draft",
     }, key=str(row.id))
     return _serialize(row, owned if body.opportunity_id is not None else None)
 
 @router.patch("/{application_id}")
 async def update_application(application_id: int, body: ApplicationUpdate,
+                       background_tasks: BackgroundTasks,
                        user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     row = db.scalar(select(Application).where(
         Application.id == application_id, Application.user_id == user.id))
@@ -153,7 +154,8 @@ async def update_application(application_id: int, body: ApplicationUpdate,
                                 details={"fields": changed_fields}))
     db.commit()
     if status and status != before:
-        await publish_event(
+        background_tasks.add_task(
+            publish_event,
             "application.dispatched" if status == "submitted" else "application.status_changed",
             {"user_id": user.id, "application_id": row.id, "from": before, "to": status},
             key=str(row.id),
