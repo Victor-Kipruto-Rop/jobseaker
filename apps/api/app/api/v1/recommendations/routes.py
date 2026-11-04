@@ -12,7 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from apps.api.app.core.redis_limits import enforce_rate_limit
-from packages.events.kafka import publish_event
+from packages.events.outbox import enqueue_event
 from apps.api.app.dependencies import get_current_user, get_db
 from packages.ai.agents.job_matching.agent import JOB_SKILL_TAXONOMY
 from packages.database.models.identity import User
@@ -354,11 +354,11 @@ def record_impressions(
             feature_snapshot=event.feature_snapshot,
         ))
     db.add_all(rows)
-    db.commit()
-    background_tasks.add_task(publish_event, "user.activity", {
+    enqueue_event(db, "user.activity", {
         "user_id": user.id, "event_type": "impression_batch",
         "count": len(rows), "item_keys": [row.item_key for row in rows],
-    }, key=str(user.id))
+    }, partition_key=str(user.id))
+    db.commit()
     return {"status": "recorded", "count": len(rows)}
 
 
@@ -462,12 +462,14 @@ def record_interaction(
         feature_snapshot=snapshot,
     )
     db.add(event)
-    db.commit()
-    background_tasks.add_task(publish_event, "user.activity", {
-        "user_id": user.id, "event_id": event.id, "item_key": key,
+    db.flush()
+    enqueue_event(db, "user.activity", {
+        "user_id": user.id, "interaction_id": event.id, "item_key": key,
         "event_type": body.event_type, "recommendation_source": body.recommendation_source,
-        "position": body.position,
-    }, key=str(user.id))
+        "position": body.position, "dwell_seconds": body.dwell_seconds,
+        "feature_snapshot": snapshot,
+    }, partition_key=str(user.id))
+    db.commit()
     return {"status": "recorded", "event_id": event.id,
             "opportunity_id": row.id if row else (body.opportunity_id if body.opportunity_id else None),
             "item_key": key}
