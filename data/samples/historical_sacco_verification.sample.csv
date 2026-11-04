@@ -1,0 +1,3 @@
+institution_code,institution_name,county,verification_status,verification_date,source_reference
+SYN-SAC-001,Example Cooperative Society,Nairobi,example_only,2026-01-15,https://example.invalid/registry
+SYN-SAC-002,Sample Savings Society,Kajiado,example_only,2026-02-15,https://example.invalid/registry
