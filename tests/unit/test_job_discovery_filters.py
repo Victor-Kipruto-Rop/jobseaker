@@ -138,3 +138,26 @@ def test_job_posting_timestamp_parser_accepts_epoch_and_iso_values():
     iso = _epoch_datetime("2024-01-02T03:04:05Z")
     assert epoch is not None and epoch.year == 2023
     assert iso is not None and iso.isoformat() == "2024-01-02T03:04:05+00:00"
+
+
+def test_saved_search_job_import_survives_company_profile_fetch_failure(monkeypatch):
+    import asyncio
+    from packages.automation import tasks
+
+    async def jobs(board, limit):
+        return [{"title": "Data Engineer", "source_url": "https://jobs.example/role"}]
+
+    async def broken_profile(source, board):
+        raise RuntimeError("public company page unavailable")
+
+    monkeypatch.setattr(tasks, "discover_greenhouse", jobs)
+    monkeypatch.setattr(tasks, "discover_company_profile", broken_profile)
+    result = asyncio.run(tasks._fetch_saved_searches([
+        (1, 7, {"source": "greenhouse", "board": "acme"})
+    ]))
+    search_id, user_id, config, items, error = result[0]
+    assert (search_id, user_id) == (1, 7)
+    assert error is None
+    assert len(items) == 1
+    assert config["_company_profile"]["company"] == "Acme"
+    assert config["_company_profile"]["company_logo_url"] == ""
