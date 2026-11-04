@@ -95,6 +95,9 @@ def semantic_chunks(text: str, max_chars: int = 1400) -> list[str]:
     for block in blocks:
         block = block.strip()
         if not block: continue
+        if block.startswith("#") and current:
+            chunks.append(current)
+            current = ""
         if len(block) > max_chars:
             pieces = re.split(r"(?<=\.)\s+", block)
         else: pieces = [block]
@@ -116,7 +119,7 @@ def extract_facts(text: str) -> list[tuple[str, str, float]]:
 
 
 def extractive_summary(text: str, max_chars: int = 500) -> str:
-    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\\s+", text or "") if s.strip()]
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text or "") if s.strip()]
     if not sentences:
         return (text or "")[:max_chars]
     frequencies = Counter(tokens(text))
@@ -134,7 +137,7 @@ def _upsert_graph_fact(db: Session, user_id: int, key: str, value: str, memory_i
         "communication_preference": ("preference", "prefers_style"),
     }
     kind, relation = mapping.get(key, ("fact", "has_fact"))
-    normalized = re.sub(r"\\s+", " ", value.strip().lower())[:240]
+    normalized = re.sub(r"\s+", " ", value.strip().lower())[:240]
     if not normalized:
         return
     candidate = db.scalar(select(AssistantEntity).where(
