@@ -66,7 +66,7 @@ def analyze_recruiter_email(
             r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\b",
             r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+"
             r"\d{1,2}(?:st|nd|rd|th)?[,]?\s+\d{4}\b",
-            r"\b\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?:\s?[A-Z]{2,5}|Z|[+-]\d{2}:?\d{2})?)?\b",
+            r"\b\d{4}-\d{2}-\d{2}(?:(?:[ T]|\s+at\s+)\d{2}:\d{2}(?:\s?[A-Z]{2,5}|Z|[+-]\d{2}:?\d{2})?)?\b",
         )
         for pattern in date_patterns:
             found = re.search(pattern, text, flags=re.IGNORECASE)
