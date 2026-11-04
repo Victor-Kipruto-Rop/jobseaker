@@ -6,16 +6,23 @@ import threading
 import time
 from redis import Redis
 from rq import Queue, Worker
-from packages.assistant.jobs import dispatch_pending_ingestion_jobs
+from packages.assistant.jobs import dispatch_pending_ingestion_jobs, purge_expired_assistant_memory
 
 logger = logging.getLogger(__name__)
 
 def _assistant_dispatch_loop(redis_url: str) -> None:
+    last_purge = 0.0
     while True:
         try:
             dispatch_pending_ingestion_jobs(redis_url, batch_size=20)
         except Exception:
             logger.exception("Assistant ingestion outbox dispatch failed")
+        if time.time() - last_purge >= 3600:
+            try:
+                purge_expired_assistant_memory()
+                last_purge = time.time()
+            except Exception:
+                logger.exception("Assistant memory retention purge failed")
         time.sleep(15)
 
 def main():
