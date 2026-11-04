@@ -5,11 +5,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from apps.api.app.main import app
-from apps.api.app.api.v1.auth.routes import router as auth_router
 from apps.api.app.api.v1.admin.routes import router as admin_router
+from apps.api.app.api.v1.auth.routes import router as auth_router
 from apps.api.app.api.v1.router import candidate_policy
 from apps.api.app.dependencies import get_current_user, get_db
+from apps.api.app.main import app
 from packages.database.models import Base
 from packages.database.models.identity import User
 
