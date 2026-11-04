@@ -125,3 +125,22 @@ The Phase 4 UI remains light-only. It uses white surfaces, warm neutral page bac
 ### Verification gate
 
 GitHub source updates and static inspection do not establish runtime correctness. Run the full Python suite, the cross-user workspace tests, Alembic upgrade from a clean database and from the previous migration head, Ruff, mypy, pnpm frontend type-check/build, Compose validation, and desktop/mobile browser plus accessibility checks against this branch. No external provider calls, outbound email or automatic application submission are enabled by this phase.
+
+
+## Motion and interaction system
+
+The shared light-theme application loads `src/app/motion.css` from the root layout. Motion uses CSS transitions and keyframes without adding a runtime animation dependency.
+
+- Route content receives a short entrance transition.
+- Sidebar width, collapsed state, mobile drawer and navigation states transition smoothly.
+- Menus, search results, command palette and notification surfaces receive a consistent entrance treatment.
+- Buttons, links, form controls and keyboard focus states share common interaction timing.
+- Interactive metric and opportunity surfaces receive subtle hover elevation on pointer devices.
+- Progress indicators transition when their server-backed values change.
+- Shared spin and pulse utility classes are available for loading affordances.
+- Touch devices do not receive hover-only lift effects.
+- `prefers-reduced-motion: reduce` disables nonessential animation and smooth scrolling.
+
+Motion timings are centralized as CSS custom properties. Keep transitions short, avoid animating layout-heavy properties within page content, and do not introduce motion that delays or obscures a user action. Page-specific interactions should reuse this system instead of defining competing timing conventions.
+
+The stylesheet is a shared interaction layer, not evidence of browser-level verification. Run the frontend type-check/build, then manually inspect route changes, sidebar collapse/drawer behavior, menus, form feedback, keyboard focus and reduced-motion mode at desktop and mobile breakpoints.
